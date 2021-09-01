@@ -2718,7 +2718,9 @@ class WT_Assembly(om.ExplicitComponent):
         if modeling_options["flags"]["tower"]:
             n_height_tower = modeling_options["WISDEM"]["TowerSE"]["n_height_tower"]
         else:
-            n_height_tower = 0
+            n_height_tower = 3
+            modeling_options["WISDEM"]["TowerSE"] = {}
+            modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = 3
 
         self.add_input(
             "blade_ref_axis_user",
@@ -2824,3 +2826,5 @@ class WT_Assembly(om.ExplicitComponent):
             else:
                 outputs["hub_height"] = inputs["tower_ref_axis_user"][-1, 2] + inputs["distance_tt_hub"]
                 outputs["tower_ref_axis"] = inputs["tower_ref_axis_user"]
+        else:
+            print("WARNING: without TowerSE, I skip the hub_height from the assembly. SHEAR WILL NOT WORK.")

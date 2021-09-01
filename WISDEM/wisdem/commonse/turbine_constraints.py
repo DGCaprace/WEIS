@@ -64,6 +64,43 @@ class TowerModes(om.ExplicitComponent):
             [min([oneP - (2 - gamma) * f, gamma * f - oneP]) for f in freq_struct]
         ).flatten()
 
+class EmptyTowerModes(om.ExplicitComponent):
+    
+    def initialize(self):
+        self.options.declare("gamma", default=1.1)
+
+    def setup(self):
+        self.add_input("rated_Omega", val=0.0, units="rpm", desc="rotor rotation speed at rated")
+        self.add_input("tower_freq", val=0.0, units="Hz")  # np.zeros(NFREQ),
+        self.add_discrete_input("blade_number", 3)
+
+        # self.add_output(
+        #     "constr_tower_f_NPmargin",
+        #     val=0.0,  # np.zeros(NFREQ),
+        #     desc="constraint on tower frequency such that ratio of 3P/f is above or below gamma with constraint <= 0",
+        # )
+        # self.add_output(
+        #     "constr_tower_f_1Pmargin",
+        #     val=0.0,  # np.zeros(NFREQ),
+        #     desc="constraint on tower frequency such that ratio of 1P/f is above or below gamma with constraint <= 0",
+        # )
+
+        # self.declare_partials("*", "*", method="fd", form="central", step=1e-6)
+
+    def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
+        pass
+        # freq_struct = inputs["tower_freq"]
+        # gamma = self.options["gamma"]
+        # oneP = inputs["rated_Omega"] / 60.0
+        # threeP = oneP * discrete_inputs["blade_number"]
+
+        # outputs["constr_tower_f_NPmargin"] = np.array(
+        #     [min([threeP - (2 - gamma) * f, gamma * f - threeP]) for f in freq_struct]
+        # ).flatten()
+        # outputs["constr_tower_f_1Pmargin"] = np.array(
+        #     [min([oneP - (2 - gamma) * f, gamma * f - oneP]) for f in freq_struct]
+        # ).flatten()
+
 
 class TipDeflectionConstraint(om.ExplicitComponent):
     """
@@ -192,7 +229,14 @@ class TurbineConstraints(om.Group):
     def setup(self):
         modeling_options = self.options["modeling_options"]
 
+#DG: let's just not do this... should be a check here to determine if tower is present or not.
+        # self.add_subsystem(
+        #     "modes", TowerModes(gamma=modeling_options["WISDEM"]["TowerSE"]["gamma_freq"]), promotes=["*"]
+        # )
         self.add_subsystem(
-            "modes", TowerModes(gamma=modeling_options["WISDEM"]["TowerSE"]["gamma_freq"]), promotes=["*"]
+            "modes", EmptyTowerModes(), promotes=["*"]
         )
+        
         self.add_subsystem("tipd", TipDeflectionConstraint(modeling_options=modeling_options), promotes=["*"])
+
+        #todo: add subsystem corresponding to my new fatigue constraint

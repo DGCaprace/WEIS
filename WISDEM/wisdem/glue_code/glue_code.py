@@ -55,7 +55,7 @@ class WT_RNTA(om.Group):
         if modeling_options["flags"]["floating"]:
             self.add_subsystem("floatingse", FloatingSE(modeling_options=modeling_options))
 
-        if modeling_options["flags"]["blade"] and modeling_options["flags"]["tower"]:
+        if modeling_options["flags"]["blade"]: #and modeling_options["flags"]["tower"]:
             self.add_subsystem("tcons", TurbineConstraints(modeling_options=modeling_options))
 
         self.add_subsystem("tcc", Turbine_CostsSE_2015(verbosity=modeling_options["General"]["verbosity"]))

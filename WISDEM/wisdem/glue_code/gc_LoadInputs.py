@@ -69,7 +69,9 @@ class WindTurbineOntologyPython(object):
         if flags["tower"]:
             flags["tower"] = self.modeling_options["WISDEM"]["TowerSE"]["flag"]
         if flags["hub"]:
-            flags["hub"] = self.modeling_options["WISDEM"]["DriveSE"]["flag"]
+            if not self.modeling_options["WISDEM"]["DriveSE"]["flag"]:
+                print("MSG: I used to turn off the hub because DriveSE is off. Let's keep it on.")
+        #     flags["hub"] = self.modeling_options["WISDEM"]["DriveSE"]["flag"]
         if flags["nacelle"]:
             flags["nacelle"] = self.modeling_options["WISDEM"]["DriveSE"]["flag"]
         if flags["generator"]:
