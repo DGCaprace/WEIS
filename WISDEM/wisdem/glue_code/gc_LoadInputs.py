@@ -76,7 +76,9 @@ class WindTurbineOntologyPython(object):
             flags["nacelle"] = self.modeling_options["WISDEM"]["DriveSE"]["flag"]
         if flags["generator"]:
             flags["generator"] = self.modeling_options["WISDEM"]["DriveSE"]["flag"]
-        flags["hub"] = flags["nacelle"] = flags["hub"] or flags["nacelle"]  # Hub and nacelle have to go together
+        if not (flags["hub"] and flags["nacelle"]):
+            print("MSG: I used to turn on hub AND nacelle together. I will now leave it as specified in analysis file.")
+        # flags["hub"] = flags["nacelle"] = flags["hub"] or flags["nacelle"]  # Hub and nacelle have to go together
 
         # Blades and airfoils
         if flags["blade"] and not flags["airfoils"]:

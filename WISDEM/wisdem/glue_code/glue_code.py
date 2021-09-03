@@ -478,7 +478,7 @@ class WT_RNTA(om.Group):
                 self.connect("mooring." + var, "floatingse." + var, src_indices=[0])
 
         # Connections to turbine constraints
-        if modeling_options["flags"]["blade"] and modeling_options["flags"]["tower"]:
+        if modeling_options["flags"]["blade"]: # and modeling_options["flags"]["tower"]:
             self.connect("configuration.rotor_orientation", "tcons.rotor_orientation")
             self.connect("rotorse.rs.tip_pos.tip_deflection", "tcons.tip_deflection")
             self.connect("assembly.rotor_radius", "tcons.Rtip")
@@ -487,11 +487,15 @@ class WT_RNTA(om.Group):
             self.connect("nacelle.uptilt", "tcons.tilt")
             self.connect("nacelle.overhang", "tcons.overhang")
             self.connect("assembly.tower_ref_axis", "tcons.ref_axis_tower")
-            self.connect("tower.diameter", "tcons.d_full")
-            if modeling_options["flags"]["floating"]:
-                self.connect("floatingse.tower_freqs", "tcons.tower_freq", src_indices=[0])
+            if modeling_options["flags"]["tower"]:
+                self.connect("tower.diameter", "tcons.d_full")
+                if modeling_options["flags"]["floating"]:
+                    self.connect("floatingse.tower_freqs", "tcons.tower_freq", src_indices=[0])
+                else:
+                    self.connect("towerse.tower.structural_frequencies", "tcons.tower_freq", src_indices=[0])
             else:
-                self.connect("towerse.tower.structural_frequencies", "tcons.tower_freq", src_indices=[0])
+                print("WARNING: no tower. Will assume diameter is 0, tower_freq is 0.")
+                #alternatively, try to use the static data provided in turbine yaml: 
             self.connect("configuration.n_blades", "tcons.blade_number")
             self.connect("rotorse.rp.powercurve.rated_Omega", "tcons.rated_Omega")
 

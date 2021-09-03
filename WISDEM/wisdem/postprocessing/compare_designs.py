@@ -377,65 +377,66 @@ def create_all_plots(
         pass
 
     # Tower geometry
-    # try:
-    brown = np.array([150.0, 75.0, 0.0]) / 256.0
-    ftow = plt.figure(figsize=(11, 4))
-    ax1 = ftow.add_subplot(121)
-    for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
-        ax1.plot(
-            yaml_data["towerse.tower_outer_diameter"],
-            yaml_data["towerse.z_param"],
-            "-",
-            color=colors[idx],
-            label=label,
-        )
-    vx = ax1.get_xlim()
-    zs = list_of_sims[0]["towerse.z_param"]
-    if zs.min() < -5.0:
-        water_depth = list_of_sims[0]["env.water_depth"]
-        h_trans = list_of_sims[0]["towerse.transition_piece_height"]
-        ax1.plot(vx, np.zeros(2), color="b", linestyle="--")
-        ax1.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
-        ax1.plot(vx, h_trans * np.ones(2), color="g", linestyle="--")
-        ax1.text(vx[0] + 0.02 * np.diff(vx), 2, "Water line", color="b", fontsize=12)
-        ax1.text(vx[0] + 0.02 * np.diff(vx), -water_depth + 2, "Mud line", color=brown, fontsize=12)
-        ax1.text(vx[0] + 0.02 * np.diff(vx), h_trans + 2, "Tower transition", color="g", fontsize=12)
-    ax1.set_xlim(vx)
-    plt.xlabel("Outer Diameter [m]", fontsize=font_size + 2, fontweight="bold")
-    plt.ylabel("Tower Height [m]", fontsize=font_size + 2, fontweight="bold")
-    plt.xticks(fontsize=font_size)
-    plt.yticks(fontsize=font_size)
-    plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
+    try:
+        brown = np.array([150.0, 75.0, 0.0]) / 256.0
+        ftow = plt.figure(figsize=(11, 4))
+        ax1 = ftow.add_subplot(121)
+        for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
+            ax1.plot(
+                yaml_data["towerse.tower_outer_diameter"],
+                yaml_data["towerse.z_param"],
+                "-",
+                color=colors[idx],
+                label=label,
+            )
+        vx = ax1.get_xlim()
+        zs = list_of_sims[0]["towerse.z_param"]
+        if zs.min() < -5.0:
+            water_depth = list_of_sims[0]["env.water_depth"]
+            h_trans = list_of_sims[0]["towerse.transition_piece_height"]
+            ax1.plot(vx, np.zeros(2), color="b", linestyle="--")
+            ax1.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
+            ax1.plot(vx, h_trans * np.ones(2), color="g", linestyle="--")
+            ax1.text(vx[0] + 0.02 * np.diff(vx), 2, "Water line", color="b", fontsize=12)
+            ax1.text(vx[0] + 0.02 * np.diff(vx), -water_depth + 2, "Mud line", color=brown, fontsize=12)
+            ax1.text(vx[0] + 0.02 * np.diff(vx), h_trans + 2, "Tower transition", color="g", fontsize=12)
+        ax1.set_xlim(vx)
+        plt.xlabel("Outer Diameter [m]", fontsize=font_size + 2, fontweight="bold")
+        plt.ylabel("Tower Height [m]", fontsize=font_size + 2, fontweight="bold")
+        plt.xticks(fontsize=font_size)
+        plt.yticks(fontsize=font_size)
+        plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
 
-    ax2 = ftow.add_subplot(122)
-    for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
-        y = yaml_data.get_val("towerse.tower_wall_thickness", "mm")
-        ax2.step(
-            np.r_[y, y[-1]],
-            yaml_data["towerse.z_param"],
-            "-",
-            color=colors[idx],
-            label=label,
-            where="post",
-        )
-    vx = ax2.get_xlim()
-    if zs.min() < -5.0:
-        ax2.plot(vx, np.zeros(2), color="b", linestyle="--")
-        ax2.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
-        ax2.plot(vx, 20 * np.ones(2), color="g", linestyle="--")
-    ax2.set_xlim(vx)
-    if mult_flag:
-        ax2.legend(fontsize=font_size)
-    plt.xlabel("Wall Thickness [mm]", fontsize=font_size + 2, fontweight="bold")
-    plt.xticks(fontsize=font_size)
-    plt.setp(ax2.get_yticklabels(), visible=False)
-    plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
-    plt.subplots_adjust(bottom=0.15, left=0.15)
-    fig_name = "tower_geometry" + extension
-    ftow.subplots_adjust(hspace=0.02, wspace=0.02, bottom=0.15, left=0.15)
-    ftow.savefig(os.path.join(folder_output, fig_name), pad_inches=0.1, bbox_inches="tight")
-    # except KeyError:
-    #    pass
+        ax2 = ftow.add_subplot(122)
+        for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
+            y = yaml_data.get_val("towerse.tower_wall_thickness", "mm")
+            ax2.step(
+                np.r_[y, y[-1]],
+                yaml_data["towerse.z_param"],
+                "-",
+                color=colors[idx],
+                label=label,
+                where="post",
+            )
+        vx = ax2.get_xlim()
+        if zs.min() < -5.0:
+            ax2.plot(vx, np.zeros(2), color="b", linestyle="--")
+            ax2.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
+            ax2.plot(vx, 20 * np.ones(2), color="g", linestyle="--")
+        ax2.set_xlim(vx)
+        if mult_flag:
+            ax2.legend(fontsize=font_size)
+        plt.xlabel("Wall Thickness [mm]", fontsize=font_size + 2, fontweight="bold")
+        plt.xticks(fontsize=font_size)
+        plt.setp(ax2.get_yticklabels(), visible=False)
+        plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
+        plt.subplots_adjust(bottom=0.15, left=0.15)
+        fig_name = "tower_geometry" + extension
+        ftow.subplots_adjust(hspace=0.02, wspace=0.02, bottom=0.15, left=0.15)
+        ftow.savefig(os.path.join(folder_output, fig_name), pad_inches=0.1, bbox_inches="tight")
+    except KeyError:
+        print("Skipping tower geometry.")
+        pass
 
     def simple_plot_results(x_axis_label, y_axis_label, x_axis_data_name, y_axis_data_name, plot_filename):
         f, ax = plt.subplots(1, 1, figsize=(5.3, 4))

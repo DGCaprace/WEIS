@@ -74,16 +74,16 @@ class EmptyTowerModes(om.ExplicitComponent):
         self.add_input("tower_freq", val=0.0, units="Hz")  # np.zeros(NFREQ),
         self.add_discrete_input("blade_number", 3)
 
-        # self.add_output(
-        #     "constr_tower_f_NPmargin",
-        #     val=0.0,  # np.zeros(NFREQ),
-        #     desc="constraint on tower frequency such that ratio of 3P/f is above or below gamma with constraint <= 0",
-        # )
-        # self.add_output(
-        #     "constr_tower_f_1Pmargin",
-        #     val=0.0,  # np.zeros(NFREQ),
-        #     desc="constraint on tower frequency such that ratio of 1P/f is above or below gamma with constraint <= 0",
-        # )
+        self.add_output(
+            "constr_tower_f_NPmargin",
+            val=0.0,  # np.zeros(NFREQ),
+            desc="constraint on tower frequency such that ratio of 3P/f is above or below gamma with constraint <= 0",
+        )
+        self.add_output(
+            "constr_tower_f_1Pmargin",
+            val=0.0,  # np.zeros(NFREQ),
+            desc="constraint on tower frequency such that ratio of 1P/f is above or below gamma with constraint <= 0",
+        )
 
         # self.declare_partials("*", "*", method="fd", form="central", step=1e-6)
 
