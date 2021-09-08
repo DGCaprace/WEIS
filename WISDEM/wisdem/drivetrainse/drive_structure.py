@@ -52,7 +52,7 @@ class Hub_Rotor_LSS_Frame(om.ExplicitComponent):
     hub_system_I : numpy array[6], [kg*m**2]
         Hub system moment of inertia
     F_hub : numpy array[3, n_dlcs], [N]
-        Force vector applied to the hub (WITH WEIGHT???)
+        Force vector applied to the hub (WITH WEIGHT???) #well, currently only aero loads
     M_hub : numpy array[3, n_dlcs], [N*m]
         Moment vector applied to the hub
     s_mb1 : float, [m]

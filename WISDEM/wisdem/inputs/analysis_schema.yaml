@@ -713,6 +713,32 @@ properties:
                             max: *maxstrain
                             index_start: *index_start
                             index_end: *index_end
+                    fatigue_spar_cap_ss:
+                        type: object
+                        default: {}
+                        description: Enforce a maximum allowable strain in the suction-side spar caps caused by fatigue loads
+                        properties:
+                            flag: *flag
+                            max_Ncycle: &maxncycle
+                                type: number
+                                description: Cycle count to fatigue failure
+                                default: 12.e+6
+                                minimum: 1.e+3
+                                maximum: 1.e+18
+                            index_start: *index_start
+                            index_end: *index_end
+                    fatigue_spar_cap_ps:
+                        type: object
+                        default: {}
+                        description: Enforce a maximum allowable strain in the pressure-side spar caps caused by fatigue loads
+                        properties:
+                            flag: *flag
+                            max_Ncycle: *maxncycle
+                            # grid_nd: *del_grid
+                            # del: *dels
+                            index_start: *index_start
+                            index_end: *index_end
+
                     tip_deflection:
                         type: object
                         default: {}

@@ -842,6 +842,44 @@ class PoseOptimization(object):
                     "WARNING: the strains of the pressure-side spar cap are set to be constrained, but spar cap thickness is not an active design variable. The constraint is not enforced."
                 )
 
+        if blade_constr["fatigue_spar_cap_ss"]["flag"]:
+            if blade_opt["structure"]["spar_cap_ss"]["flag"]:
+                if blade_constr["fatigue_spar_cap_ss"]["index_end"] > blade_opt["structure"]["spar_cap_ss"]["n_opt"]:
+                    raise Exception(
+                        "Check the analysis options yaml, index_end of the blade fatigue_spar_cap_ss is higher than the number of DVs n_opt"
+                    )
+                indices_fatigue_spar_cap_ss = range(
+                    blade_constr["fatigue_spar_cap_ss"]["index_start"], blade_constr["fatigue_spar_cap_ss"]["index_end"]
+                )
+                wt_opt.model.add_constraint(
+                    "rotorse.rs.constr.constr_damageU_spar", indices=indices_fatigue_spar_cap_ss, upper=1.0
+                )
+            else:
+                print(
+                    "WARNING: the DELs of the suction-side spar cap are set to be constrained, but spar cap thickness is not an active design variable. The constraint is not enforced."
+                )
+
+        if blade_constr["fatigue_spar_cap_ps"]["flag"]:
+            if (
+                blade_opt["structure"]["spar_cap_ps"]["flag"]
+                or blade_opt["structure"]["spar_cap_ps"]["equal_to_suction"]
+            ):
+                if blade_constr["fatigue_spar_cap_ps"]["index_end"] > blade_opt["structure"]["spar_cap_ps"]["n_opt"]:
+                    raise Exception(
+                        "Check the analysis options yaml, index_end of the blade fatigue_spar_cap_ps is higher than the number of DVs n_opt"
+                    )
+                indices_fatigue_spar_cap_ps = range(
+                    blade_constr["fatigue_spar_cap_ps"]["index_start"], blade_constr["fatigue_spar_cap_ps"]["index_end"]
+                )
+                wt_opt.model.add_constraint(
+                    "rotorse.rs.constr.constr_damageL_spar", indices=indices_fatigue_spar_cap_ps, upper=1.0
+                )
+            else:
+                print(
+                    "WARNING: the DELs of the pressure-side spar cap are set to be constrained, but spar cap thickness is not an active design variable. The constraint is not enforced."
+                )
+
+
         if blade_constr["stall"]["flag"]:
             if blade_opt["aero_shape"]["twist"]["flag"]:
                 wt_opt.model.add_constraint("rotorse.stall_check.no_stall_constraint", upper=1.0)

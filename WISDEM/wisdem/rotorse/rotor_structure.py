@@ -482,7 +482,7 @@ class RunFrame3DD(ExplicitComponent):
         mshapes_y = mshapes_y[:n_freq2, :]
 
         # shear and bending w.r.t. principal axes
-        F3 = np.r_[-forces.Nx[iCase, 0], forces.Nx[iCase, 1::2]]
+        F3 = np.r_[-forces.Nx[iCase, 0], forces.Nx[iCase, 1::2]] #root + end of every subsequent elements
         M1 = np.r_[-forces.Myy[iCase, 0], forces.Myy[iCase, 1::2]]
         M2 = np.r_[-forces.Mzz[iCase, 0], forces.Mzz[iCase, 1::2]]
 
@@ -507,6 +507,95 @@ class RunFrame3DD(ExplicitComponent):
         outputs["M2"] = M2
         outputs["F3"] = F3
         outputs["alpha"] = alpha
+
+
+class ProcessDels(ExplicitComponent):
+    # OpenMDAO component that processes the Damage equivalent loads and moments (DEL/DEMs)
+    def initialize(self):
+        self.options.declare("modeling_options")
+        self.options.declare("opt_options")
+
+    def setup(self):
+        rotorse_options = self.options["modeling_options"]["WISDEM"]["RotorSE"]
+        self.n_span = n_span = rotorse_options["n_span"]
+        
+        self.opt_options = opt_options = self.options["opt_options"]
+
+        #read the DELs:
+        if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
+            self.s_del = opt_options["DELs"]["grid_nd"]
+            self.delx = opt_options["DELs"]["delx"]
+            self.dely = opt_options["DELs"]["dely"]
+            self.delz = opt_options["DELs"]["delz"]
+            self.demx = opt_options["DELs"]["demx"]
+            self.demy = opt_options["DELs"]["demy"]
+            self.demz = opt_options["DELs"]["demz"]
+        else:
+            self.s_del = np.zeros(n_span)
+            self.delx  = np.zeros(n_span)
+            self.dely  = np.zeros(n_span)
+            self.delz  = np.zeros(n_span)
+            self.demx  = np.zeros(n_span)
+            self.demy  = np.zeros(n_span)
+            self.demz  = np.zeros(n_span)
+
+
+        # Inputs strains
+        self.add_input(
+            "alpha",
+            val=np.zeros(n_span),
+            units="deg",
+            desc="Angle between blade c.s. and principal axes",
+        )
+        self.add_input(
+            "s",
+            val=np.zeros(n_span),
+            desc="1D array of the non-dimensional spanwise grid defined along blade axis (0-blade root, 1-blade tip)",
+        )
+        #any other relevant angle ?
+
+        # Outputs
+        self.add_output(
+            "M1",
+            val=np.zeros(n_span),
+            units="N*m",
+            desc="distribution along blade span of bending moment w.r.t principal axis 1",
+        )
+        self.add_output(
+            "M2",
+            val=np.zeros(n_span),
+            units="N*m",
+            desc="distribution along blade span of bending moment w.r.t principal axis 2",
+        )
+        self.add_output(
+            "F3",
+            val=np.zeros(n_span),
+            units="N",
+            desc="axial resultant along blade span",
+        )
+
+    # def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
+    def compute(self, inputs, outputs):
+
+        # I already read the DELs/DEMs. Now let's rotate them as needed, and reinterpolate at the location of "s".
+        #   Note that interpolation at s is not stricly required since we will interpolate a second time in the constraint at the location where we define the fatigue
+        #   constraint. But we would then need to define another component to compute the strain.
+
+        # Constraints on blade strains
+        s = inputs["s"]
+        
+        # self.delx 
+        # self.dely 
+        # self.delz 
+        # self.demx 
+        # self.demy 
+        # self.demz 
+
+        #TODO: rotate as appropriate
+
+        outputs["M1"] = np.interp(s, self.s_del, self.demx)
+        outputs["M2"] = np.interp(s, self.s_del, self.demy)
+        outputs["F3"] = np.interp(s, self.s_del, self.delx)
 
 
 class ComputeStrains(ExplicitComponent):
@@ -729,6 +818,14 @@ class DesignConstraints(ExplicitComponent):
         self.n_opt_spar_cap_ps = n_opt_spar_cap_ps = opt_options["design_variables"]["blade"]["structure"][
             "spar_cap_ps"
         ]["n_opt"]
+
+        self.max_NcycleU_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["max_Ncycle"]
+        self.max_NcycleL_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["max_Ncycle"]
+        # if self.max_NcycleU_spar == np.zeros_like(self.max_NcycleU_spar):
+        #     self.max_NcycleU_spar = np.ones_like(self.max_NcycleU_spar)
+        # if self.max_NcycleL_spar == np.zeros_like(self.max_NcycleL_spar):
+        #     self.max_NcycleL_spar = np.ones_like(self.max_NcycleL_spar)
+
         # Inputs strains
         self.add_input(
             "strainU_spar",
@@ -739,6 +836,16 @@ class DesignConstraints(ExplicitComponent):
             "strainL_spar",
             val=np.zeros(n_span),
             desc="strain in spar cap on lower surface at location xl,yl_strain with loads P_strain",
+        )
+        self.add_input(
+            "fatigue_strainU_spar",
+            val=np.zeros(n_span),
+            desc="strain in spar cap on upper surface at location xu,yu_strain with fatigue loads",
+        )
+        self.add_input(
+            "fatigue_strainL_spar",
+            val=np.zeros(n_span),
+            desc="strain in spar cap on lower surface at location xl,yl_strain with fatigue loads",
         )
 
         self.add_input("min_strainU_spar", val=0.0, desc="minimum strain in spar cap suction side")
@@ -793,6 +900,16 @@ class DesignConstraints(ExplicitComponent):
             desc="constraint for maximum strain in spar cap pressure side",
         )
         self.add_output(
+            "constr_damageU_spar",
+            val=np.zeros(n_opt_spar_cap_ss),
+            desc="constraint for damage in spar cap suction side, due to fatigue loads",
+        )
+        self.add_output(
+            "constr_damageL_spar",
+            val=np.zeros(n_opt_spar_cap_ps),
+            desc="constraint for damage in spar cap pressure side, due to fatigue loads",
+        )
+        self.add_output(
             "constr_flap_f_margin",
             val=np.zeros(n_freq2),
             desc="constraint on flap blade frequency such that ratio of 3P/f is above or below gamma with constraint <= 0",
@@ -827,6 +944,24 @@ class DesignConstraints(ExplicitComponent):
         outputs["constr_max_strainU_spar"] = abs(np.interp(s_opt_spar_cap_ss, s, strainU_spar)) / max_strainU_spar
         # outputs['constr_min_strainL_spar'] = abs(np.interp(s_opt_spar_cap_ps, s, strainL_spar)) / abs(min_strainL_spar)
         outputs["constr_max_strainL_spar"] = abs(np.interp(s_opt_spar_cap_ps, s, strainL_spar)) / max_strainL_spar
+
+
+        # strain based on dels -> done outside and input here
+        fatigue_strainU_spar = inputs["fatigue_strainU_spar"] 
+        fatigue_strainL_spar = inputs["fatigue_strainL_spar"] 
+
+        #TODO: formula in Bryce with m expo?? check pCrunch manual?
+        m = 1. #Wholer exponent
+        # m = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wholer"] #TODO
+        eta = 1.3 #safety factor
+        # eta = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta_fatigue"] #TODO
+        NcycleU =  np.power( abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / max_strainU_spar / eta , m)
+        NcycleL =  np.power( abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / max_strainL_spar / eta , m)
+        outputs["constr_damageU_spar"] = NcycleU / self.max_NcycleU_spar
+        outputs["constr_damageL_spar"] = NcycleL / self.max_NcycleL_spar
+
+        print(outputs["constr_damageU_spar"])
+        
 
         # Constraints on blade frequencies
         threeP = discrete_inputs["blade_number"] * inputs["rated_Omega"] / 60.0
@@ -1221,8 +1356,11 @@ class RotorStructure(Group):
         )
         # self.add_subsystem('aero_storm_1yr',    CCBladeLoads(modeling_options = modeling_options), promotes=promoteListAeroLoads)
         # self.add_subsystem('aero_storm_50yr',   CCBladeLoads(modeling_options = modeling_options), promotes=promoteListAeroLoads)
+
+        #TODO: input DEMs: should this be a subsystem?
+
         # Add centrifugal and gravity loading to aero loading
-        promotes = ["tilt", "theta", "rhoA", "z", "totalCone", "z_az"]
+        # promotes = ["tilt", "theta", "rhoA", "z", "totalCone", "z_az"]
         self.add_subsystem(
             "curvature",
             BladeCurvature(modeling_options=modeling_options),
@@ -1264,7 +1402,9 @@ class RotorStructure(Group):
             "yu_strain_te",
             "yl_strain_te",
         ]
+        self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
+        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
         self.add_subsystem("tip_pos", TipDeflection(), promotes=["tilt", "pitch_load"])
         self.add_subsystem(
             "aero_hub_loads",
@@ -1274,9 +1414,10 @@ class RotorStructure(Group):
         self.add_subsystem(
             "constr", DesignConstraints(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"]
         )
+        #add subsystem for fatigue, or add to constraints?
         self.add_subsystem("brs", BladeRootSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"]))
 
-        # if modeling_options['rotorse']['FatigueMode'] > 0:
+        # if modeling_options['rotorse']['FatigueMode'] > 0: 
         #     promoteListFatigue = ['r', 'gamma_f', 'gamma_m', 'E', 'Xt', 'Xc', 'x_tc', 'y_tc', 'EIxx', 'EIyy', 'pitch_axis', 'chord', 'layer_name', 'layer_mat', 'definition_layer', 'sc_ss_mats','sc_ps_mats','te_ss_mats','te_ps_mats','rthick']
         #     self.add_subsystem('fatigue', BladeFatigue(modeling_options = modeling_options, opt_options = opt_options), promotes=promoteListFatigue)
 
@@ -1306,6 +1447,21 @@ class RotorStructure(Group):
         self.connect("frame.F3", "strains.F3")
         self.connect("frame.EI11", "strains.EI11")
         self.connect("frame.EI22", "strains.EI22")
+        #Why is EA not changing?
+
+        # Processing of DEL/DEMs
+        self.connect("frame.alpha", "del.alpha")
+
+        # DEM to fatigue strains
+        self.connect("frame.alpha", "fatigue_strains.alpha")  #We can reuse the `frame` data: alpha is between the airfoil c.s. and the principal axis (and theta between the blade and airfoil c.s.)
+        self.connect("frame.EI11" , "fatigue_strains.EI11") # 11,22 correspond to principal axes whereas xx,yy refer to airfoil-aligned c.s.
+        self.connect("frame.EI22" , "fatigue_strains.EI22")
+        #   however this should come from the inputs directly
+        # TODO: CAUTION> are these input supposed to be in principal axes or in airfoil coordinates? The former I guess
+        self.connect("del.M1", "fatigue_strains.M1")
+        self.connect("del.M2", "fatigue_strains.M2")
+        self.connect("del.F3", "fatigue_strains.F3")
+        
 
         # Blade distributed deflections to tip deflection
         self.connect("frame.dx", "tip_pos.dx_tip", src_indices=[-1])
@@ -1318,6 +1474,9 @@ class RotorStructure(Group):
         self.connect("strains.strainL_spar", "constr.strainL_spar")
         self.connect("frame.flap_mode_freqs", "constr.flap_mode_freqs")
         self.connect("frame.edge_mode_freqs", "constr.edge_mode_freqs")
+        # Strains from fatigue DEM to constraint
+        self.connect("fatigue_strains.strainU_spar","constr.fatigue_strainU_spar")
+        self.connect("fatigue_strains.strainL_spar","constr.fatigue_strainL_spar")
 
         # Blade root moment to blade root sizing
         self.connect("frame.root_M", "brs.root_M")
