@@ -727,6 +727,16 @@ properties:
                                 maximum: 1.e+18
                             index_start: *index_start
                             index_end: *index_end
+                            m_wohler: &wholer
+                                type: number
+                                description: Wohler exponent, S-N curve model
+                                default: 10.
+                                minimum: 0.
+                            eta: &f_eta
+                                type: number
+                                description: safety factor for fatigue computation
+                                default: 1.3
+                                minimum: 0.
                     fatigue_spar_cap_ps:
                         type: object
                         default: {}
@@ -738,6 +748,8 @@ properties:
                             # del: *dels
                             index_start: *index_start
                             index_end: *index_end
+                            m_wohler: *wholer
+                            eta: *f_eta
 
                     tip_deflection:
                         type: object

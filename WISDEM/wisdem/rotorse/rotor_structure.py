@@ -590,9 +590,11 @@ class ProcessDels(ExplicitComponent):
         # self.demx 
         # self.demy 
         # self.demz 
-
-        #TODO: rotate as appropriate
-
+        # DELs/DEMs are given in "floating coordinate system local to the deflected beam":
+        #       It is not clear whether it corresponds to the local section elastic/principal axis or the local aerodynami/chord-based axes.
+        #       "The blade reference axis locates the origin and orientation of each a local coordinate system where the cross-sectional 6x6 stiffness and mass matrices are defined in the BeamDyn blade input file. It should not really matter where in the cross section the 6x6 stiffness and mass matrices are defined relative to, as long as the reference axis is consistently defined and closely follows the natural geometry of the blade."
+        
+        # Reinterpolate: (rotation from will be done in the next component)
         outputs["M1"] = np.interp(s, self.s_del, self.demx)
         outputs["M2"] = np.interp(s, self.s_del, self.demy)
         outputs["F3"] = np.interp(s, self.s_del, self.delx)
@@ -950,11 +952,8 @@ class DesignConstraints(ExplicitComponent):
         fatigue_strainU_spar = inputs["fatigue_strainU_spar"] 
         fatigue_strainL_spar = inputs["fatigue_strainL_spar"] 
 
-        #TODO: formula in Bryce with m expo?? check pCrunch manual?
-        m = 1. #Wholer exponent
-        # m = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wholer"] #TODO
-        eta = 1.3 #safety factor
-        # eta = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta_fatigue"] #TODO
+        m = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] #Wohler exponent
+        eta = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta"] #safety factor
         NcycleU =  np.power( abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / max_strainU_spar / eta , m)
         NcycleL =  np.power( abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / max_strainL_spar / eta , m)
         outputs["constr_damageU_spar"] = NcycleU / self.max_NcycleU_spar
@@ -1404,7 +1403,7 @@ class RotorStructure(Group):
         ]
         self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
-        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
+        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) #using pBeam option to force rotation of the DEL in principal axes
         self.add_subsystem("tip_pos", TipDeflection(), promotes=["tilt", "pitch_load"])
         self.add_subsystem(
             "aero_hub_loads",
