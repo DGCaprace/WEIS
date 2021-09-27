@@ -343,26 +343,30 @@ class LoadsAnalysis:
     def _compute_del(ts, slope, elapsed, **kwargs):
         """
         Computes damage equivalent load of input `ts`.
+        WARNING: to obtain the actual short term DEL, the returned quantity must be divided by the equivalent number of cycles, and to the power 1/m
 
         Parameters
         ----------
         ts : np.array
             Time series to calculate DEL for.
         slope : int | float
-            Slope of the fatigue curve.
-        elapsed : int | float
-            Elapsed time of the time series.
+            Slope of the fatigue curve. Wohler exponent.
         rainflow_bins : int
             Number of bins used in rainflow analysis.
             Default: 100
         """
+# ERASED:
+#        elapsed : int | float
+#            Elapsed time of the time series. Should be more like the equivalent number of cycles
 
         bins = kwargs.get("rainflow_bins", 100)
 
         ranges = fatpack.find_rainflow_ranges(ts)
-        Nrf, Srf = fatpack.find_range_count(ranges, 100)
-        DELs = Srf ** slope * Nrf / elapsed
-        DEL = DELs.sum() ** (1 / slope)
+        #Note: Goodman correction should be performed here if needed. However, there is no straightforward way of implementing it since it depends on the final definition of "ultimate load" used for the SN curve model.
+        Nrf, Srf = fatpack.find_range_count(ranges, bins)
+
+        DELs = Srf ** slope * Nrf 
+        DEL = DELs.sum() #** (1 / slope)
 
         return DEL
 
