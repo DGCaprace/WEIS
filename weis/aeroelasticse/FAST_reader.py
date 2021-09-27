@@ -414,9 +414,10 @@ class InputReader_OpenFAST(InputReader_Common):
         elif self.fst_vt['Fst']['CompAero'] == 2:
             self.read_AeroDyn15()
 
-        self.read_ServoDyn()
-        if ROSCO:
-            self.read_DISCON_in()
+        if self.fst_vt['Fst']['CompServo'] == 1:
+            self.read_ServoDyn()
+            if ROSCO:
+                self.read_DISCON_in()
     
         
         if self.fst_vt['Fst']['CompHydro'] == 1: # SubDyn not yet implimented

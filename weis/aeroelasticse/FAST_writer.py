@@ -338,9 +338,10 @@ class InputWriter_OpenFAST(InputWriter_Common):
         elif self.fst_vt['Fst']['CompAero'] == 2:
             self.write_AeroDyn15()
         
-        if 'DISCON_in' in self.fst_vt and ROSCO:
-            self.write_DISCON_in()
-        self.write_ServoDyn()
+        if self.fst_vt['Fst']['CompServo'] == 1:
+            if 'DISCON_in' in self.fst_vt and ROSCO:
+                self.write_DISCON_in()
+            self.write_ServoDyn()
         
         if self.fst_vt['Fst']['CompHydro'] == 1:
             self.write_HydroDyn()
@@ -874,7 +875,7 @@ class InputWriter_OpenFAST(InputWriter_Common):
         self.write_AeroDyn15Polar()
         
         # Generate AeroDyn v15 airfoil coordinates
-        if self.fst_vt['AeroDyn15']['af_data'][1][0]['NumCoords'] != 0:
+        if self.fst_vt['AeroDyn15']['af_data'][1][0]['NumCoords'] != "0":
             self.write_AeroDyn15Coord()
         
         if self.fst_vt['AeroDyn15']['WakeMod'] == 3:
@@ -1028,7 +1029,7 @@ class InputWriter_OpenFAST(InputWriter_Common):
             f.write('! ------------------------------------------------------------------------------\n')
             f.write('{:<22}   {:<11} {:}'.format(self.fst_vt['AeroDyn15']['af_data'][afi][0]['InterpOrd'], 'InterpOrd', '! Interpolation order to use for quasi-steady table lookup {1=linear; 3=cubic spline; "default"} [default=3]\n'))
             f.write('{:<22}   {:<11} {:}'.format(self.fst_vt['AeroDyn15']['af_data'][afi][0]['NonDimArea'], 'NonDimArea', '! The non-dimensional area of the airfoil (area/chord^2) (set to 1.0 if unsure or unneeded)\n'))
-            if self.fst_vt['AeroDyn15']['af_data'][1][0]['NumCoords'] != 0:
+            if self.fst_vt['AeroDyn15']['af_data'][1][0]['NumCoords'] != "0":
                 f.write('@"{:}_AF{:02d}_Coords.txt"       {:<11} {:}'.format(self.FAST_namingOut, afi, 'NumCoords', '! The number of coordinates in the airfoil shape file. Set to zero if coordinates not included.\n'))
             else:
                 f.write('{:<22d}       {:<11} {:}'.format(0, 'NumCoords', '! The number of coordinates in the airfoil shape file. Set to zero if coordinates not included.\n'))
