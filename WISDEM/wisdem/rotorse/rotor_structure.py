@@ -524,20 +524,18 @@ class ProcessDels(ExplicitComponent):
         #read the DELs:
         if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
             self.s_del = opt_options["DELs"]["grid_nd"]
-            self.delx = opt_options["DELs"]["delx"]
-            self.dely = opt_options["DELs"]["dely"]
-            self.delz = opt_options["DELs"]["delz"]
-            self.demx = opt_options["DELs"]["demx"]
-            self.demy = opt_options["DELs"]["demy"]
-            self.demz = opt_options["DELs"]["demz"]
+            # self.deFn  = opt_options["DELs"]["deFn"] 
+            # self.deFt  = opt_options["DELs"]["deFt"] 
+            self.deMLx = opt_options["DELs"]["deMLx"]
+            self.deMLy = opt_options["DELs"]["deMLy"]
+            self.deFLz = opt_options["DELs"]["deFLz"]
         else:
             self.s_del = np.zeros(n_span)
-            self.delx  = np.zeros(n_span)
-            self.dely  = np.zeros(n_span)
-            self.delz  = np.zeros(n_span)
-            self.demx  = np.zeros(n_span)
-            self.demy  = np.zeros(n_span)
-            self.demz  = np.zeros(n_span)
+            # self.deFn  = np.zeros(n_span)
+            # self.deFt  = np.zeros(n_span)
+            self.deMLx = np.zeros(n_span)
+            self.deMLy = np.zeros(n_span)
+            self.deFLz = np.zeros(n_span)
 
 
         # Inputs strains
@@ -584,20 +582,14 @@ class ProcessDels(ExplicitComponent):
         # Constraints on blade strains
         s = inputs["s"]
         
-        # self.delx 
-        # self.dely 
-        # self.delz 
-        # self.demx 
-        # self.demy 
-        # self.demz 
         # DELs/DEMs are given in "floating coordinate system local to the deflected beam":
         #       It is not clear whether it corresponds to the local section elastic/principal axis or the local aerodynami/chord-based axes.
         #       "The blade reference axis locates the origin and orientation of each a local coordinate system where the cross-sectional 6x6 stiffness and mass matrices are defined in the BeamDyn blade input file. It should not really matter where in the cross section the 6x6 stiffness and mass matrices are defined relative to, as long as the reference axis is consistently defined and closely follows the natural geometry of the blade."
         
         # Reinterpolate: (rotation from will be done in the next component)
-        outputs["M1"] = np.interp(s, self.s_del, self.demx)
-        outputs["M2"] = np.interp(s, self.s_del, self.demy)
-        outputs["F3"] = np.interp(s, self.s_del, self.delx)
+        outputs["M1"] = np.interp(s, self.s_del, self.deMLx)
+        outputs["M2"] = np.interp(s, self.s_del, self.deMLy)
+        outputs["F3"] = np.interp(s, self.s_del, self.deFLz)
 
 
 class ComputeStrains(ExplicitComponent):
@@ -1291,6 +1283,9 @@ class BladeRootSizing(ExplicitComponent):
 #                                 n_cycles = 1.
 #                                 eps_mean = M_mean_i*c_i/EI_i
 #                                 eps_amp  = M_amp_i*c_i/EI_i
+
+
+# Nf = ((eps_uts[i_mat] + np.abs(eps_ucs[i_mat]) - np.abs(2.*eps_mean*gamma_m*gamma_f - eps_uts[i_mat] + np.abs(eps_ucs[i_mat]))) / (2.*eps_amp*gamma_m*gamma_f))**m[i_mat]
 
 #                                 Nf = ((eps_uts[i_mat] + np.abs(eps_ucs[i_mat]) - np.abs(2.*eps_mean*gamma_m*gamma_f - eps_uts[i_mat] + np.abs(eps_ucs[i_mat]))) / (2.*eps_amp*gamma_m*gamma_f))**m[i_mat]
 #                                 n  = n_cycles * t_life * pdf[i_u] / (simtime * n_seeds)

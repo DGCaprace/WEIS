@@ -577,7 +577,15 @@ class InputWriter_OpenFAST(InputWriter_Common):
                 f.write('"' + channel_list[i] + '"\n')
         
         f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)\n')
-        f.write('---------------------------------------------------------------------------------------\n')
+        f.write('------------------------  NODES --------------------------------------------------------\n')
+        f.write('          1   BldNd_BladesOut  - Blades to output\n')
+        f.write('         99   BldNd_BlOutNd   - Blade nodes on each blade (currently unused)\n')
+        f.write('          OutList            - The next line(s) contains a list of output parameters. See OutListParameters.xlsx for a listing of available output channels, (-)\n')
+        #HARDCODING FOR TEST:
+        f.write('"FLx"\n')
+        f.write('"FLy"\n')
+        f.write('"MLz"\n')
+        f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
         f.close()
 
 
@@ -647,7 +655,12 @@ class InputWriter_OpenFAST(InputWriter_Common):
             for i in range(len(channel_list)):
                 f.write('"' + channel_list[i] + '"\n')
         f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
-        f.write('---------------------------------------------------------------------------------------')
+        # f.write('------------------------  NODES --------------------------------------------------------\n')
+        # f.write('         99   BldNd_BlOutNd   - Blade nodes on each blade (currently unused)\n')
+        # f.write('          OutList            - The next line(s) contains a list of output parameters. See OutListParameters.xlsx for a listing of available output channels, (-)\n')
+        # #HARDCODING FOR TEST:
+        # f.write('"MxL"\n')
+        # f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
         f.close()
 
         # f.write('{:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn'][''], '', '\n'))
@@ -969,7 +982,14 @@ class InputWriter_OpenFAST(InputWriter_Common):
             for i in range(len(channel_list)):
                 f.write('"' + channel_list[i] + '"\n')
         f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)\n')
-        f.write('---------------------------------------------------------------------------------------\n')
+        f.write('------------------------  NODES --------------------------------------------------------\n')
+        f.write('          1   BldNd_BladesOut  - Blades to output\n')
+        f.write('         99   BldNd_BlOutNd   - Blade nodes on each blade (currently unused)\n')
+        f.write('          OutList            - The next line(s) contains a list of output parameters. See OutListParameters.xlsx for a listing of available output channels, (-)\n')
+        #HARDCODING FOR TEST:
+        f.write('"Fn"\n')
+        f.write('"Ft"\n')
+        f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
         f.close()
 
     def write_AeroDyn15Blade(self):

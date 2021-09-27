@@ -43,23 +43,36 @@ else:
 magnitude_channels = {
     'LSShftF': ["RotThrust", "LSShftFys", "LSShftFzs"], 
     'LSShftM': ["RotTorq", "LSSTipMys", "LSSTipMzs"],
-    'RootMc1': ["RootMxc1", "RootMyc1", "RootMzc1"],
-    'RootMc2': ["RootMxc2", "RootMyc2", "RootMzc2"],
-    'RootMc3': ["RootMxc3", "RootMyc3", "RootMzc3"],
+    "RootMc1": ["RootMxc1", "RootMyc1", "RootMzc1"], #blade root moments of blade 1, in "c" axes (i.e rotor plane?) ; b axes are after blade pitch?
+    "RootMc2": ["RootMxc2", "RootMyc2", "RootMzc2"],
+    "RootMc3": ["RootMxc3", "RootMyc3", "RootMzc3"],
     'TipDc1': ['TipDxc1', 'TipDyc1', 'TipDzc1'],
     'TipDc2': ['TipDxc2', 'TipDyc2', 'TipDzc2'],
     'TipDc3': ['TipDxc3', 'TipDyc3', 'TipDzc3'],
+    #can we add channels that are nodes, and not the sections? probably need to ask for the node output first...
 }
 
 fatigue_channels = {
-    'RootMc1': 10,
-    'RootMc2': 10,
-    'RootMc3': 10,
-    'RootMyb1': 10,
-    'RootMyb2': 10,
-    'RootMyb3': 10,
-    'TwrBsMyt': 10
+    # 'RootMc1': 10,
+    # 'RootMc2': 10,
+    # 'RootMc3': 10,
+    # 'RootMyb1': 10,
+    # 'RootMyb2': 10,
+    # 'RootMyb3': 10,
+    # 'TwrBsMyt': 10
 }
+
+for i in range(1,41): #TODO: must read this number from somewhere!!
+    tag = "B1N%03iFLx"%(i)
+    fatigue_channels[tag] = 10
+    tag = "B1N%03iFLy"%(i)
+    fatigue_channels[tag] = 10
+    tag = "B1N%03iMLz"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFn"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFt"%(i)
+    fatigue_channels[tag] = 10
 
 # channel_extremes = [
 #     'RotSpeed',
