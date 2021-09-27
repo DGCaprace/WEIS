@@ -23,7 +23,7 @@ develop-eggs
 .installed.cfg
 
 # Output files
-outputs/
+outputs*/
 *.out
 
 # Sphinx

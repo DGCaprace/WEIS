@@ -1,0 +1,20 @@
+# Generic modeling options file to run standard WISDEM case
+General:
+    verbosity: False  # When set to True, the code prints to screen many infos
+WISDEM:
+    RotorSE:
+        flag: True
+        spar_cap_ss: Spar_cap_ss
+        spar_cap_ps: Spar_cap_ps
+    DriveSE:
+        flag: False #apparently can't run this without tower
+    TowerSE:             # Options of TowerSE module
+        flag: False
+        # flag: False  
+        # #need this even though the flag is false, otherwise crash:
+        # gamma_freq:  1.  #has no default in scheme
+        # n_height_tower: 3 #not even defined in the scheme...??? number of control points in the height. Not needed after fix
+    Hub:
+        flag: True # Important for us to NOT turb the nacelle
+    BOS:
+        flag: False
