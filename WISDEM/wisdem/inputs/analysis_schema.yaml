@@ -719,10 +719,10 @@ properties:
                         description: Enforce a maximum allowable strain in the suction-side spar caps caused by fatigue loads
                         properties:
                             flag: *flag
-                            max_Ncycle: &maxncycle
+                            eq_Ncycle: &eqncycle
                                 type: number
                                 description: Cycle count to fatigue failure
-                                default: 12.e+6
+                                default: 6.e+8 #630720000
                                 minimum: 1.e+3
                                 maximum: 1.e+18
                             index_start: *index_start
@@ -743,7 +743,7 @@ properties:
                         description: Enforce a maximum allowable strain in the pressure-side spar caps caused by fatigue loads
                         properties:
                             flag: *flag
-                            max_Ncycle: *maxncycle
+                            eq_Ncycle: *eqncycle
                             # grid_nd: *del_grid
                             # del: *dels
                             index_start: *index_start

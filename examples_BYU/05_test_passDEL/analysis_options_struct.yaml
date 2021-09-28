@@ -36,36 +36,35 @@ constraints:
             index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ps
             index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
         fatigue_spar_cap_ss:
-            flag: True 
-            max_Ncycle:  12.e+6
+            flag: False 
+            eq_Ncycle:  12.e+6
             # Could add safety factor and wholer expo here
             index_start: 1  
             index_end: 3    #must be <= n_opt
             m_wohler: 10 #wohler expo
             eta: 1.3  #safety factor
         fatigue_spar_cap_ps:
-            flag: True    
-            max_Ncycle:  12.e+6
+            flag: False    
+            eq_Ncycle:  12.e+6
             # Could add safety factor and wholer expo here  
             index_start: 1  
             index_end: 3
             m_wohler: 10 #wohler expo
             eta: 1.3  #safety factor
 
-        tip_deflection:
-            flag: True
-            margin: 1.134 #1.4175
+        # tip_deflection:
+        #     flag: True
+        #     margin: 1.134 #1.4175
 
 
 # #EXTRA DATA
 # DELs:
 #     grid_nd: [0, 1] #<----- SHOULD DEFINITELY MAKE SURE THAT THIS IS THE SAME AS THE CCBLADE R
-#     delx: [42, 42]   
-#     dely: [42, 42]   
-#     delz: [42, 42]   
-#     demx: [42, 42]   
-#     demy: [42, 42]   
-#     demz: [42, 42]   
+#     deFt: [42, 42]   
+#     deFn: [42, 42]   
+#     deMLx: [42, 42]   
+#     deMLy: [42, 42]   
+#     deFLz: [42, 42]   
 
 driver:
     optimization:

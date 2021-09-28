@@ -813,12 +813,12 @@ class DesignConstraints(ExplicitComponent):
             "spar_cap_ps"
         ]["n_opt"]
 
-        self.max_NcycleU_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["max_Ncycle"]
-        self.max_NcycleL_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["max_Ncycle"]
-        # if self.max_NcycleU_spar == np.zeros_like(self.max_NcycleU_spar):
-        #     self.max_NcycleU_spar = np.ones_like(self.max_NcycleU_spar)
-        # if self.max_NcycleL_spar == np.zeros_like(self.max_NcycleL_spar):
-        #     self.max_NcycleL_spar = np.ones_like(self.max_NcycleL_spar)
+        self.eq_NcycleU_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"]
+        self.eq_NcycleL_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"]
+        # if self.eq_NcycleU_spar == np.zeros_like(self.eq_NcycleU_spar):
+        #     self.eq_NcycleU_spar = np.ones_like(self.eq_NcycleU_spar)
+        # if self.eq_NcycleL_spar == np.zeros_like(self.eq_NcycleL_spar):
+        #     self.eq_NcycleL_spar = np.ones_like(self.eq_NcycleL_spar)
 
         # Inputs strains
         self.add_input(
@@ -946,14 +946,15 @@ class DesignConstraints(ExplicitComponent):
 
         m = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] #Wohler exponent
         eta = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta"] #safety factor
-        NcycleU =  np.power( abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / max_strainU_spar / eta , m)
-        NcycleL =  np.power( abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / max_strainL_spar / eta , m)
-        outputs["constr_damageU_spar"] = NcycleU / self.max_NcycleU_spar
-        outputs["constr_damageL_spar"] = NcycleL / self.max_NcycleL_spar
+        NcycleU =  np.power( max_strainU_spar / abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / eta , m)
+        NcycleL =  np.power( max_strainL_spar / abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / eta , m)
+        outputs["constr_damageU_spar"] = self.eq_NcycleU_spar / NcycleU
+        outputs["constr_damageL_spar"] = self.eq_NcycleL_spar / NcycleL
 
+        print("Current damage on the SS spar:")
         print(outputs["constr_damageU_spar"])
-        
 
+        
         # Constraints on blade frequencies
         threeP = discrete_inputs["blade_number"] * inputs["rated_Omega"] / 60.0
         flap_f = inputs["flap_mode_freqs"]
