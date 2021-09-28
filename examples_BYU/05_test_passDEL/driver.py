@@ -41,12 +41,11 @@ run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
 run_dir2            = mydir + os.sep + "Madsen2019_model_BD"
 
 
-print("\n\n\n  -------------- DONE WITH PART 1 ------------------\n\n\n\n")
+withDEL = True
 
 
 #==================== ======== =====================================
 # Unsteady loading computation from DLCs
-
 
 #TODO: move definitions in the beginning. Mare sure we use the same turbine in part 1 and 2
 # Turbine inputs
@@ -148,7 +147,7 @@ if MPI:
         sys.stdout.flush()
 
 # Naming, file management, etc
-iec.wind_dir        = 'outputs/wind'
+iec.wind_dir        = 'outputs_FAST/wind'
 iec.case_name_base  = 'Madsen10'
 if MPI:
     iec.cores = available_cores
@@ -163,7 +162,7 @@ if MPI:
 else:
     iec.parallel_windfile_gen = False
     iec.mpi_run               = False
-iec.run_dir = 'outputs/Madsen10'
+iec.run_dir = 'outputs_FAST/Madsen10'
 
 # Run case generator / wind file writing
 case_inputs = {}
@@ -217,132 +216,164 @@ for var in ["TipDxc1", "TipDyc1", "TipDzc1", "TipDxb1", "TipDyb1", "TipDxc2", "T
 #DG: hardcoded node outputs in FASTwriter
 #DG: hardcoded DELs based on those outputs in runFAST_pywrapper
 
-# Parallel file generation with MPI
-if MPI:
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-else:
-    rank = 0
-if rank == 0:
-    case_list, case_name_list, dlc_list = iec.execute(case_inputs=case_inputs)
+if withDEL:
+    # Parallel file generation with MPI
+    if MPI:
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+    else:
+        rank = 0
+    if rank == 0:
+        case_list, case_name_list, dlc_list = iec.execute(case_inputs=case_inputs)
 
-    print(case_name_list)
-    print(case_list)
+        print(case_name_list)
+        print(case_list)
 
-    #for var in var_out+[var_x]:
+        #for var in var_out+[var_x]:
 
-    # Run FAST cases
-    fastBatch                   = runFAST_pywrapper_batch(FAST_ver='OpenFAST',dev_branch = True)
+        # Run FAST cases
+        fastBatch                   = runFAST_pywrapper_batch(FAST_ver='OpenFAST',dev_branch = True)
 
-#    #Fixed-bottom
-    fastBatch.FAST_InputFile    = 'DTU_10MW.fst'   # FAST input file (ext=.fst)
-    fastBatch.FAST_directory    = run_dir2   # Path to fst directory files
+    #    #Fixed-bottom
+        fastBatch.FAST_InputFile    = 'DTU_10MW.fst'   # FAST input file (ext=.fst)
+        fastBatch.FAST_directory    = run_dir2   # Path to fst directory files
 
-    fastBatch.channels          = channels
-    fastBatch.FAST_runDirectory = iec.run_dir
-    fastBatch.case_list         = case_list
-    fastBatch.case_name_list    = case_name_list
-    fastBatch.debug_level       = 2
+        fastBatch.channels          = channels
+        fastBatch.FAST_runDirectory = iec.run_dir
+        fastBatch.case_list         = case_list
+        fastBatch.case_name_list    = case_name_list
+        fastBatch.debug_level       = 2
 
-    fastBatch.keep_time         = True  #DG
+        fastBatch.keep_time         = True  #DG
 
+
+        if MPI:
+            summary_stats, extreme_table, DELs, ct = fastBatch.run_mpi(comm_map_down)
+        else:
+            summary_stats, extreme_table, DELs, ct = fastBatch.run_serial()
 
     if MPI:
-        summary_stats, extreme_table, DELs, ct = fastBatch.run_mpi(comm_map_down)
-    else:
-        summary_stats, extreme_table, DELs, ct = fastBatch.run_serial()
+        sys.stdout.flush()
+        if rank in comm_map_up.keys():
+            subprocessor_loop(comm_map_up)
+        sys.stdout.flush()
 
-if MPI:
+    # Close signal to subprocessors
+    if rank == 0 and MPI:
+        subprocessor_stop(comm_map_down)
+
+    print("\n\n\n  -------------- DONE WITH FAST ------------------\n\n\n\n")
+
+    # ----------------------------------------------------------------------------------------------
+    #    my postpro
+
+    # print("Outputs:")
+    # print(ct[0].keys())
+
+    nt = len(ct[0]["B1N001FLz"])
+    nx = 40  #TODO: deduce this from somewhere else
+
+    dnx = 1 #if you want to reduce the number of data by step of dnx
+    dnt = 10
+
+    nnt = np.fix(nt/dnt).astype(int)
+    nnx = np.fix(nx/dnx).astype(int)
+
+
+
+
+    # --------
+
     sys.stdout.flush()
-    if rank in comm_map_up.keys():
-        subprocessor_loop(comm_map_up)
-    sys.stdout.flush()
 
-# Close signal to subprocessors
-if rank == 0 and MPI:
-    subprocessor_stop(comm_map_down)
+    #  -- Retreive the DELstar --
+    # (after removing "elapsed" from the del post_processing routine)
 
-# ----------------------------------------------------------------------------------------------
-#    my postpro
+    npDelstar = DELs.to_numpy()
 
-# print("Outputs:")
-# print(ct[0].keys())
-
-nt = len(ct[0]["B1N001FLx"])
-nx = 40  #TODO: deduce this from somewhere else
-
-dnx = 1 #if you want to reduce the number of data by step of dnx
-dnt = 10
-
-nnt = np.fix(nt/dnt).astype(int)
-nnx = np.fix(nx/dnx).astype(int)
-
-
-
-
-# --------
-
-sys.stdout.flush()
-
-#  -- Retreive the DELstar --
-# (after removing "elapsed" from the del post_processing routine)
-
-npDelstar = DELs.to_numpy()
-
-i_AB1Fn = range(0,2*nx,2*dnx)
-i_AB1Ft = range(1,2*nx,2*dnx)
-i_B1MLx = range(2*nx  ,5*nx,3*dnx)
-i_B1MLy = range(2*nx+1,5*nx,3*dnx)
-i_B1FLz = range(2*nx+2,5*nx,3*dnx)
- 
-# -- Compute extrapolated lifetime DEL for life --
-
-m = 10 #hardcoded here but also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper
-Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
-
-# a. Obtain the equivalent number of cycles
-f_eq = 1 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- THIS IS TOTALLY ARBITRARY FOR NOW
-Tj = ct[0]["Time"][-1] - ct[0]["Time"][0]
-fj = Tlife / Tj #grossly with an availablity of 1, and considering that the turbine will always operate exactly in the same conditions
-n_life_eq = fj * Tj * f_eq
-
-# Here are our lifetime DEL
-DEL_life_B1 = np.zeros([nx,5])
-k=0
-
-for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
-    DEL_life_B1[:,k] = .5 * ( fj * npDelstar[0,ids] / n_life_eq ) ** (1/m)
-    k+=1
+    i_AB1Fn = range(0,2*nx,2*dnx)
+    i_AB1Ft = range(1,2*nx,2*dnx)
+    i_B1MLx = range(2*nx  ,5*nx,3*dnx)
+    i_B1MLy = range(2*nx+1,5*nx,3*dnx)
+    i_B1FLz = range(2*nx+2,5*nx,3*dnx)
     
-print("Damage eq loads:")
-print(np.transpose(DEL_life_B1))
+    # -- Compute extrapolated lifetime DEL for life --
+
+    m = 10 #hardcoded here but also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper
+    Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
+
+    # a. Obtain the equivalent number of cycles
+    f_eq = 1 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- THIS IS TOTALLY ARBITRARY FOR NOW
+    Tj = ct[0]["Time"][-1] - ct[0]["Time"][0]
+    fj = Tlife / Tj #grossly with an availablity of 1, and considering that the turbine will always operate exactly in the same conditions
+    n_life_eq = fj * Tj * f_eq
+
+    # Here are our lifetime DEL
+    DEL_life_B1 = np.zeros([nx,5])    
+    
+
+    fac = 1e3 #multiply by fac because output of ED is in kN
+
+    k=0
+    for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
+        DEL_life_B1[:,k] = .5 * fac * ( fj * npDelstar[0,ids] / n_life_eq ) ** (1/m)
+        k+=1
+
+    # DEL_life_B1[:,2] = 1e3    
+    # DEL_life_B1[:,3] = 2e5
+    DEL_life_B1[:,4] = -DEL_life_B1[:,4] #change sign because RotorSE strain computation consider positive loads are compression??
+
+    print("Damage eq loads:")
+    print(np.transpose(DEL_life_B1))
 
 
-# -- write the analysis file?
 
-schema = load_yaml(fname_analysis_options)
-#could use load_analysis_yaml from weis instead
+    # B1ForM = np.zeros( (nnt,nnx) )
 
-schema["DELs"] = {}
-schema["DELs"]["grid_nd"] = np.linspace(0,1,nx).tolist() #TODO
-schema["DELs"]["deFn"]  = DEL_life_B1[:,0].tolist()
-schema["DELs"]["deFt"]  = DEL_life_B1[:,1].tolist()
-schema["DELs"]["deMLx"] = DEL_life_B1[:,2].tolist()
-schema["DELs"]["deMLy"] = DEL_life_B1[:,3].tolist()
-schema["DELs"]["deFLz"] = DEL_life_B1[:,4].tolist()
+    # for i in range(nnx):
+    #     tag = "B1N%03iMLx"%(i*dnx+1)
+    #     B1ForM[:,i] = ct[0][tag][0:nnt*dnt-1:dnt]
 
+    # fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+    # for i in range(nnt):
+    #     ax.plot(fac*B1ForM[i,:])
 
-fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
-my_write_yaml(schema, fname_analysis_options_struct)
-#could use write_analysis_yaml from weis instead
+    # ax.plot(DEL_life_B1[:,3],'xk-')
+    # plt.show()
 
+    # raise RuntimeError("")
 
+    # -- write the analysis file?
+
+    schema = load_yaml(fname_analysis_options)
+    #could use load_analysis_yaml from weis instead
+
+    schema["DELs"] = {}
+    schema["DELs"]["grid_nd"] = np.linspace(0,1,nx).tolist() #TODO
+    schema["DELs"]["deFn"]  = DEL_life_B1[:,0].tolist()
+    schema["DELs"]["deFt"]  = DEL_life_B1[:,1].tolist()
+    schema["DELs"]["deMLx"] = DEL_life_B1[:,2].tolist()
+    schema["DELs"]["deMLy"] = DEL_life_B1[:,3].tolist()
+    schema["DELs"]["deFLz"] = DEL_life_B1[:,4].tolist()
+
+    schema["general"]["folder_output"] = "outputs_struct_withFatigue"
+    schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
+    schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
+    schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"] = float(n_life_eq)
+    schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"] = float(n_life_eq)
+
+    fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
+    my_write_yaml(schema, fname_analysis_options_struct)
+    #could use write_analysis_yaml from weis instead
+
+else:
+    fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
 
 # -- passing it to --
 
 wt_opt, analysis_options, opt_options = run_wisdem(fname_wt_input, fname_modeling_options, fname_analysis_options_struct)
 
-print("\n\n\n  -------------- DONE WITH WISDEM 1 ------------------\n\n\n\n")
+print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")
 
 
 
