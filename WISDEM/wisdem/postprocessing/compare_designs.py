@@ -68,9 +68,15 @@ def create_all_plots(
             )
             axtw.plot(s_opt_twist, twist_opt * 180.0 / np.pi, "o", color=colors[idx], markersize=3)
 
-        axtw.plot(
+        twist_init = np.interp(
             s_opt_twist,
-            (twist_opt - analysis_options["design_variables"]["blade"]["aero_shape"]["twist"]["max_decrease"])
+            list_of_sims[0]["blade.outer_shape_bem.s"],
+            yaml_data["rotorse.theta"],
+        )
+
+        axtw.plot(
+            s_opt_twist,      
+            (twist_init - analysis_options["design_variables"]["blade"]["aero_shape"]["twist"]["max_decrease"])
             * 180.0
             / np.pi,
             ":o",
@@ -80,7 +86,7 @@ def create_all_plots(
         )
         axtw.plot(
             s_opt_twist,
-            (twist_opt + analysis_options["design_variables"]["blade"]["aero_shape"]["twist"]["max_increase"])
+            (twist_init + analysis_options["design_variables"]["blade"]["aero_shape"]["twist"]["max_increase"])
             * 180.0
             / np.pi,
             ":o",
@@ -113,7 +119,7 @@ def create_all_plots(
                 color=colors[idx],
                 label=label,
             )
-            s_opt_chord = np.linspace(0.0, 1.0, 8)
+            s_opt_chord = np.linspace(0.0, 1.0, 8) #should be the number of DVs!
             chord_opt = np.interp(
                 s_opt_chord,
                 yaml_data["blade.outer_shape_bem.s"],
@@ -164,21 +170,25 @@ def create_all_plots(
             for i in range(n_layers):
                 layer_name = modeling_options["WISDEM"]["RotorSE"]["layer_name"][i]
                 if modeling_options["WISDEM"]["RotorSE"]["spar_cap_ss"] == layer_name:
+                    s_opt_sc = yaml_data["blade.ps.s_opt_spar_cap_ss"]
+
                     axsc.plot(
-                        yaml_data["blade.outer_shape_bem.s"],
-                        yaml_data["blade.internal_structure_2d_fem.layer_thickness"][i, :] * 1.0e3,
-                        "-",
+                        # yaml_data["blade.outer_shape_bem.s"],
+                        s_opt_sc,
+                        # yaml_data["blade.internal_structure_2d_fem.layer_thickness"][i, :] * 1.0e3,
+                        yaml_data["blade.ps.spar_cap_ss_opt"] * 1.0e3,
+                        "o",
                         color=colors[idx],
                         label=label,
                     )
 
-                    s_opt_sc = np.linspace(0.0, 1.0, 8)
+                    sc_interp = yaml_data["blade.outer_shape_bem.s"]
                     sc_opt = np.interp(
+                        sc_interp,
                         s_opt_sc,
-                        yaml_data["blade.outer_shape_bem.s"],
-                        yaml_data["blade.internal_structure_2d_fem.layer_thickness"][i, :] * 1.0e3,
+                        yaml_data["blade.ps.spar_cap_ss_opt"] * 1.0e3,
                     )
-                    axsc.plot(s_opt_sc, sc_opt, "o", color=colors[idx], markersize=3)
+                    axsc.plot(sc_interp, sc_opt, "-", color=colors[idx], markersize=3)
 
         for i in range(n_layers):
             layer_name = modeling_options["WISDEM"]["RotorSE"]["layer_name"][i]
@@ -187,6 +197,14 @@ def create_all_plots(
                     s_opt_sc,
                     list_of_sims[0]["blade.outer_shape_bem.s"],
                     list_of_sims[0]["blade.internal_structure_2d_fem.layer_thickness"][i, :] * 1.0e3,
+                )
+                axsc.plot(
+                    s_opt_sc,
+                    sc_init,
+                    "--x",
+                    color="k",
+                    markersize=3,
+                    label="ref",
                 )
                 axsc.plot(
                     s_opt_sc,

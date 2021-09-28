@@ -575,12 +575,12 @@ class Blade(om.Group):
         opt_var.add_output(
             "spar_cap_ss_opt",
             units="m",
-            val=np.ones(opt_options["design_variables"]["blade"]["structure"]["spar_cap_ss"]["n_opt"]),
+            val=np.nan*np.ones(opt_options["design_variables"]["blade"]["structure"]["spar_cap_ss"]["n_opt"]),
         )
         opt_var.add_output(
             "spar_cap_ps_opt",
             units="m",
-            val=np.ones(opt_options["design_variables"]["blade"]["structure"]["spar_cap_ps"]["n_opt"]),
+            val=np.nan*np.ones(opt_options["design_variables"]["blade"]["structure"]["spar_cap_ps"]["n_opt"]),
         )
         self.add_subsystem("opt_var", opt_var)
 
@@ -656,7 +656,7 @@ class Blade(om.Group):
         self.connect("opt_var.s_opt_spar_cap_ps", "ps.s_opt_spar_cap_ps")
         self.connect("outer_shape_bem.s", "ps.s")
         # self.connect('internal_structure_2d_fem.layer_name',      'ps.layer_name')
-        self.connect("internal_structure_2d_fem.layer_thickness", "ps.layer_thickness_original")
+        self.connect("internal_structure_2d_fem.layer_thickness", "ps.layer_thickness_original") #this is the same, and internal_structure_2d_fem.layer_thickness will not change. so this is useless.
 
 
 class Blade_Outer_Shape_BEM(om.Group):
