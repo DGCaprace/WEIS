@@ -582,9 +582,9 @@ class InputWriter_OpenFAST(InputWriter_Common):
         f.write('         99   BldNd_BlOutNd   - Blade nodes on each blade (currently unused)\n')
         f.write('          OutList            - The next line(s) contains a list of output parameters. See OutListParameters.xlsx for a listing of available output channels, (-)\n')
         #HARDCODING FOR TEST:
-        f.write('"FLx"\n')
-        f.write('"FLy"\n')
-        f.write('"MLz"\n')
+        f.write('"MLx"\n')
+        f.write('"MLy"\n')
+        f.write('"FLz"\n')
         f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
         f.close()
 

@@ -63,11 +63,11 @@ fatigue_channels = {
 }
 
 for i in range(1,41): #TODO: must read this number from somewhere!!
-    tag = "B1N%03iFLx"%(i)
+    tag = "B1N%03iMLx"%(i)
     fatigue_channels[tag] = 10
-    tag = "B1N%03iFLy"%(i)
+    tag = "B1N%03iMLy"%(i)
     fatigue_channels[tag] = 10
-    tag = "B1N%03iMLz"%(i)
+    tag = "B1N%03iFLz"%(i)
     fatigue_channels[tag] = 10
     tag = "AB1N%03iFn"%(i)
     fatigue_channels[tag] = 10
