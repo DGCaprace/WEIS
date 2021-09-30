@@ -38,7 +38,7 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
 
 # run_dir2            = mydir + "/examples/01_aeroelasticse/" #os.path.dirname( os.path.realpath(__file__) ) + os.sep
-run_dir2            = mydir + os.sep + "Madsen2019_model_BD"
+run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 
 
 withDEL = True
