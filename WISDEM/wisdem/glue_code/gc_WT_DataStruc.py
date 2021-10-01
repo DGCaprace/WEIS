@@ -2718,9 +2718,10 @@ class WT_Assembly(om.ExplicitComponent):
         if modeling_options["flags"]["tower"]:
             n_height_tower = modeling_options["WISDEM"]["TowerSE"]["n_height_tower"]
         else:
-            n_height_tower = 3
-            modeling_options["WISDEM"]["TowerSE"] = {}
-            modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = 3
+            n_height_tower = 3 #need non 0 number of nodes
+            # modeling_options["WISDEM"]["TowerSE"] = {} #do not erase what we already have
+            modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = n_height_tower
+            modeling_options["WISDEM"]["TowerSE"]["n_height"] = n_height_tower
 
         self.add_input(
             "blade_ref_axis_user",

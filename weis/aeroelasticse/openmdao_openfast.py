@@ -380,8 +380,18 @@ class FASTLoadCases(ExplicitComponent):
         #print(impl.world_comm().rank, 'Rotor_fast','start')
         sys.stdout.flush()
 
+        if(self.debug_level)>0:
+            print("INIT FAST MODEL")
+            sys.stdout.flush()
         fst_vt = self.init_FAST_model()
+        if(self.debug_level)>0:
+            print("UPDATE FAST MODEL")
+            sys.stdout.flush()
         fst_vt = self.update_FAST_model(fst_vt, inputs, discrete_inputs)
+
+        if(self.debug_level)>0:
+            print("WRITE/RUN FAST MODEL")
+            sys.stdout.flush()
         
         if self.Analysis_Level == 2:
             # Run FAST with ElastoDyn
@@ -588,6 +598,7 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
         fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
         fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
+        #POSSIBLY: warning from the above lines conflict with other stdout writing, resulting in messages being mixed on the same line
 
         # Calculate yaw stiffness of tower (springs in series) and use in servodyn as yaw spring constant
         n_height_mon = self.options['modeling_options']['WISDEM']['TowerSE']['n_height_monopile']

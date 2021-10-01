@@ -530,12 +530,12 @@ class ProcessDels(ExplicitComponent):
             self.deMLy = opt_options["DELs"]["deMLy"]
             self.deFLz = opt_options["DELs"]["deFLz"]
         else:
-            self.s_del = np.zeros(n_span)
-            # self.deFn  = np.zeros(n_span)
-            # self.deFt  = np.zeros(n_span)
-            self.deMLx = np.zeros(n_span)
-            self.deMLy = np.zeros(n_span)
-            self.deFLz = np.zeros(n_span)
+            self.s_del = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
+            # self.deFn  = -np.ones(n_span)
+            # self.deFt  = -np.ones(n_span)
+            self.deMLx = -np.ones(n_span)
+            self.deMLy = -np.ones(n_span)
+            self.deFLz = -np.ones(n_span)
 
 
         # Inputs strains

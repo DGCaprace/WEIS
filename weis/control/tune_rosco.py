@@ -61,7 +61,7 @@ class TuneROSCO(ExplicitComponent):
         # Necessary parameters
         # Turbine parameters
         self.add_input('rotor_inertia',     val=0.0,        units='kg*m**2',        desc='Rotor inertia')
-        self.add_input('rho',               val=0.0,        units='kg/m**3',        desc='Air Density')
+        self.add_input('rho',               val=1.225,      units='kg/m**3',        desc='Air Density')
         self.add_input('R',                 val=0.0,        units='m',              desc='Rotor Radius')              
         self.add_input('gear_ratio',        val=0.0,                                desc='Gearbox Ratio')        
         self.add_input('rated_rotor_speed', val=0.0,        units='rad/s',          desc='Rated rotor speed')                    

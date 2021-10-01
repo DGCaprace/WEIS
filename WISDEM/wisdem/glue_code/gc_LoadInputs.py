@@ -250,6 +250,12 @@ class WindTurbineOntologyPython(object):
             self.modeling_options["WISDEM"]["TowerSE"]["n_height"] += (
                 self.modeling_options["WISDEM"]["TowerSE"]["n_height_monopile"] - 1
             )
+        
+        if not self.modeling_options["flags"]["tower"] and not self.modeling_options["flags"]["monopile"]:
+            self.modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = 2 #will likely be ovrewritten after because can't be 0
+            self.modeling_options["WISDEM"]["TowerSE"]["n_height_monopile"] = 0
+            self.modeling_options["WISDEM"]["TowerSE"]["n_height"] = 2
+            self.modeling_options["WISDEM"]["TowerSE"]["n_layers_monopile"] = 0
 
         # Floating platform
         self.modeling_options["floating"] = {}

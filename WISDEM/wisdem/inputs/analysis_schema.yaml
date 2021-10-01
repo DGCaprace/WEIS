@@ -722,8 +722,8 @@ properties:
                             eq_Ncycle: &eqncycle
                                 type: number
                                 description: Cycle count to fatigue failure
-                                default: 6.e+8 #630720000
-                                minimum: 1.e+3
+                                default: 0.0 #630720000
+                                minimum: 0.0
                                 maximum: 1.e+18
                             index_start: *index_start
                             index_end: *index_end
