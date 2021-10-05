@@ -133,7 +133,7 @@ openfast:
         Power_Curve:
             turbulent_power_curve: False # False: Steady Wind, True: Turbulent Inflow
                 #bug or feature: when True, the fast files are appended with _powercurve_
-            U:     [5.0, 10.0] # If running turbulent power curve, can set U:[], and analysis will default to using the IEC - DLC 1.1 results.  This can be used to prevent running redundant turbulent operational cases
+            U:     [5.0, 8., 10.0, 12., 15.] # If running turbulent power curve, can set U:[], and analysis will default to using the IEC - DLC 1.1 results.  This can be used to prevent running redundant turbulent operational cases
             Seeds: [] # Used only when turbulent_power_curve=True
 
 # 'dlc_settings': {'run_power_curve': False, 'run_IEC': True, 'run_blade_fatigue': False, 'unique_wind_seeds': False, 'unique_wave_seeds': False, 'IEC': [{'DLC': 1.4, 'U': [10.0], 'Seeds': [0]}], 'Power_Curve': {'turbulent_power_curve': False, 'U': [3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0, 19.0, 21.0, 23.0, 25.0], 'Seeds': [0]}}, 
