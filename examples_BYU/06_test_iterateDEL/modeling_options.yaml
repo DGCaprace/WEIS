@@ -6,6 +6,7 @@ WISDEM:
         flag: True
         spar_cap_ss: Spar_cap_ss
         spar_cap_ps: Spar_cap_ps
+        # n_span: 40  #force to be equal to what I give in the yaml - REINTERPOLATES (see assign_outer_shape_bem_values)
     DriveSE:
         flag: False #apparently can't run this without tower... crashes in frame3dd
     TowerSE:             # Options of TowerSE module
@@ -19,20 +20,77 @@ WISDEM:
         flag: False
 
 
-# Options for WEIS fidelity level 3 = nonlinear time domain = OpenFAST
-# ----> WEIS fidelity level 3 = nonlinear time domain (Linearize OpenFAST) ???
-ExcludeWISDEM: True
-
 Level3: 
     flag: True
 
     ROSCO:
         flag: True #This must be true: retune of rosco every time. This is done by using Cp-Ct-Cq generated with Wisdem
 
+    #hard setting of parameters:
+    simulation:
+        TMax: 1.
+        DT: 0.01
+        NumCrctn: 0 #number of iteration aero-struct
+        # CompElast: 1
+        # CompInflow: 1
+        # CompAero: 2
+        CompServo: 1 #can't turn this off otherwise AEP is not computed because GenPwr is not present
+        # CompHydro: 0
+        # CompSub: 0
+        # CompMooring: 0
+        # CompIce: 0
+        #
+        # EDFile:
+        # BDBldFile(1):
+        # BDBldFile(2):
+        # BDBldFile(3):
+        # InflowFile:
+        # AeroFile:
+        OutFileFmt: 1 #2 is binary
+        # Twr_Kdmp:   #damping
+        # Bld_Kdmp:   #damping
+    # InflowWind:
+    #     RefHt:  #not sure this chanes anything
+    AeroDyn:
+        WakeMod: 1 #1 is BEMT, 2 is DBEMT   !!!
+        AFAeroMod: 1  #1 = no DS
+        TwrPotent: 0 #1 = potential flow
+        TwrShadow: 0 #1 = default
+        TwrAero: False
+        SkewMod: 2 #2=Pitt/Peters
+        # UAMod: 3
+    ElastoDyn:
+        FlapDOF1: True
+        FlapDOF2: True
+        EdgeDOF: True
+        # TeetDOF: False
+        DrTrDOF: False 
+        GenDOF: True
+        YawDOF: False  
+        TwFADOF1 : False
+        TwFADOF2 : False
+        TwSSDOF1 : False
+        TwSSDOF2 : False
+        PtfmSgDOF: False
+        PtfmSwDOF: False
+        PtfmHvDOF: False
+        PtfmRDOF : False
+        PtfmPDOF : False
+        PtfmYDOF : False
+        #
+        #What follows is just a matter of where things are measures
+        # ShftGagL :  
+        # NcIMUxn  :
+        # NcIMUyn  :
+        # NcIMUzn  :
+    ServoDyn:
+        YawSpr: 1.0E+10 
+        YawDamp: 1.0E+06
+
 # All options for OpenFAST
 openfast:
     analysis_settings:
-        Analysis_Level: 1
+        Analysis_Level: 2
                 # 2:  Run FAST with ElastoDyn # 1:  #write inputs
         debug_level: 2
         mpi_run: False
@@ -52,8 +110,6 @@ openfast:
     # 'file_management': {'FAST_ver': 'OpenFAST', 'FAST_exe': 'none', 'FAST_lib': 'none', 'FAST_directory': 'none', 'FAST_InputFile': 'none', 'path2dll': '/Users/dg/Documents/BYU/devel/Python/WEIS/local/lib/libdiscon.dylib', 'Turbsim_exe': 'none', 'FAST_namingOut': 'none', 'FAST_runDirectory': 'none', 'Simulation_Settings_File': 'none'}, 
     
     
-
-
     dlc_settings:
         run_power_curve: True
         run_IEC: False
@@ -76,6 +132,7 @@ openfast:
             #   Seeds: [11, 12, 13, 14, 15, 16]
         Power_Curve:
             turbulent_power_curve: False # False: Steady Wind, True: Turbulent Inflow
+                #bug or feature: when True, the fast files are appended with _powercurve_
             U:     [5.0, 10.0] # If running turbulent power curve, can set U:[], and analysis will default to using the IEC - DLC 1.1 results.  This can be used to prevent running redundant turbulent operational cases
             Seeds: [] # Used only when turbulent_power_curve=True
 

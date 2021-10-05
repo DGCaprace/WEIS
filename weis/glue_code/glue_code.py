@@ -367,7 +367,27 @@ class WindPark(om.Group):
                     self.connect('tower_grid.foundation_height',    'aeroelastic.tower_base_height')
                     #self.connect('monopile.transition_piece_mass',  'aeroelastic.transition_piece_mass') ## TODO
                     self.connect('floatingse.transition_piece_I',      'aeroelastic.transition_piece_I', src_indices=[0,1,2])
-                    
+            else: #no tower - no floating
+                print("WARNING: no tower. Will connect params as I can.")
+                # self.connect('towerse.mass_den',                'aeroelastic.mass_den')
+                # self.connect('towerse.foreaft_stff',            'aeroelastic.foreaft_stff')
+                # self.connect('towerse.sideside_stff',           'aeroelastic.sideside_stff')
+                # self.connect('towerse.tor_stff',                'aeroelastic.tor_stff')
+                # self.connect('towerse.tower.torsion_freqs',      'aeroelastic.tor_freq', src_indices=[0])
+                # self.connect('towerse.tower.fore_aft_modes',     'aeroelastic.fore_aft_modes')
+                # self.connect('towerse.tower.side_side_modes',    'aeroelastic.side_side_modes')
+                # self.connect('towerse.tower_section_height',    'aeroelastic.tower_section_height')
+                # self.connect('towerse.tower_outer_diameter',    'aeroelastic.tower_outer_diameter')
+                # self.connect('towerse.z_param',                 'aeroelastic.tower_monopile_z')
+                # self.connect('towerse.z_full',                  'aeroelastic.tower_monopile_z_full')
+                # self.connect('tower.cd',                        'aeroelastic.tower_cd')
+                self.connect("assembly.hub_height",             'aeroelastic.tower_height')
+                # self.connect('tower_grid.foundation_height',    'aeroelastic.tower_base_height')
+                # self.connect('towerse.tower_wall_thickness',    'aeroelastic.tower_wall_thickness')
+                # self.connect('towerse.E',                       'aeroelastic.tower_E')
+                # self.connect('towerse.G',                       'aeroelastic.tower_G')
+                # self.connect('towerse.rho',                     'aeroelastic.tower_rho')
+
             self.connect('airfoils.aoa',                    'aeroelastic.airfoils_aoa')
             self.connect('airfoils.Re',                     'aeroelastic.airfoils_Re')
             self.connect('xf.cl_interp_flaps',              'aeroelastic.airfoils_cl')

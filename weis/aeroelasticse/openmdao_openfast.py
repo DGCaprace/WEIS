@@ -586,19 +586,32 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['AeroDyn15']['TwrCd']     = inputs['tower_cd'][cd_index:]
         fst_vt['AeroDyn15']['TwrTI']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn15']['TwrTI']
 
-        z_tow = twr_elev[twr_index:]
-        z_sec, _ = util.nodal2sectional(z_tow)
-        sec_loc = (z_sec - z_sec[0]) / (z_sec[-1] - z_sec[0])
-        fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
-        fst_vt['ElastoDynTower']['HtFract']  = sec_loc
-        fst_vt['ElastoDynTower']['TMassDen'] = inputs['mass_den'][twr_index:]
-        fst_vt['ElastoDynTower']['TwFAStif'] = inputs['foreaft_stff'][twr_index:]
-        fst_vt['ElastoDynTower']['TwSSStif'] = inputs['sideside_stff'][twr_index:]
-        fst_vt['ElastoDynTower']['TwFAM1Sh'] = inputs['fore_aft_modes'][0, :]  / sum(inputs['fore_aft_modes'][0, :])
-        fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
-        fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
-        fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
-        #POSSIBLY: warning from the above lines conflict with other stdout writing, resulting in messages being mixed on the same line
+        if modeling_options["flags"]["tower"]:
+            z_tow = twr_elev[twr_index:]
+            z_sec, _ = util.nodal2sectional(z_tow)
+            sec_loc = (z_sec - z_sec[0]) / (z_sec[-1] - z_sec[0])
+            fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
+            fst_vt['ElastoDynTower']['HtFract']  = sec_loc
+            fst_vt['ElastoDynTower']['TMassDen'] = inputs['mass_den'][twr_index:]
+            fst_vt['ElastoDynTower']['TwFAStif'] = inputs['foreaft_stff'][twr_index:]
+            fst_vt['ElastoDynTower']['TwSSStif'] = inputs['sideside_stff'][twr_index:]
+            fst_vt['ElastoDynTower']['TwFAM1Sh'] = inputs['fore_aft_modes'][0, :]  / sum(inputs['fore_aft_modes'][0, :])
+            fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
+            fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
+            fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
+            #POSSIBLY: warning from the above lines conflict with other stdout writing, resulting in messages being mixed on the same line
+        else:
+            print("NO TOWER: assuming all inputs are 0 in the EDTower file. MAKE SURE YOU TURNED OFF THE CORRESPONDING DOF.")
+            sec_loc = [0,]
+            fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
+            fst_vt['ElastoDynTower']['HtFract']  = sec_loc
+            fst_vt['ElastoDynTower']['TMassDen'] = [1.,]
+            fst_vt['ElastoDynTower']['TwFAStif'] = [1.,]
+            fst_vt['ElastoDynTower']['TwSSStif'] = [1.,]
+            fst_vt['ElastoDynTower']['TwFAM1Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwFAM2Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwSSM1Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwSSM2Sh'] = [1.,0.,0.,0.,0.]
 
         # Calculate yaw stiffness of tower (springs in series) and use in servodyn as yaw spring constant
         n_height_mon = self.options['modeling_options']['WISDEM']['TowerSE']['n_height_monopile']
@@ -608,11 +621,13 @@ class FASTLoadCases(ExplicitComponent):
         # damping to the frequency of the first tower torsional mode- easier than getting the yaw inertia right
         damp_ratio = 0.01
         f_torsion = float(inputs['tor_freq'])
-        fst_vt['ServoDyn']['YawSpr'] = k_tow_tor
-        if f_torsion > 0.0:
-            fst_vt['ServoDyn']['YawDamp'] = damp_ratio * k_tow_tor / np.pi / f_torsion
-        else:
-            fst_vt['ServoDyn']['YawDamp'] = 2 * damp_ratio * np.sqrt(k_tow_tor * inputs['rna_I_TT'][2])
+        if not 'YawSpr' in fst_vt['ServoDyn']: #prevent overwriting user input
+            fst_vt['ServoDyn']['YawSpr'] = k_tow_tor
+        if not 'YawDamp' in fst_vt['ServoDyn']: #prevent overwriting user input
+            if f_torsion > 0.0:
+                fst_vt['ServoDyn']['YawDamp'] = damp_ratio * k_tow_tor / np.pi / f_torsion
+            else:
+                fst_vt['ServoDyn']['YawDamp'] = 2 * damp_ratio * np.sqrt(k_tow_tor * inputs['rna_I_TT'][2])
         
         # Update ElastoDyn Blade Input File
         fst_vt['ElastoDynBlade']['NBlInpSt']   = len(inputs['r'])

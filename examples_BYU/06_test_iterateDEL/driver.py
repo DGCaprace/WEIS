@@ -58,10 +58,12 @@ wt_opt, modeling_options, opt_options = run_weis(
 )
 # print(f"Tip deflection: {wt_opt['rotorse.rs.tip_pos.tip_deflection'][0]} meters")
 
+print(f"avg RPM  : {wt_opt['aeroelastic.Omega_out']}")
+print(f"avg Cp   : {wt_opt['aeroelastic.Cp_out']}")
+print(f"avg pitch: {wt_opt['aeroelastic.pitch_out']}")
+print(f"AEP      : {wt_opt['aeroelastic.AEP']}")
 
-#CAUION: need to define my fatigue channels that previously were hardcoded in pyFASTwrapper
-#TODO: nope because 
-
+#how can I get the DELs?
 
 
 # In case one needs to overwrite data AFTER having read the yaml:

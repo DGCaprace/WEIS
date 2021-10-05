@@ -2828,4 +2828,5 @@ class WT_Assembly(om.ExplicitComponent):
                 outputs["hub_height"] = inputs["tower_ref_axis_user"][-1, 2] + inputs["distance_tt_hub"]
                 outputs["tower_ref_axis"] = inputs["tower_ref_axis_user"]
         else:
-            print("WARNING: without TowerSE, I skip the hub_height from the assembly. SHEAR WILL NOT WORK.")
+            print("WARNING: without TowerSE, I will use hub_height straight from assembly in yaml. SHEAR MAY NOT WORK.")
+            outputs["hub_height"] = inputs["hub_height_user"]
