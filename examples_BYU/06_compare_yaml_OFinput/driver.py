@@ -317,6 +317,14 @@ print(f"avg pitch: {Pitch_weis}")
 print(f"AEP      : {wt_opt['aeroelastic.AEP']}")
 print(f"tip defl : {wt_opt['aeroelastic.summary_stats']['TipDxc1']['mean']}")
 
+#let's just output 1 del for a given channel, life-time equivalent
+#   assuming f_eq = 1
+Tlife = 3600 * 24 * 365 * 20 
+m = 10.
+DEL = .5* (wt_opt['aeroelastic.DELs']['B1N001MLy'] / Tlife) ** (1/m) #results in kN, same as the output of ED
+print(f"DEL MLy1 : {DEL}")
+
+
 print(" -------------- FAST SUMMARY: ------------------\n")
 
 # GenPwr unavailable since I did not use servodyn.
@@ -332,6 +340,10 @@ print(f"avg pitch: {Pitch_myfast}")
 print(f"tip defl : {TipDefl_myfast}")
 
 #  "GenTq", "RotThrust", "RtAeroCp"
+
+#Same DEL output:
+DEL = .5* ( DELs['B1N001MLy'] / Tlife ) ** (1/m) #results in kN, same as the output of ED
+print(f"DEL MLy1 : {DEL}")
 
 
 ## Compare aero Cp ##

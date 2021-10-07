@@ -4,8 +4,8 @@ General:
 WISDEM:
     RotorSE:
         flag: True
-        spar_cap_ss: Spar_cap_ss
-        spar_cap_ps: Spar_cap_ps
+        spar_cap_ss: DP13_DP10_uniax
+        spar_cap_ps: DP07_DP04_uniax
         # n_span: 40  #force to be equal to what I give in the yaml - REINTERPOLATES (see assign_outer_shape_bem_values)
     DriveSE:
         flag: False #apparently can't run this without tower... crashes in frame3dd

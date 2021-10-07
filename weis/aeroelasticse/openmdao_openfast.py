@@ -373,6 +373,8 @@ class FASTLoadCases(ExplicitComponent):
 
         self.add_discrete_output('fst_vt_out', val={})
         self.add_discrete_output('summary_stats', val={})
+        # self.add_discrete_output('extreme_table', val={})
+        self.add_discrete_output('DELs', val={})
 
         # Iteration counter for openfast calls. Initialize at -1 so 0 after first call
         self.of_inumber = -1
@@ -404,6 +406,8 @@ class FASTLoadCases(ExplicitComponent):
             # FAST_Output = self.run_FAST(fst_vt, list_cases, list_casenames, required_channels)
 
             discrete_outputs['summary_stats'] = summary_stats
+            # discrete_outputs['extreme_table'] = extreme_table
+            discrete_outputs['DELs'] = DELs
 
         elif self.Analysis_Level == 1:
             # Write FAST files, do not run
