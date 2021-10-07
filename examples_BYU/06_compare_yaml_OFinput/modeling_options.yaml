@@ -67,7 +67,7 @@ Level3:
         EdgeDOF: True
         # TeetDOF: False
         DrTrDOF: False 
-        GenDOF: True
+        GenDOF: True #leave it on since we do have ROSCO
         YawDOF: False  
         TwFADOF1 : False
         TwFADOF2 : False

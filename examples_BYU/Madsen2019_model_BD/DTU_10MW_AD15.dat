@@ -20,7 +20,7 @@ False         CompAA             - Flag to compute AeroAcoustics calculation [on
        1700   Pvap               - Vapour pressure of fluid (Pa) [used only when CavitCheck=True]
         6.0   FluidDepth         - Water depth above mid-hub height (m) [used only when CavitCheck=True]
 ======  Blade-Element/Momentum Theory Options  ====================================================== [unused when WakeMod=0]
-          1   SkewMod            - Type of skewed-wake correction model (switch) {1=uncoupled, 2=Pitt/Peters, 3=coupled} [unused when WakeMod=0]
+          2   SkewMod            - Type of skewed-wake correction model (switch) {1=uncoupled, 2=Pitt/Peters, 3=coupled} [unused when WakeMod=0]
 "default"     SkewModFactor      - Constant used in Pitt/Peters skewed wake model {or "default" is 15/32*pi} (-) [used only when SkewMod=2; unused when WakeMod=0]
 True          TipLoss            - Use the Prandtl tip-loss model? (flag) [unused when WakeMod=0]
 True          HubLoss            - Use the Prandtl hub-loss model? (flag) [unused when WakeMod=0]
