@@ -28,9 +28,8 @@ Level3:
 
     #hard setting of parameters:
     simulation:
-        TMax: 60.
+        TMax: 10.
         DT: 0.01
-        # DT_Out: 0.01
         TStart: 0.5  #allow rapid transient to die at the beginning of the simulation before we actually start recording
         NumCrctn: 0 #number of iteration aero-struct
         # CompElast: 1

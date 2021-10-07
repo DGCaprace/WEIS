@@ -2,8 +2,8 @@ import os
 import yaml
 
 from wisdem import run_wisdem
-from weis.aeroelasticse.runFAST_pywrapper   import runFAST_pywrapper, runFAST_pywrapper_batch
-from weis.aeroelasticse.CaseGen_IEC         import CaseGen_IEC
+# from weis.aeroelasticse.runFAST_pywrapper   import runFAST_pywrapper, runFAST_pywrapper_batch
+# from weis.aeroelasticse.CaseGen_IEC         import CaseGen_IEC
 from wisdem.commonse.mpi_tools              import MPI
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
 
@@ -30,7 +30,7 @@ mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 # fname_wt_input = mydir + os.sep + "IEA-10-198-RWT.yaml"
 fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS.yaml"
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
-# fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
+fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
 
 
@@ -41,8 +41,10 @@ run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
 run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 
 
+withDEL = True
 
-#==================== RUN THE TURBINE WITH WEIS, FROM YAML INPUTS =====================================
+
+#==================== ======== =====================================
 # Loading the wisdem/weis compatible yaml, and propagate information to aeroelasticse
 
 # Could use WEIS and instructing the use of Level3=openFAST + iec
@@ -54,7 +56,18 @@ run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 wt_opt, modeling_options, opt_options = run_weis(
     fname_wt_input, fname_modeling_options, fname_analysis_options_WEIS
 )
-# # In case one needs to overwrite data AFTER having read the yaml:
+# print(f"Tip deflection: {wt_opt['rotorse.rs.tip_pos.tip_deflection'][0]} meters")
+
+print(f"avg RPM  : {wt_opt['aeroelastic.Omega_out']}")
+print(f"avg Cp   : {wt_opt['aeroelastic.Cp_out']}")
+print(f"avg pitch: {wt_opt['aeroelastic.pitch_out']}")
+print(f"AEP      : {wt_opt['aeroelastic.AEP']}")
+
+#how can I get the DELs?
+
+
+# In case one needs to overwrite data AFTER having read the yaml:
+# #--
 # # Construct a dict with values to overwrite
 # overridden_values = {}
 # overridden_values["rotorse.wt_class.V_mean_overwrite"] = 11.5
@@ -62,28 +75,18 @@ wt_opt, modeling_options, opt_options = run_weis(
 # wt_opt, modeling_options, opt_options = run_weis(
 #     fname_wt_input,
 #     fname_modeling_options,
-#     fname_analysis_options_WEIS,
+#     fname_analysis_options,
 #     overridden_values=overridden_values,
 # )
 
-ref_V = wt_opt['rotorse.rp.powercurve.V']
-ref_RPM = wt_opt['rotorse.rp.powercurve.Omega']
-ref_pitch = np.array(wt_opt['rotorse.rp.powercurve.pitch']) #caution: negative values even though 
-
-RPM_weis = wt_opt['aeroelastic.Omega_out']
-Cp_weis  = wt_opt['aeroelastic.Cp_out']  #aero Cp
-P_weis  = wt_opt['aeroelastic.P_out']
-Pitch_weis = wt_opt['aeroelastic.pitch_out']
 
 
-print("\n\n\n  -------------- DONE WITH WEIS ------------------\n")
-print("\n\n\n")
+raise RuntimeError("")
 
-
-
-#==================== RUN THE TURBINE WITH OPENFAST, USING ORIGINAL FAST INPUT FILES =====================================
+#==================== ======== =====================================
 # Unsteady loading computation from DLCs
 
+#TODO: move definitions in the beginning. Mare sure we use the same turbine in part 1 and 2
 # Turbine inputs
 iec = CaseGen_IEC()
 iec.Turbine_Class       = 'I'   # Wind class I, II, III, IV
@@ -93,20 +96,16 @@ iec.z_hub               = 119.  # Hub height to size the wind grid
 cut_in                  = 4.    # Cut in wind speed
 cut_out                 = 25.   # Cut out wind speed
 n_ws                    = 3    # Number of wind speed bins
-TMax                    = 60.    # Length of wind grids and OpenFAST simulations, suggested 720 s
+TMax                    = 5.    # Length of wind grids and OpenFAST simulations, suggested 720 s
 Vrated                  = 9.0 # Rated wind speed
 Ttrans                  = max([0., TMax - 60.])  # Start of the transient for DLC with a transient, e.g. DLC 1.4
 TStart                  = max([0., TMax - 600.]) # Start of the recording of the channels of OpenFAST
 
-
+#TODO: we already defined vel range and stuff in the turbine yaml... can we use that here too?
 # Initial conditions to start the OpenFAST runs
-u_ref     = np.array([5.0, 8.0, 10.0, 12.0, 15.]) # Wind speed 
-pitch_ref = [0.0, 0.0, 0.0, 0.0, 0.0] # Pitch values in deg  
-omega_ref = [6.0, 6.69, 8.36, 9.6, 9.6] # Rotor speeds in rpm
-# u_ref     = ref_V
-# pitch_ref = np.maximum(ref_pitch,np.zeros(len(ref_pitch))) #CAUTION: negative values!!
-# omega_ref = ref_RPM
-
+u_ref     = np.arange(3.,26.) # Wind speed
+pitch_ref = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.5058525323662666, 5.253759185225932, 7.50413344606208, 9.310153958810268, 10.8972969450052, 12.412247669440042, 13.883219268525659, 15.252012626933068, 16.53735488246438, 17.76456777500061, 18.953261878035104, 20.11055307762722, 21.238680277668898, 22.30705111326602, 23.455462501156205] # Pitch values in deg
+omega_ref = [2.019140272160114, 2.8047214918577925, 3.594541645994511, 4.359025795823625, 5.1123509774611025, 5.855691196288371, 6.589281196735111, 7.312788026081227, 7.514186181824161, 7.54665511646938, 7.573823812448151, 7.600476033113538, 7.630243938880304, 7.638301051122195, 7.622050377183605, 7.612285710588359, 7.60743945212863, 7.605865650155881, 7.605792924227456, 7.6062185247519825, 7.607153933765292, 7.613179734210654, 7.606737845170748] # Rotor speeds in rpm
 
 iec.init_cond = {}
 iec.init_cond[("ElastoDyn","RotSpeed")]        = {'U':u_ref}
@@ -129,7 +128,7 @@ iec.init_cond[("ElastoDyn","BlPitch3")]        = iec.init_cond[("ElastoDyn","BlP
 #   iec.dlc_inputs['Yaw']   = [[], [], [], [], [], [], []]
 #   iec.PC_MaxRat           = 2.
 #only power curve:
-wind_speeds = [5.0, 8.0, 10.0, 12.0, 15.]
+wind_speeds = [9]
 iec.dlc_inputs = {}
 iec.dlc_inputs['DLC']   = [1.1]
 iec.dlc_inputs['U']     = [wind_speeds]
@@ -199,22 +198,22 @@ iec.run_dir = 'outputs_FAST/Madsen10'
 case_inputs = {}
 case_inputs[("Fst","TMax")]              = {'vals':[TMax], 'group':0}
 case_inputs[("Fst","TStart")]            = {'vals':[TStart], 'group':0}
-case_inputs[("Fst","DT")]                = {'vals':[0.01], 'group':0}
+case_inputs[("Fst","DT")]                = {'vals':[0.005], 'group':0}
 case_inputs[("Fst","DT_Out")]            = {'vals':[0.01], 'group':0}  #0.005  
 # case_inputs[("Fst","OutFileFmt")]        = {'vals':[2], 'group':0}   #<------------- binary output
 case_inputs[("Fst","OutFileFmt")]        = {'vals':[1], 'group':0}  #<------------- ASCII output for debug
 # case_inputs[("Fst","CompHydro")]         = {'vals':[1], 'group':0}
 # case_inputs[("Fst","CompSub")]           = {'vals':[0], 'group':0}
 case_inputs[("InflowWind","WindType")]   = {'vals':[1], 'group':0}
-case_inputs[("ElastoDyn","TwFADOF1")]    = {'vals':["False"], 'group':0}
-case_inputs[("ElastoDyn","TwFADOF2")]    = {'vals':["False"], 'group':0}
-case_inputs[("ElastoDyn","TwSSDOF1")]    = {'vals':["False"], 'group':0}
-case_inputs[("ElastoDyn","TwSSDOF2")]    = {'vals':["False"], 'group':0}
+case_inputs[("ElastoDyn","TwFADOF1")]    = {'vals':["True"], 'group':0}
+case_inputs[("ElastoDyn","TwFADOF2")]    = {'vals':["True"], 'group':0}
+case_inputs[("ElastoDyn","TwSSDOF1")]    = {'vals':["True"], 'group':0}
+case_inputs[("ElastoDyn","TwSSDOF2")]    = {'vals':["True"], 'group':0}
 case_inputs[("ElastoDyn","FlapDOF1")]    = {'vals':["True"], 'group':0}
 case_inputs[("ElastoDyn","FlapDOF2")]    = {'vals':["True"], 'group':0}
 case_inputs[("ElastoDyn","EdgeDOF")]     = {'vals':["True"], 'group':0}
 case_inputs[("ElastoDyn","DrTrDOF")]     = {'vals':["False"], 'group':0}
-# case_inputs[("ElastoDyn","GenDOF")]      = {'vals':["False"], 'group':0}
+case_inputs[("ElastoDyn","GenDOF")]      = {'vals':["True"], 'group':0}
 case_inputs[("ElastoDyn","YawDOF")]      = {'vals':["False"], 'group':0}
 case_inputs[("ElastoDyn","PtfmSgDOF")]   = {'vals':["False"], 'group':0}
 case_inputs[("ElastoDyn","PtfmSwDOF")]   = {'vals':["False"], 'group':0}
@@ -246,99 +245,169 @@ for var in ["TipDxc1", "TipDyc1", "TipDzc1", "TipDxb1", "TipDyb1", "TipDxc2", "T
 #DG: hardcoded node outputs in FASTwriter
 #DG: hardcoded DELs based on those outputs in runFAST_pywrapper
 
-# Parallel file generation with MPI
-if MPI:
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-else:
-    rank = 0
-if rank == 0:
-    case_list, case_name_list, dlc_list = iec.execute(case_inputs=case_inputs)
+if withDEL:
+    # Parallel file generation with MPI
+    if MPI:
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+    else:
+        rank = 0
+    if rank == 0:
+        case_list, case_name_list, dlc_list = iec.execute(case_inputs=case_inputs)
 
-    print(case_name_list)
-    # print(case_list)
+        print(case_name_list)
+        print(case_list)
 
-    #for var in var_out+[var_x]:
+        #for var in var_out+[var_x]:
 
-    for case in case_list: #FORCE GENDOF TO FALSE, OTHERWISE IEC PUT IT BACK ON ABOVE
-        case[("ElastoDyn","GenDOF")]   = False
-        print(case)
+        # Run FAST cases
+        fastBatch                   = runFAST_pywrapper_batch(FAST_ver='OpenFAST',dev_branch = True)
 
-    # Run FAST cases
-    fastBatch                   = runFAST_pywrapper_batch(FAST_ver='OpenFAST',dev_branch = True)
+    #    #Fixed-bottom
+        fastBatch.FAST_InputFile    = 'DTU_10MW.fst'   # FAST input file (ext=.fst)
+        fastBatch.FAST_directory    = run_dir2   # Path to fst directory files
 
-#    #Fixed-bottom
-    fastBatch.FAST_InputFile    = 'DTU_10MW.fst'   # FAST input file (ext=.fst)
-    fastBatch.FAST_directory    = run_dir2   # Path to fst directory files
+        fastBatch.channels          = channels
+        fastBatch.FAST_runDirectory = iec.run_dir
+        fastBatch.case_list         = case_list
+        fastBatch.case_name_list    = case_name_list
+        fastBatch.debug_level       = 2
 
-    fastBatch.channels          = channels
-    fastBatch.FAST_runDirectory = iec.run_dir
-    fastBatch.case_list         = case_list
-    fastBatch.case_name_list    = case_name_list
-    fastBatch.debug_level       = 2
+        fastBatch.keep_time         = True  #DG
 
-    fastBatch.keep_time         = True  #DG
 
+        if MPI:
+            summary_stats, extreme_table, DELs, ct = fastBatch.run_mpi(comm_map_down)
+        else:
+            summary_stats, extreme_table, DELs, ct = fastBatch.run_serial()
 
     if MPI:
-        summary_stats, extreme_table, DELs, ct = fastBatch.run_mpi(comm_map_down)
-    else:
-        summary_stats, extreme_table, DELs, ct = fastBatch.run_serial()
+        sys.stdout.flush()
+        if rank in comm_map_up.keys():
+            subprocessor_loop(comm_map_up)
+        sys.stdout.flush()
 
-if MPI:
+    # Close signal to subprocessors
+    if rank == 0 and MPI:
+        subprocessor_stop(comm_map_down)
+
+    print("\n\n\n  -------------- DONE WITH FAST ------------------\n\n\n\n")
+
+    # ----------------------------------------------------------------------------------------------
+    #    my postpro
+
+    # print("Outputs:")
+    # print(ct[0].keys())
+
+    nt = len(ct[0]["B1N001FLz"])
+    nx = 40  #TODO: deduce this from somewhere else
+
+    dnx = 1 #if you want to reduce the number of data by step of dnx
+    dnt = 10
+
+    nnt = np.fix(nt/dnt).astype(int)
+    nnx = np.fix(nx/dnx).astype(int)
+
+
+
+
+    # --------
+
     sys.stdout.flush()
-    if rank in comm_map_up.keys():
-        subprocessor_loop(comm_map_up)
-    sys.stdout.flush()
 
-# Close signal to subprocessors
-if rank == 0 and MPI:
-    subprocessor_stop(comm_map_down)
+    #  -- Retreive the DELstar --
+    # (after removing "elapsed" from the del post_processing routine)
 
-print("\n\n\n  -------------- DONE WITH FAST ------------------\n\n\n\n")
+    npDelstar = DELs.to_numpy()
+
+    i_AB1Fn = range(0,2*nx,2*dnx)
+    i_AB1Ft = range(1,2*nx,2*dnx)
+    i_B1MLx = range(2*nx  ,5*nx,3*dnx)
+    i_B1MLy = range(2*nx+1,5*nx,3*dnx)
+    i_B1FLz = range(2*nx+2,5*nx,3*dnx)
+    
+    # -- Compute extrapolated lifetime DEL for life --
+
+    m = 10 #hardcoded here but also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper
+    Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
+
+    # a. Obtain the equivalent number of cycles
+    f_eq = 1 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- THIS IS TOTALLY ARBITRARY FOR NOW
+    Tj = ct[0]["Time"][-1] - ct[0]["Time"][0]
+    fj = Tlife / Tj #grossly with an availablity of 1, and considering that the turbine will always operate exactly in the same conditions
+    n_life_eq = fj * Tj * f_eq
+
+    # Here are our lifetime DEL
+    DEL_life_B1 = np.zeros([nx,5])    
+    
+
+    fac = 1e3 #multiply by fac because output of ED is in kN
+
+    k=0
+    for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
+        DEL_life_B1[:,k] = .5 * fac * ( fj * npDelstar[0,ids] / n_life_eq ) ** (1/m)
+        k+=1
+
+    # DEL_life_B1[:,2] = 1e3    
+    # DEL_life_B1[:,3] = 2e5
+    DEL_life_B1[:,4] = -DEL_life_B1[:,4] #change sign because RotorSE strain computation consider positive loads are compression??
+
+    print("Damage eq loads:")
+    print(np.transpose(DEL_life_B1))
 
 
 
-#==================== DO SOME POSTPROCESSING =====================================
+    # B1ForM = np.zeros( (nnt,nnx) )
 
-print(" -------------- WEIS SUMMARY: ------------------\n")
+    # for i in range(nnx):
+    #     tag = "B1N%03iMLx"%(i*dnx+1)
+    #     B1ForM[:,i] = ct[0][tag][0:nnt*dnt-1:dnt]
 
-print(f"ref V    : {ref_V     }")
-print(f"ref RPM  : {ref_RPM   }")
-print(f"ref pitch: {ref_pitch }")
+    # fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+    # for i in range(nnt):
+    #     ax.plot(fac*B1ForM[i,:])
 
-print(f"avg RPM  : {RPM_weis}")
-print(f"avg Cp   : {Cp_weis}")
-print(f"avg P    : {P_weis}")
-print(f"avg pitch: {Pitch_weis}")
-print(f"AEP      : {wt_opt['aeroelastic.AEP']}")
+    # ax.plot(DEL_life_B1[:,3],'xk-')
+    # plt.show()
 
-print(" -------------- FAST SUMMARY: ------------------\n")
+    # raise RuntimeError("")
 
-# GenPwr unavailable since I did not use servodyn.
+    # -- write the analysis file?
 
-Cp_myfast = summary_stats["RtAeroCp"]["mean"]
-RPM_myfast = summary_stats["RotSpeed"]["mean"]
-Pitch_myfast = summary_stats["BldPitch1"]["mean"]
+    schema = load_yaml(fname_analysis_options)
+    #could use load_analysis_yaml from weis instead
 
-print(f"avg RPM  : {RPM_myfast}")
-print(f"avg Cp   : {Cp_myfast}")
-print(f"avg pitch: {Pitch_myfast}")
+    schema["DELs"] = {}
+    schema["DELs"]["grid_nd"] = np.linspace(0,1,nx).tolist() #TODO
+    schema["DELs"]["deFn"]  = DEL_life_B1[:,0].tolist()
+    schema["DELs"]["deFt"]  = DEL_life_B1[:,1].tolist()
+    schema["DELs"]["deMLx"] = DEL_life_B1[:,2].tolist()
+    schema["DELs"]["deMLy"] = DEL_life_B1[:,3].tolist()
+    schema["DELs"]["deFLz"] = DEL_life_B1[:,4].tolist()
 
-#  "GenTq", "RotThrust", "RtAeroCp"
+    schema["general"]["folder_output"] = "outputs_struct_withFatigue"
+    schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
+    schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
+    schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"] = float(n_life_eq)
+    schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"] = float(n_life_eq)
+
+    fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
+    write_yaml(schema, fname_analysis_options_struct)
+    # my_write_yaml(schema, fname_analysis_options_struct)
+    #could use write_analysis_yaml from weis instead
+
+else:
+    fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
+
+# -- passing it to WISDEM --
+# we use the wisdem wrapper instead of the weis wrapper with Level1, so that we can actually use a single modeling file to call both weis and wisdem
+
+wt_opt, analysis_options, opt_options = run_wisdem(fname_wt_input, fname_modeling_options, fname_analysis_options_struct)
+
+print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")
 
 
-## Compare aero Cp ##
 
-# my openfast model predicts a bit more Cp...
-#   - tried to use same skewness model : did not improve
-#   - the disagreement at 15 m/s is due to the fact that ROSCO in WEIS started feather the blade to maintain 10MW, whereas my fast stays at pitch = 0
 
-fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
 
-ax.plot(wind_speeds,Cp_weis,'x-', label='WEIS')
-ax.plot(wind_speeds,Cp_myfast,'o-', label='my OpenFAST') 
-plt.xlabel("U [m/s]")
-plt.ylabel("Cp")
-plt.legend()
-plt.show()
+# -- rerun aeroelasticSE with the UPDATED DESIGN ??? ------------
