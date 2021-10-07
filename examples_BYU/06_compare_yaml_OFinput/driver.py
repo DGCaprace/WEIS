@@ -334,9 +334,10 @@ print(f"avg pitch: {Pitch_myfast}")
 ## Compare aero Cp ##
 
 # my openfast model predicts a bit more Cp...
-# Factors that do not contribute:
+# Factors that do slightly contribute:
 #   - tried to use same skewness model : did not improve
 #   - as is, the WEIS structural model is more rigid so leads to 5m tip deflection instead of 7 in my openfast model
+#   - the rotor radius is not exactly the same, with a difference of about 0.1m?
 # Factors that DO contribute:
 #   - the disagreement at 15 m/s is due to the fact that ROSCO in WEIS started feather the blade to maintain 10MW, whereas my fast stays at pitch = 0
 #   - the controller in WEIS recurrently leads to the turbine rotating a bit slower, which readily translates into a smaller Cp 

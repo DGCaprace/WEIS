@@ -64,7 +64,7 @@ Level3:
     ElastoDyn:
         FlapDOF1: True
         FlapDOF2: True
-        EdgeDOF: True
+        EdgeDOF:  True
         # TeetDOF: False
         DrTrDOF: False 
         GenDOF: True #leave it on since we do have ROSCO
