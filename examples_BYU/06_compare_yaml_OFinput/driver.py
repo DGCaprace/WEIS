@@ -262,6 +262,9 @@ if rank == 0:
 
     for case in case_list: #FORCE GENDOF TO FALSE, OTHERWISE IEC PUT IT BACK ON ABOVE
         case[("ElastoDyn","GenDOF")]   = False
+        # case[("ElastoDyn","FlapDOF1")] = False
+        # case[("ElastoDyn","FlapDOF2")] = False
+        # case[("ElastoDyn","EdgeDOF")]  = False
         print(case)
 
     # Run FAST cases
@@ -331,8 +334,25 @@ print(f"avg pitch: {Pitch_myfast}")
 ## Compare aero Cp ##
 
 # my openfast model predicts a bit more Cp...
+# Factors that do not contribute:
 #   - tried to use same skewness model : did not improve
+#   - as is, the WEIS structural model is more rigid so leads to 5m tip deflection instead of 7 in my openfast model
+# Factors that DO contribute:
 #   - the disagreement at 15 m/s is due to the fact that ROSCO in WEIS started feather the blade to maintain 10MW, whereas my fast stays at pitch = 0
+#   - the controller in WEIS recurrently leads to the turbine rotating a bit slower, which readily translates into a smaller Cp 
+#   - the OpenFAST simulation uses turbulent DLC 1.1 so the avg upstream velocity may not be exactly what it should (this explain the increased discrepancy at low vel: 5m/s)
+#   - using WEIS generated polars:
+#       - with WEIS aero blade file, I have +~0.01 in Cp. May be due to differences in the blade file OR since I use the same indices for airfoils, simply due to the fact that the r locations are not the same.
+#       - most of the difference comes from the polars!!  WEIS do a smart interpolation leading to a unique polar at every station, whereas original model has sharp transitions !
+#
+# Illustration: see the ./plot subdir:
+#    I replaced some portions of my openFAST model with files produced with WEIS. 
+#    All figs in this folder are done with the same ED file, all DOF being FALSE. Sims are short (10 sec)
+#    - weisPolars_myBlade: modified my AD file to use the 40 polars from WEIS, still using my blade file. Porblem doing that: r locations in my blade file and in weis' are not the same
+#    - weisPolars_weisBlade: the closest I can make my model from WEIS The remaining discrepancy are due to slightly off upstream velocity in OpenFAST due to turbulence, and rotational velocity in WEIS due to controller.
+#    - 1Polars_myBlade: just to make sure there is nothing weird with polar interpolation, use only the FFW-241 for the whole blade. My blade file.
+#    - 1Polars_weisBlade: also only 1 polar. We can still see a ~0.01 difference in Cp, which can only come from the blade file which is reinterpolated uniformly in WEIS.
+# Conclusion: what makes the most difference is the interpolated polar, and the reinterpolated blade file.
 
 fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
 
