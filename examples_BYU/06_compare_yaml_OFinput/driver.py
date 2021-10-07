@@ -306,15 +306,16 @@ print("\n\n\n  -------------- DONE WITH FAST ------------------\n\n\n\n")
 
 print(" -------------- WEIS SUMMARY: ------------------\n")
 
-print(f"ref V    : {ref_V     }")
-print(f"ref RPM  : {ref_RPM   }")
-print(f"ref pitch: {ref_pitch }")
+# print(f"ref V    : {ref_V     }")
+# print(f"ref RPM  : {ref_RPM   }")
+# print(f"ref pitch: {ref_pitch }")
 
 print(f"avg RPM  : {RPM_weis}")
 print(f"avg Cp   : {Cp_weis}")
 print(f"avg P    : {P_weis}")
 print(f"avg pitch: {Pitch_weis}")
 print(f"AEP      : {wt_opt['aeroelastic.AEP']}")
+print(f"tip defl : {wt_opt['aeroelastic.summary_stats']['TipDxc1']['mean']}")
 
 print(" -------------- FAST SUMMARY: ------------------\n")
 
@@ -323,10 +324,12 @@ print(" -------------- FAST SUMMARY: ------------------\n")
 Cp_myfast = summary_stats["RtAeroCp"]["mean"]
 RPM_myfast = summary_stats["RotSpeed"]["mean"]
 Pitch_myfast = summary_stats["BldPitch1"]["mean"]
+TipDefl_myfast = summary_stats["TipDxc1"]["mean"]
 
 print(f"avg RPM  : {RPM_myfast}")
 print(f"avg Cp   : {Cp_myfast}")
 print(f"avg pitch: {Pitch_myfast}")
+print(f"tip defl : {TipDefl_myfast}")
 
 #  "GenTq", "RotThrust", "RtAeroCp"
 
