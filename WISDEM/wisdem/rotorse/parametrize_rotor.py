@@ -166,14 +166,14 @@ class ParametrizeBladeStruct(ExplicitComponent):
         opt_ss = self.opt_options["design_variables"]["blade"]["structure"]["spar_cap_ss"]['flag']
         opt_ps = self.opt_options["design_variables"]["blade"]["structure"]["spar_cap_ss"]['flag']
         for i in range(self.n_layers):
-            if layer_name[i] == spar_cap_ss_name and opt_ss and opt_ps:
+            if layer_name[i] == spar_cap_ss_name and opt_ss:
                 opt_m_interp = np.interp(inputs["s"], inputs["s_opt_spar_cap_ss"], inputs["spar_cap_ss_opt"])
                 ss_before_ps = True
             elif layer_name[i] == spar_cap_ps_name and opt_ss and opt_ps:
                 if (
                     self.opt_options["design_variables"]["blade"]["structure"]["spar_cap_ps"]["equal_to_suction"]
                     == False
-                ) or ss_before_ps == False:
+                ): # and ss_before_ps == False:
                     opt_m_interp = np.interp(
                         inputs["s"], inputs["s_opt_spar_cap_ps"], inputs["spar_cap_ps_opt"]
                     )
@@ -181,6 +181,10 @@ class ParametrizeBladeStruct(ExplicitComponent):
                     opt_m_interp = np.interp(
                         inputs["s"], inputs["s_opt_spar_cap_ss"], inputs["spar_cap_ss_opt"]
                     )
+            elif layer_name[i] == spar_cap_ps_name and not opt_ss and opt_ps:
+                opt_m_interp = np.interp(
+                    inputs["s"], inputs["s_opt_spar_cap_ps"], inputs["spar_cap_ps_opt"]
+                )
             else:
                 opt_m_interp = inputs["layer_thickness_original"][i, :]
 

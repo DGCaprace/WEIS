@@ -951,8 +951,9 @@ class DesignConstraints(ExplicitComponent):
         outputs["constr_damageU_spar"] = self.eq_NcycleU_spar / NcycleU
         outputs["constr_damageL_spar"] = self.eq_NcycleL_spar / NcycleL
 
-        print("Current damage on the SS spar:")
+        print("Current damage on the SS/PS spar:")
         print(outputs["constr_damageU_spar"])
+        print(outputs["constr_damageL_spar"])
 
         
         # Constraints on blade frequencies
