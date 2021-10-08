@@ -1327,8 +1327,10 @@ class FASTLoadCases(ExplicitComponent):
             outputs = self.get_monopile_loading(summary_stats, extreme_table, inputs, outputs)
         outputs, discrete_outputs = self.calculate_AEP(summary_stats, case_list, dlc_list, inputs, discrete_inputs, outputs, discrete_outputs)
 
-        if self.FASTpref['dlc_settings']['run_IEC']:
-            outputs, discrete_outputs = self.get_weighted_DELs(summary_stats, DELs, inputs, discrete_inputs, outputs, discrete_outputs)  
+        # I'll do that by myself, bypassing it in WEIS
+        print("Warning: BYU implementation does DEL weighting outside of WEIS.")
+        # if self.FASTpref['dlc_settings']['run_IEC']:
+        #     outputs, discrete_outputs = self.get_weighted_DELs(summary_stats, DELs, inputs, discrete_inputs, outputs, discrete_outputs)  
 
         outputs, discrete_outputs = self.get_control_measures(summary_stats, inputs, discrete_inputs, outputs, discrete_outputs)
 
