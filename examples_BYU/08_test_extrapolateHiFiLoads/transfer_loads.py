@@ -8,7 +8,11 @@ import io
 
 debug = True
 fakeHiFi = False
+fakeLoFi = True
 
+method = 2
+
+#from ADflow:
 def read_force_file(fname):
     
     if fakeHiFi:
@@ -63,6 +67,34 @@ def read_force_file(fname):
 
     return pos, forces, conn, ncell
 
+#from ADflow:
+def getLiftDistribution(testcase):
+    dicty = {}
+    f = open(testcase, 'r')
+    lines = [line.rstrip('\n') for line in f]
+    f.close()
+    vars_slice = lines[1].replace('Variables = ', '').split('" "')
+    #el_line = lines[3].replace('  ZONETYPE=FELINESEG', '') \
+    #    .replace('Elements=         ', '').replace(' Nodes =         ', ''). \
+    #    split()
+    #nodes = int(el_line[1])
+    nodes = int(lines[3].replace('I=   ', ''))
+
+    print('found %i nodes in the file\n'%nodes)
+    
+    for i in range(len(vars_slice)):
+        vars_slice[i] = vars_slice[i].replace('"', '')
+    vars_slice[-1] = vars_slice[-1].rstrip(' ')
+    
+    for i in range(len(vars_slice)):
+        dicty[vars_slice[i]] = []
+        for j in range(nodes):
+            dicty[vars_slice[i]].append(float(lines[5+j+(nodes*i)]))
+    return dicty
+
+
+#-----------------------------------------------
+#-----------------------------------------------
 
 #returns only the items in pos and forces that are located on the blade that points in spanDir, at r>R0
 #caution: span_b1 is the non-dimensional span location
@@ -98,6 +130,7 @@ def mark_blades(pos, R0, spanDir, normDir):
 def RBF_lin(z,z0,rad) :
     return np.maximum(0.0 , 1.0 - abs(z-z0)/rad )
 
+
 #directions: 0=x, 1=y, 2=z
 def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R, spanDir=1, normDir=0):
 
@@ -106,12 +139,8 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
 
     chordDir = (3-spanDir-normDir)  #the direction normal to spanDir and nromDir
 
-    #method 1
-    #define a uniform distribution of spanwise radii
-    nnodes = 20
-    rnodes = np.linspace(0,1,nnodes)
-    rad = rnodes[1] - rnodes[0]
-
+    #------------ common definitions and processing ------------
+    
     #define radial basis functions for every point in the distro
     myRBF = RBF_lin #choose a RBF
 
@@ -119,10 +148,18 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
     n_interp = 1000 #need to reinterpolate lofi distro in case the number of stations is <= nnodes
     r_interp = np.linspace(0,1,n_interp)
     dr = r_interp[1] - r_interp[0]
-    FN_lofi_nodes = np.zeros(nnodes)
-    FT_lofi_nodes = np.zeros(nnodes)
+
     FnEL_interp = np.interp(r_interp, rEL, FnEL)
     FtEL_interp = np.interp(r_interp, rEL, FtEL)
+        
+
+    #define a uniform distribution of spanwise radii
+    nnodes = 20
+    rnodes = np.linspace(0,1,nnodes)
+    rad = rnodes[1] - rnodes[0]
+
+    FN_lofi_nodes = np.zeros(nnodes)
+    FT_lofi_nodes = np.zeros(nnodes)
     for j in range(nnodes):
         FN_lofi_nodes[j] = np.trapz( myRBF(r_interp,rnodes[j],rad) * FnEL_interp ) * dr * (R-R0) #redimensionalize to get N
         FT_lofi_nodes[j] = np.trapz( myRBF(r_interp,rnodes[j],rad) * FtEL_interp ) * dr * (R-R0) #redimensionalize to get N
@@ -135,32 +172,71 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
             FN_hifi_nodes[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,normDir]
             FT_hifi_nodes[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,chordDir]
 
+    #------------ Determine scaling function ------------
+    #------------ method 1 ------------
+    if method == 1:
+        #determine scaling as a function of r, that is the ratio between the forces above times the RBFs, sume over RBFs.
+        scaling_nodes = FN_lofi_nodes/FN_hifi_nodes
 
-    #determine scaling as a function of r, that is the ratio between the forces above times the RBFs, sume over RBFs.
-    scaling_nodes = FN_lofi_nodes/FN_hifi_nodes
+        # print(FN_lofi_nodes)
+        # print(FN_hifi_nodes)
+        print(scaling_nodes)
 
-    # print(FN_lofi_nodes)
-    # print(FN_hifi_nodes)
-    print(scaling_nodes)
+        #define a scaling function object that I can evaluate at any r (spline interp?)
+        # simply use the same RBF to interpolate
+        # input z is non-dim
+        def scale(z)  :
+            out = 0
+            for j in range(nnodes):
+                out += myRBF(z,rnodes[j],rad) * scaling_nodes[j]
 
-    #define a scaling function object that I can evaluate at any r (spline interp?)
-    # simply use the same RBF to interpolate
-    # input z is non-dim
-    def scale(z)  :
-        out = 0
-        for j in range(nnodes):
-            out += myRBF(z,rnodes[j],rad) * scaling_nodes[j]
+            return out
 
-        return out
+        fScale0 = scaling_nodes[0] #scaling factor from node 0 to hub
+
+    #------------method 2------------
+    elif method == 2: 
+
+        #read hifi force distro 
+        #TODO: pass filename
+        hf_distr = getLiftDistribution("Analysis_DTU10MW_V8_TSR781_000_lift.dat")
+
+        if spanDir==0:
+            rHF = np.array(hf_distr['CoordinateX'][:])
+        elif spanDir==1:
+            rHF = np.array(hf_distr['CoordinateY'][:])
+        else:
+            rHF = np.array(hf_distr['CoordinateZ'][:])
+        if normDir==0:
+            FnHF = np.array(hf_distr['Fx'][:])
+        elif normDir==1:
+            FnHF = np.array(hf_distr['Fy'][:])
+        else:
+            FnHF = np.array(hf_distr['Fz'][:])
+
+        FnHF_interp = np.interp(r_interp, (rHF-R0)/(R-R0), FnHF)
+
+        scaling = FnEL_interp / FnHF_interp
+
+        #determine scaling as a function of r, define a function object that I can evaluate at any r (spline interp?)
+        def scale(z)  :
+            return np.interp(z, r_interp, scaling)
+            
+        fScale0 = scaling[0] #scaling factor from node 0 to hub
+
+    else:
+        raise RuntimeError("unkown method.")
 
 
+    #------------Apply scaling to HF data------------
+    
     #identify blade indices
     masks = mark_blades(pos, R0, spanDir, normDir)
 
     #scaling of hub forces:
     r_loc = np.linalg.norm(pos[masks[:,0],:],axis=1)
     for k in range(3):
-        forces[masks[:,0],k] *= ( r_loc/R0 * scaling_nodes[0] + (R0-r_loc)/R0 * 1.)
+        forces[masks[:,0],k] *= ( r_loc/R0 * fScale0 + (R0-r_loc)/R0 * 1.)
     
     #scaling of blade1 forces:
     r_loc = (pos[masks[:,1],spanDir] - R0)/(R-R0)
@@ -178,16 +254,31 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         forces[masks[:,3],k] *= scale(r_loc)
 
     
+    #------------ Export ------------
+
+    #redo node approach on scaled distribution on hifi
+    FN_hifi_nodes_scaled = np.zeros(nnodes)
+    FT_hifi_nodes_scaled = np.zeros(nnodes)
+    span_b1,force_b1 = isolate_blade1(pos,forces,R0,R,spanDir)
+    for j in range(nnodes):
+        for i in range(len(span_b1)):
+            FN_hifi_nodes_scaled[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,normDir]
+            FT_hifi_nodes_scaled[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,chordDir]
+
+
     if debug:
         fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
         plt.plot(rnodes,FN_lofi_nodes)
         plt.plot(rnodes,FN_hifi_nodes)
+        # plt.plot(rnodes,FN_hifi_nodes*scaling_nodes,':') #theoretical 
+        plt.plot(rnodes,FN_hifi_nodes_scaled,'--')
         plt.ylabel("Fn [N]")
 
         fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
         plt.plot(rnodes,FT_lofi_nodes)
         plt.plot(rnodes,FT_hifi_nodes)
-        plt.plot(rnodes,FT_hifi_nodes*scaling_nodes,'--')
+        # plt.plot(rnodes,FT_hifi_nodes*scaling_nodes,':') #theoretical 
+        plt.plot(rnodes,FT_hifi_nodes_scaled,'--')
         plt.ylabel("Ft [N]")
 
         fig = plt.figure()
@@ -206,20 +297,11 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         plt.show()
         
 
-
-    #method 2
-    #read hifi force distro 
-    #determine scaling as a function of r, define a function object that I can evaluate at any r (spline interp?)
-    #as a check, apply scaling to Ft hifi and lofi distro, and compare those
-    #apply scaling to force file
-
-    if debug:
-        exportToXdmf("scaled.xmf",pos,forces)
-
+    exportToXdmf("scaled.xmf",pos,forces)
     write_force_file(output_aero_forces,pos,forces,conn,ncell)
 
 
-
+#-----------------------------------------------
 # ================================================
 
 def exportToXdmf(fname,pos,forces):
@@ -267,17 +349,24 @@ def write_force_file(fname,pos,forces,conn,ncell):
         f.write("%i %i\n"%(npts,ncell))
         for k in range(npts):
             f.write("   %6.5f %6.5f %6.5f %6.5f %6.5f %6.5f\n"%(pos[k,0],pos[k,1],pos[k,2],forces[k,0],forces[k,1],forces[k,2]))
-        f.write("%s"%(conn))
+        for el in conn:
+            f.write("%s"%(el))
 
 # V==============================================v
 
 if __name__=='__main__':
 
-    dummy_r    = [0,.5,1.] 
-    dummy_FnEL = np.array([1.,1.,1.])*1e2
-    dummy_FtEL = np.array([1.,1.,1.])*1e1
+    #TODO: load from lofi file
+
+
+
+    if fakeLoFi:
+        dummy_r    = [0,.5,1.] 
+        dummy_FnEL = np.array([1.,1.,1.])*1e2
+        dummy_FtEL = np.array([1.,1.,1.])*1e1
 
     R0 = 2.8
     R = 89.166
 
-    aero_HiFi_2_Lofi("force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
+    # aero_HiFi_2_Lofi("old/force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
+    aero_HiFi_2_Lofi("force_allwalls_L2_0.txt","force_allwalls_L2_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
