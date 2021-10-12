@@ -31,6 +31,7 @@ fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS.yaml"
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
 fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
+fname_aggregatedEqLoads = mydir + os.sep + "aggregatedEqLoads.yaml"
 
 folder_arch = mydir + os.sep + "results"
 
@@ -41,15 +42,17 @@ run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
 # run_dir2            = mydir + "/examples/01_aeroelasticse/" #os.path.dirname( os.path.realpath(__file__) ) + os.sep
 run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 
-withDEL = True
-nGlobalIter = 4
+withDEL = True  #skip DEL computation
+doLofiOptim = True  #skip lofi optimization
+nGlobalIter = 1
 restartAt = 0
 
 
 #==================== ======== =====================================
 ## Preprocessing
 
-if not withDEL: nGlobalIter = 0
+if not withDEL and not doLofiOptim: nGlobalIter = 0
+if not withDEL or not doLofiOptim: nGlobalIter = 1
 
 # analysis_opt = load_yaml(fname_analysis_options)
 
@@ -110,7 +113,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
         f_eq = 1 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- THIS IS TOTALLY ARBITRARY FOR NOW
 
-        fac = 1e3 #multiplicator because output of ED is in kN
+        fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
 
         # --------
         
@@ -139,8 +142,10 @@ for IGLOB in range(restartAt,nGlobalIter):
         i_B1MLy = np.zeros(nx,int)
         i_B1FLz = np.zeros(nx,int)
         for i in range(nx):
-            i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1))
-            i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1))
+            # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
+            # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
+            i_AB1Fn[i] = colnames.get_loc("AB1N%03iFx"%(i+1)) #rotor normal
+            i_AB1Ft[i] = colnames.get_loc("AB1N%03iFy"%(i+1)) #rotor tangential
             i_B1MLx[i] = colnames.get_loc("B1N%03iMLx"%(i+1))
             i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
             i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
@@ -175,36 +180,18 @@ for IGLOB in range(restartAt,nGlobalIter):
         print(np.transpose(DEL_life_B1))
 
 
-        # nnt = np.fix(nt/dnt).astype(int)
-        # nnx = np.fix(nx/dnx).astype(int)
-
-        # B1ForM = np.zeros( (nnt,nnx) )
-
-        # for i in range(nnx):
-        #     tag = "B1N%03iMLx"%(i*dnx+1)
-        #     B1ForM[:,i] = ct[0][tag][0:nnt*dnt-1:dnt]
-
-        # fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-        # for i in range(nnt):
-        #     ax.plot(fac*B1ForM[i,:])
-
-        # ax.plot(DEL_life_B1[:,3],'xk-')
-        # plt.show()
-
-        # raise RuntimeError("")
 
         # -- write the analysis file?
 
         schema = load_yaml(fname_analysis_options)
         #could use load_analysis_yaml from weis instead
 
-        schema["DELs"] = {}
-        schema["DELs"]["grid_nd"] = np.linspace(0,1,nx).tolist() #TODO
-        # schema["DELs"]["deFn"]  = DEL_life_B1[:,0].tolist() #-> not needed from RotorSE: write it somewhere else?
-        # schema["DELs"]["deFt"]  = DEL_life_B1[:,1].tolist() #-> not needed from RotorSE: write it somewhere else?
-        schema["DELs"]["deMLx"] = DEL_life_B1[:,2].tolist()
-        schema["DELs"]["deMLy"] = DEL_life_B1[:,3].tolist()
-        schema["DELs"]["deFLz"] = DEL_life_B1[:,4].tolist()
+        schema["DEL"] = {}
+        schema["DEL"]["grid_nd"] = np.linspace(0.,1.,nx).tolist() #note: the node gauges are located at np.arange(1./nx/2., 1, 1./nx) but I prefer consider that it spans then entire interval [0,1]
+        schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
+        schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
+        schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
+        # schema["extreme"] = {}
 
         schema["general"]["folder_output"] = "outputs_struct_withFatigue"
         schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
@@ -219,6 +206,15 @@ for IGLOB in range(restartAt,nGlobalIter):
         #could use write_analysis_yaml from weis instead
         #TODO: save in a format that can be used by MACH
 
+        schema_hifi = {}
+        schema_hifi["DEL"] = {}
+        schema_hifi["DEL"]["grid_nd"] = schema["DEL"]["grid_nd"]
+        schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
+        schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
+        # schema_hifi["extreme"] = {}
+
+        my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
+
     else:
         fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
 
@@ -226,11 +222,11 @@ for IGLOB in range(restartAt,nGlobalIter):
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 2 : Optimize
     # +++++++++++++++++++++++++++++++++++++++
-    # Let's use the most up-to-date turbine as a starting point:
-    wt_opt, analysis_options, opt_options = run_wisdem(current_wt_input, fname_modeling_options, fname_analysis_options_struct)
+    if doLofiOptim:
+        # Let's use the most up-to-date turbine as a starting point:
+        wt_opt, analysis_options, opt_options = run_wisdem(current_wt_input, fname_modeling_options, fname_analysis_options_struct)
 
-    print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")
-
+        print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")    
 
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
@@ -244,9 +240,15 @@ for IGLOB in range(restartAt,nGlobalIter):
     
     # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
     # shutil.copytree
-    shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
-    shutil.move(mydir + os.sep + "temp", folder_arch + os.sep + "sim" + os.sep + currFolder)
-    shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+    if withDEL and IGLOB==0:
+        shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
+    if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
+        shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
+        shutil.move(mydir + os.sep + "temp", folder_arch + os.sep + "sim" + os.sep + currFolder)
+    if os.path.isdir(mydir + os.sep + "outputs_struct_withFatigue"):
+        shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+    if os.path.isdir(mydir + os.sep + "outputs_struct"):
+        shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"

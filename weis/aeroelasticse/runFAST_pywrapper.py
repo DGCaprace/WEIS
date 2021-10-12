@@ -73,6 +73,10 @@ for i in range(1,41): #TODO: must read this number from somewhere!!
     fatigue_channels[tag] = 10
     tag = "AB1N%03iFt"%(i)
     fatigue_channels[tag] = 10
+    tag = "AB1N%03iFx"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFy"%(i)
+    fatigue_channels[tag] = 10
 
 # channel_extremes = [
 #     'RotSpeed',

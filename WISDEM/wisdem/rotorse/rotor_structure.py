@@ -521,14 +521,12 @@ class ProcessDels(ExplicitComponent):
         
         self.opt_options = opt_options = self.options["opt_options"]
 
-        #read the DELs:
+        #read the DEL/DEM:
         if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
-            self.s_del = opt_options["DELs"]["grid_nd"]
-            # self.deFn  = opt_options["DELs"]["deFn"] 
-            # self.deFt  = opt_options["DELs"]["deFt"] 
-            self.deMLx = opt_options["DELs"]["deMLx"]
-            self.deMLy = opt_options["DELs"]["deMLy"]
-            self.deFLz = opt_options["DELs"]["deFLz"]
+            self.s_del = opt_options["DEL"]["grid_nd"]
+            self.deMLx = opt_options["DEL"]["deMLx"]
+            self.deMLy = opt_options["DEL"]["deMLy"]
+            self.deFLz = opt_options["DEL"]["deFLz"]
         else:
             self.s_del = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
             # self.deFn  = -np.ones(n_span)
@@ -575,14 +573,14 @@ class ProcessDels(ExplicitComponent):
     # def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
     def compute(self, inputs, outputs):
 
-        # I already read the DELs/DEMs. Now let's rotate them as needed, and reinterpolate at the location of "s".
+        # I already read the DEL/DEM. Now let's rotate them as needed, and reinterpolate at the location of "s".
         #   Note that interpolation at s is not stricly required since we will interpolate a second time in the constraint at the location where we define the fatigue
         #   constraint. But we would then need to define another component to compute the strain.
 
         # Constraints on blade strains
         s = inputs["s"]
         
-        # DELs/DEMs are given in "floating coordinate system local to the deflected beam":
+        # DEL/DEM are given in "floating coordinate system local to the deflected beam":
         #       It is not clear whether it corresponds to the local section elastic/principal axis or the local aerodynami/chord-based axes.
         #       "The blade reference axis locates the origin and orientation of each a local coordinate system where the cross-sectional 6x6 stiffness and mass matrices are defined in the BeamDyn blade input file. It should not really matter where in the cross section the 6x6 stiffness and mass matrices are defined relative to, as long as the reference axis is consistently defined and closely follows the natural geometry of the blade."
         
@@ -723,6 +721,11 @@ class ComputeStrains(ExplicitComponent):
 
         ca = np.cos(np.deg2rad(alpha))
         sa = np.sin(np.deg2rad(alpha))
+        # print(f"M1in: {M1in}")
+        # print(f"M2in: {M2in}")
+        # print(f"F3: {F3}")
+        # print(f"alpha: {alpha}")
+        # print(f"x,y uspar: {yu_strain_spar} {xu_strain_spar}") #inverted as below: yu measured along the chord, xu along the thickness... 
 
         def rotate(x, y):
             x2 = x * ca + y * sa

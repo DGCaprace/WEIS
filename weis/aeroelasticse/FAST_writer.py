@@ -989,6 +989,8 @@ class InputWriter_OpenFAST(InputWriter_Common):
         #HARDCODING FOR TEST:
         f.write('"Fn"\n')
         f.write('"Ft"\n')
+        f.write('"Fx"\n')
+        f.write('"Fy"\n')
         f.write('END of input file (the word "END" must appear in the first 3 columns of this last OutList line)')
         f.close()
 

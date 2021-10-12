@@ -295,11 +295,21 @@ sys.stdout.flush()
 
 npDelstar = DELs.to_numpy()
 
-i_AB1Fn = range(0,2*nx,2*dnx)
-i_AB1Ft = range(1,2*nx,2*dnx)
-i_B1MLx = range(2*nx  ,5*nx,3*dnx)
-i_B1MLy = range(2*nx+1,5*nx,3*dnx)
-i_B1FLz = range(2*nx+2,5*nx,3*dnx)
+# Indices where to find DELs for the various nodes:
+colnames = DELs.columns
+i_AB1Fn = np.zeros(nx,int)
+i_AB1Ft = np.zeros(nx,int)
+i_B1MLx = np.zeros(nx,int)
+i_B1MLy = np.zeros(nx,int)
+i_B1FLz = np.zeros(nx,int)
+for i in range(nx):
+    # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
+    # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
+    i_AB1Fn[i] = colnames.get_loc("AB1N%03iFx"%(i+1)) #rotor normal
+    i_AB1Ft[i] = colnames.get_loc("AB1N%03iFy"%(i+1)) #rotor tangential
+    i_B1MLx[i] = colnames.get_loc("B1N%03iMLx"%(i+1))
+    i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
+    i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
  
 # -- Compute extrapolated lifetime DEL for life --
 
