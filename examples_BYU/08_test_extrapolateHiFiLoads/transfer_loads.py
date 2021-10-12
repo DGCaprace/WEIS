@@ -1,5 +1,5 @@
 import os
-# import sys, shutil
+import sys, shutil
 import ast
 import numpy as np
 from mpl_toolkits import mplot3d
@@ -8,7 +8,7 @@ import io
 
 debug = True
 fakeHiFi = False
-fakeLoFi = True
+fakeLoFi = False
 
 method = 2
 
@@ -39,8 +39,8 @@ def read_force_file(fname):
     with open(fname,'r') as f:
         l1 = f.readline() 
         buff=l1.split(' ')
-        npts = np.int(buff[0])
-        ncell = np.int(buff[1])
+        npts = int(buff[0])
+        ncell = int(buff[1])
 
         pos = np.zeros((npts,3))
         forces = np.zeros((npts,3))
@@ -131,8 +131,25 @@ def RBF_lin(z,z0,rad) :
     return np.maximum(0.0 , 1.0 - abs(z-z0)/rad )
 
 
-#directions: 0=x, 1=y, 2=z
-def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R, spanDir=1, normDir=0):
+def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R, spanDir=1, normDir=0, fname_HFdistro=""):
+    """ Scale the HiFi force distribution to match the LoFi loading distribution.
+
+    :param ref_aero_forces: input file from ADflow (generated with `writeForceFile`)
+    :param output_aero_forces: output file with scaled forces (same format)
+
+    :param rEL: non dimensional radii [0.-1.] where the lofi load distribution are provided
+    :type rEL: vect
+    :param FnEL: lofi normal load distribution [N/m]
+    :type FnEL: vect
+    :param FtEL: lofi tangential load distribution [N/m]
+    :type FtEL: vect
+    :param R0: blade root cutoff radius [m]
+    :param R: blade tip radius [m]
+
+    :param spanDir: spanwise direction (0=x, 1=y, 2=z), defaults to 1
+    :param normDir: rotor normal direction (0=x, 1=y, 2=z), defaults to 0
+    :param fname_HFdistro: filename of the hifi load distribution [N/m] when using method=2, defaults to ""
+    """
 
     pos,forces,conn,ncell = read_force_file(ref_aero_forces)
     span_b1,force_b1 = isolate_blade1(pos,forces,R0,R,spanDir)
@@ -198,8 +215,7 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
     elif method == 2: 
 
         #read hifi force distro 
-        #TODO: pass filename
-        hf_distr = getLiftDistribution("Analysis_DTU10MW_V8_TSR781_000_lift.dat")
+        hf_distr = getLiftDistribution(fname_HFdistro)
 
         if spanDir==0:
             rHF = np.array(hf_distr['CoordinateX'][:])
@@ -213,8 +229,19 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
             FnHF = np.array(hf_distr['Fy'][:])
         else:
             FnHF = np.array(hf_distr['Fz'][:])
+        if chordDir==0:
+            FtHF = np.array(hf_distr['Fx'][:])
+        elif chordDir==1:
+            FtHF = np.array(hf_distr['Fy'][:])
+        else:
+            FtHF = np.array(hf_distr['Fz'][:])
+
 
         FnHF_interp = np.interp(r_interp, (rHF-R0)/(R-R0), FnHF)
+        FtHF_interp = np.interp(r_interp, (rHF-R0)/(R-R0), FtHF)
+
+        print(f"Max r in load distribution file: {max(rHF)/R} (caution if not exactly 1.0)!")
+        print(f"Max r in force file: {max(span_b1)}")
 
         scaling = FnEL_interp / FnHF_interp
 
@@ -281,18 +308,27 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         plt.plot(rnodes,FT_hifi_nodes_scaled,'--')
         plt.ylabel("Ft [N]")
 
-        fig = plt.figure()
-        ax = plt.axes(projection='3d')
+        if method == 2:
+            fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+            plt.plot(r_interp,FnEL_interp)
+            plt.plot(r_interp,FnHF_interp)
+            plt.ylabel("Fn [N]")
 
-        print(min( np.linalg.norm( pos , axis=1) ))
-        SCL = .1 * max( np.linalg.norm( pos , axis=1) ) / max( np.linalg.norm( forces , axis=1) ) 
-        for k in range( np.shape(forces)[0] ):
-            ax.plot3D(pos[k,0] + SCL * np.array([0, forces[k,0]]), 
-                      pos[k,1] + SCL * np.array([0, forces[k,1]]), 
-                      pos[k,2] + SCL * np.array([0, forces[k,2]]), 'blue')
+            fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+            plt.plot(r_interp,FtEL_interp)
+            plt.plot(r_interp,FtHF_interp)
+            plt.plot(r_interp,FtHF_interp*scaling,'--')
+            plt.ylabel("Ft [N]")
 
-        # print(pos)
-        # print(forces)
+
+        # fig = plt.figure()
+        # ax = plt.axes(projection='3d')
+
+        # SCL = .1 * max( np.linalg.norm( pos , axis=1) ) / max( np.linalg.norm( forces , axis=1) ) 
+        # for k in range( np.shape(forces)[0] ):
+        #     ax.plot3D(pos[k,0] + SCL * np.array([0, forces[k,0]]), 
+        #               pos[k,1] + SCL * np.array([0, forces[k,1]]), 
+        #               pos[k,2] + SCL * np.array([0, forces[k,2]]), 'blue')
 
         plt.show()
         
@@ -356,17 +392,23 @@ def write_force_file(fname,pos,forces,conn,ncell):
 
 if __name__=='__main__':
 
-    #TODO: load from lofi file
+    sys.path.insert(1, '/Users/dg/OneDrive - BYU/BYU_ATLANTIS/OpenTurbineCoDe/OpenTurbineTestCases/scripts')
+    from OTCDparser import OFparse
 
-
-
-    if fakeLoFi:
-        dummy_r    = [0,.5,1.] 
-        dummy_FnEL = np.array([1.,1.,1.])*1e2
-        dummy_FtEL = np.array([1.,1.,1.])*1e1
-
+    FastFile = "inputs/DTU_10MW_V8_TSR781.out"
     R0 = 2.8
     R = 89.166
 
-    # aero_HiFi_2_Lofi("old/force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
-    aero_HiFi_2_Lofi("force_allwalls_L2_0.txt","force_allwalls_L2_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
+    if FastFile:
+        dummy_r = np.array([0.000000e+00, 2.643018e+00, 5.379770e+00, 8.202738e+00, 1.110314e+01, 1.407102e+01, 1.709533e+01, 2.016412e+01, 2.326467e+01, 2.638370e+01, 2.950764e+01, 3.262279e+01, 3.571564e+01, 3.877302e+01, 4.178239e+01, 4.473200e+01, 4.761106e+01, 5.040992e+01, 5.312010e+01, 5.573444e+01, 5.824705e+01, 6.065336e+01, 6.295010e+01, 6.513516e+01, 6.720760e+01, 6.916749e+01, 7.101585e+01, 7.275451e+01, 7.438597e+01, 7.591335e+01, 7.734022e+01, 7.867052e+01, 7.990848e+01, 8.105852e+01, 8.212516e+01, 8.311296e+01, 8.402649e+01, 8.487025e+01, 8.564866e+01, 8.636600e+01])/(R-R0)
+        _, _, _, dummy_FnEL, dummy_FtEL = OFparse(FastFile, nodeR=dummy_r)
+        dummy_FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
+
+    if fakeLoFi:
+        dummy_r    = [0,.5,.99,1.] 
+        dummy_FnEL = np.array([1.,1.,1.,0.])*1e2
+        dummy_FtEL = np.array([1.,1.,1.,0.])*1e1
+
+
+    # aero_HiFi_2_Lofi("inputs/old/force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
+    aero_HiFi_2_Lofi("inputs/force_allwalls_L2_0.txt","force_allwalls_L2_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro="inputs/Analysis_DTU10MW_V8_TSR781_000_lift.dat")
