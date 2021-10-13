@@ -5,12 +5,15 @@ import numpy as np
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import io
+import yaml
 
 debug = True
 fakeHiFi = False
 fakeLoFi = False
+useDEL = True
 
 method = 2
+#method 1 is wrong: nodal values are in N/m2, not N
 
 #from ADflow:
 def read_force_file(fname):
@@ -92,6 +95,12 @@ def getLiftDistribution(testcase):
             dicty[vars_slice[i]].append(float(lines[5+j+(nodes*i)]))
     return dicty
 
+
+def my_read_yaml(finput):
+    # Write yaml with updated values
+    with open(finput, "r", encoding="utf-8") as f:
+        dict = yaml.load(f) #, Loader=yaml.FullLoader)
+    return dict
 
 #-----------------------------------------------
 #-----------------------------------------------
@@ -188,6 +197,8 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         for i in range(len(span_b1)):
             FN_hifi_nodes[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,normDir]
             FT_hifi_nodes[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,chordDir]
+    # force_b1 is in N/m^2 !!   
+    # TODO: could determine chord from the pos, then would be able to have distro in N/m2 for the scaling without the need for lift file
 
     #------------ Determine scaling function ------------
     #------------ method 1 ------------
@@ -209,7 +220,7 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
 
             return out
 
-        fScale0 = scaling_nodes[0] #scaling factor from node 0 to hub
+        fScaleR0 = scaling_nodes[0] #scaling factor from node 0 to hub
 
     #------------method 2------------
     elif method == 2: 
@@ -236,7 +247,6 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         else:
             FtHF = np.array(hf_distr['Fz'][:])
 
-
         FnHF_interp = np.interp(r_interp, (rHF-R0)/(R-R0), FnHF)
         FtHF_interp = np.interp(r_interp, (rHF-R0)/(R-R0), FtHF)
 
@@ -249,7 +259,7 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
         def scale(z)  :
             return np.interp(z, r_interp, scaling)
             
-        fScale0 = scaling[0] #scaling factor from node 0 to hub
+        fScaleR0 = scaling[0] #scaling factor from node 0 to hub
 
     else:
         raise RuntimeError("unkown method.")
@@ -262,8 +272,9 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
 
     #scaling of hub forces:
     r_loc = np.linalg.norm(pos[masks[:,0],:],axis=1)
+    fScale0 = 0.0 #linearly blend to 0 the forces on the nacelle: no need for them anyway
     for k in range(3):
-        forces[masks[:,0],k] *= ( r_loc/R0 * fScale0 + (R0-r_loc)/R0 * 1.)
+        forces[masks[:,0],k] *= ( r_loc/R0 * fScaleR0 + (R0-r_loc)/R0 * fScale0)
     
     #scaling of blade1 forces:
     r_loc = (pos[masks[:,1],spanDir] - R0)/(R-R0)
@@ -294,31 +305,36 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
 
 
     if debug:
-        fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-        plt.plot(rnodes,FN_lofi_nodes)
-        plt.plot(rnodes,FN_hifi_nodes)
-        # plt.plot(rnodes,FN_hifi_nodes*scaling_nodes,':') #theoretical 
-        plt.plot(rnodes,FN_hifi_nodes_scaled,'--')
-        plt.ylabel("Fn [N]")
+        # fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+        # plt.plot(rnodes,FN_lofi_nodes)
+        # plt.plot(rnodes,FN_hifi_nodes)
+        # # plt.plot(rnodes,FN_hifi_nodes*scaling_nodes,':') #theoretical 
+        # plt.plot(rnodes,FN_hifi_nodes_scaled,'--')
+        # plt.ylabel("Fn [N]")
 
-        fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-        plt.plot(rnodes,FT_lofi_nodes)
-        plt.plot(rnodes,FT_hifi_nodes)
-        # plt.plot(rnodes,FT_hifi_nodes*scaling_nodes,':') #theoretical 
-        plt.plot(rnodes,FT_hifi_nodes_scaled,'--')
-        plt.ylabel("Ft [N]")
+        # fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+        # plt.plot(rnodes,FT_lofi_nodes)
+        # plt.plot(rnodes,FT_hifi_nodes)
+        # # plt.plot(rnodes,FT_hifi_nodes*scaling_nodes,':') #theoretical 
+        # plt.plot(rnodes,FT_hifi_nodes_scaled,'--')
+        # plt.ylabel("Ft [N]")
 
         if method == 2:
             fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
             plt.plot(r_interp,FnEL_interp)
             plt.plot(r_interp,FnHF_interp)
-            plt.ylabel("Fn [N]")
+            plt.plot(r_interp,FnHF_interp*scaling,'--')
+            plt.ylabel("Fn [N/m]")
 
             fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
             plt.plot(r_interp,FtEL_interp)
             plt.plot(r_interp,FtHF_interp)
             plt.plot(r_interp,FtHF_interp*scaling,'--')
-            plt.ylabel("Ft [N]")
+            plt.ylabel("Ft [N/m]")
+
+            fig5, ax5 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+            plt.plot(r_interp,scaling,'--')
+            plt.ylabel("scaling")
 
 
         # fig = plt.figure()
@@ -396,19 +412,28 @@ if __name__=='__main__':
     from OTCDparser import OFparse
 
     FastFile = "inputs/DTU_10MW_V8_TSR781.out"
+    DEL_File = "../07_test_iterateDEL/results-IEC1.3_5vels_120s/aggregatedEqLoads.yaml"
     R0 = 2.8
     R = 89.166
 
-    if FastFile:
-        dummy_r = np.array([0.000000e+00, 2.643018e+00, 5.379770e+00, 8.202738e+00, 1.110314e+01, 1.407102e+01, 1.709533e+01, 2.016412e+01, 2.326467e+01, 2.638370e+01, 2.950764e+01, 3.262279e+01, 3.571564e+01, 3.877302e+01, 4.178239e+01, 4.473200e+01, 4.761106e+01, 5.040992e+01, 5.312010e+01, 5.573444e+01, 5.824705e+01, 6.065336e+01, 6.295010e+01, 6.513516e+01, 6.720760e+01, 6.916749e+01, 7.101585e+01, 7.275451e+01, 7.438597e+01, 7.591335e+01, 7.734022e+01, 7.867052e+01, 7.990848e+01, 8.105852e+01, 8.212516e+01, 8.311296e+01, 8.402649e+01, 8.487025e+01, 8.564866e+01, 8.636600e+01])/(R-R0)
-        _, _, _, dummy_FnEL, dummy_FtEL = OFparse(FastFile, nodeR=dummy_r)
-        dummy_FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
-
+    suff = ""
     if fakeLoFi:
         dummy_r    = [0,.5,.99,1.] 
         dummy_FnEL = np.array([1.,1.,1.,0.])*1e2
         dummy_FtEL = np.array([1.,1.,1.,0.])*1e1
+    if useDEL:
+        suff = "DEL"
+        dict = my_read_yaml(DEL_File)
+        dummy_r = dict["DEL"]["grid_nd"]
+        dummy_FnEL = dict["DEL"]["Fn"]
+        dummy_FtEL = dict["DEL"]["Ft"]
+    else:
+        suff = "RESCALED"
+        dummy_r = np.array([0.000000e+00, 2.643018e+00, 5.379770e+00, 8.202738e+00, 1.110314e+01, 1.407102e+01, 1.709533e+01, 2.016412e+01, 2.326467e+01, 2.638370e+01, 2.950764e+01, 3.262279e+01, 3.571564e+01, 3.877302e+01, 4.178239e+01, 4.473200e+01, 4.761106e+01, 5.040992e+01, 5.312010e+01, 5.573444e+01, 5.824705e+01, 6.065336e+01, 6.295010e+01, 6.513516e+01, 6.720760e+01, 6.916749e+01, 7.101585e+01, 7.275451e+01, 7.438597e+01, 7.591335e+01, 7.734022e+01, 7.867052e+01, 7.990848e+01, 8.105852e+01, 8.212516e+01, 8.311296e+01, 8.402649e+01, 8.487025e+01, 8.564866e+01, 8.636600e+01])/(R-R0)
+        _, _, _, dummy_FnEL, dummy_FtEL = OFparse(FastFile, nodeR=dummy_r)
+        
+    dummy_FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
 
 
     # aero_HiFi_2_Lofi("inputs/old/force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
-    aero_HiFi_2_Lofi("inputs/force_allwalls_L2_0.txt","force_allwalls_L2_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro="inputs/Analysis_DTU10MW_V8_TSR781_000_lift.dat")
+    aero_HiFi_2_Lofi("inputs/force_allwalls_L2_0.txt",f"force_allwalls_L2_{suff}.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro="inputs/Analysis_DTU10MW_V8_TSR781_000_lift.dat")
