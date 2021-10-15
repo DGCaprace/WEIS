@@ -4,9 +4,8 @@ import yaml
 from wisdem import run_wisdem
 from weis.glue_code.runWEIS import run_weis
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
-
-# from pCrunch.io import OpenFASTOutput
 from pCrunch import PowerProduction#, LoadsAnalysis
+from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
 
 import sys, shutil
 import numpy as np
@@ -23,8 +22,16 @@ def my_write_yaml(instance, foutput):
         yaml.dump(instance, f)
 
 
-#TODO: make sure we use same turbine between part1 and part2 -> data in yaml and in openfast file should match
-# ---> can we regenerate ALL openfast files using only info from the yaml??
+def myOpenFASTread(fname):
+    try:
+        output = OpenFASTAscii(fname) #magnitude_channels=self._mc
+        output.read()
+
+    except UnicodeDecodeError:
+        output = OpenFASTBinary(fname) #magnitude_channels=self._mc
+        output.read()
+
+    return output
 
 #==================== DEFINITIONS  =====================================
 
@@ -42,7 +49,6 @@ folder_arch = mydir + os.sep + "results"
 
 #location of servodyn lib (./local of weis)
 run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
-run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 
 withDEL = True  #skip DEL computation
 doLofiOptim = True  #skip lofi optimization
@@ -108,8 +114,6 @@ for IGLOB in range(restartAt,nGlobalIter):
         if nx > nx_hard: 
             raise RuntimeError("Not enough channels for DELs provisionned in runFAST_pywrapper.")
 
-        dnx = 1 #if you want to reduce the number of data by step of dnx
-        # dnt = 10
 
         # Design choice: for how long do you size the turbine + other parameters
         m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper
@@ -119,7 +123,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
 
         # ----------------------------------------------------------------------------------------------
-        #   reading data
+        #   reading DEL data and setting up indices
         
         # Init our lifetime DEL
         DEL_life_B1 = np.zeros([nx,5])    
@@ -166,7 +170,7 @@ for IGLOB in range(restartAt,nGlobalIter):
                 jDEL.append(j)        
         
         if not jDEL:
-            raise Warning("I did not find required data among time series to compute DEL! They will end up being 0.")
+            print("Warning: I did not find required data among time series to compute DEL! They will end up being 0.")
         else:
             print(f"Time series {jDEL} are being processed for DEL...")
 
@@ -177,6 +181,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
         iec_del = {}
         iec_extr = {}
+        Udel_str = [9.,] #dummy
         for dlc in iec_settings:
             if iec_dlc_for_del == dlc["DLC"]:
                 iec_del = dlc
@@ -227,10 +232,33 @@ for IGLOB in range(restartAt,nGlobalIter):
                 jEXTR.append(j)  
         
         if not jEXTR:
-            raise Warning("I did not find required data among time series to compute extreme loads! They will end up being 0.")
+            print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
         else:
             print(f"Time series {jEXTR} are being processed for extreme loads...")
 
+        # Init our extreme loads
+        EXTR_life_B1 = np.zeros([nx,5])    
+        
+
+
+        for j in jEXTR:
+            # Because raw data are not available as such, need to go back look into the output files:
+            fname = mydir + os.sep + "temp" + os.sep + fast_fnames[j]
+            ext = ".outb"
+            if modeling_options["Level3"]["simulation"]["OutFileFmt"] == 1: ext = ".out"
+            fulldata = myOpenFASTread(fname + ext)
+
+            # "AB1N%03iFx"%(i+1)
+            # "AB1N%03iFy"%(i+1)
+            # "B1N%03iMLx"%(i+1)
+            # "B1N%03iMLy"%(i+1)
+            # "B1N%03iFLz"%(i+1)
+            i = 0
+            print(fulldata["AB1N%03iFx"%(i+1)])
+
+
+            # extrapolate_extremeLoads
+            del(fulldata)
 
         # ----------------------------------------------------------------------------------------------
         # -- Create a descriptor:
@@ -313,6 +341,8 @@ for IGLOB in range(restartAt,nGlobalIter):
     # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
     # shutil.copytree
     if withDEL and IGLOB==0:
+        if os.path.isfile(folder_arch+os.sep+"aggregatedEqLoads.yaml"):
+            os.remove(folder_arch+os.sep+"aggregatedEqLoads.yaml")
         shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
     if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
         shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
