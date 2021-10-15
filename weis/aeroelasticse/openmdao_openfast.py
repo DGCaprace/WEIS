@@ -373,6 +373,7 @@ class FASTLoadCases(ExplicitComponent):
 
         self.add_discrete_output('fst_vt_out', val={})
         self.add_discrete_output('summary_stats', val={})
+        self.add_discrete_output('dlc_list', val={})
         # self.add_discrete_output('extreme_table', val={})
         self.add_discrete_output('DELs', val={})
 
@@ -404,6 +405,8 @@ class FASTLoadCases(ExplicitComponent):
 
             # list_cases, list_casenames, required_channels, case_keys = self.DLC_creation(inputs, discrete_inputs, fst_vt)
             # FAST_Output = self.run_FAST(fst_vt, list_cases, list_casenames, required_channels)
+
+            discrete_outputs['dlc_list'] = dlc_list 
 
             discrete_outputs['summary_stats'] = summary_stats
             # discrete_outputs['extreme_table'] = extreme_table

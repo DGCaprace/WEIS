@@ -6,6 +6,7 @@ from weis.glue_code.runWEIS import run_weis
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
 
 # from pCrunch.io import OpenFASTOutput
+from pCrunch import PowerProduction#, LoadsAnalysis
 
 import sys, shutil
 import numpy as np
@@ -14,6 +15,9 @@ import matplotlib.pyplot as plt
 
 # ---------------------
 def my_write_yaml(instance, foutput):
+    if not os.path.isfile(foutput):
+        print(f"File {foutput} already exists... replacing it.")
+        os.remove(foutput)
     # Write yaml with updated values
     with open(foutput, "w", encoding="utf-8") as f:
         yaml.dump(instance, f)
@@ -38,8 +42,6 @@ folder_arch = mydir + os.sep + "results"
 
 #location of servodyn lib (./local of weis)
 run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
-
-# run_dir2            = mydir + "/examples/01_aeroelasticse/" #os.path.dirname( os.path.realpath(__file__) ) + os.sep
 run_dir2            = mydir + os.sep + ".." + os.sep + "Madsen2019_model_BD"
 
 withDEL = True  #skip DEL computation
@@ -55,6 +57,7 @@ if not withDEL and not doLofiOptim: nGlobalIter = 0
 if not withDEL or not doLofiOptim: nGlobalIter = 1
 
 # analysis_opt = load_yaml(fname_analysis_options)
+wt_init = load_yaml(fname_wt_input)
 
 #write the WEIS input file
 analysis_options_WEIS = {}
@@ -83,9 +86,9 @@ for IGLOB in range(restartAt,nGlobalIter):
     print("  ============== ============== ===================\n\n\n\n")
 
 
-    # +++++++++++++++++++++++++++++++++++++++
-    #           PHASE 1 : Compute DEL
-    # +++++++++++++++++++++++++++++++++++++++
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    #           PHASE 1 : Compute DEL and extrapolate extreme loads
+    # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     if withDEL:
         # Run the base simulation
         wt_opt, modeling_options, opt_options = run_weis(
@@ -97,7 +100,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         sys.stdout.flush()
 
         # ----------------------------------------------------------------------------------------------
-        #    my postpro
+        #    specific preprocessing and definitions
 
         # nt = len(ct[0]["B1N001FLz"])
         nx = modeling_options["WISDEM"]["RotorSE"]["n_span"]
@@ -115,7 +118,8 @@ for IGLOB in range(restartAt,nGlobalIter):
 
         fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
 
-        # --------
+        # ----------------------------------------------------------------------------------------------
+        #   reading data
         
         # Init our lifetime DEL
         DEL_life_B1 = np.zeros([nx,5])    
@@ -124,6 +128,8 @@ for IGLOB in range(restartAt,nGlobalIter):
         # (after removing "elapsed" from the del post_processing routine in weis)
         npDelstar = wt_opt['aeroelastic.DELs'].to_numpy()
 
+        fast_fnames = wt_opt['aeroelastic.DELs'].index #the names in here are the filename prefix
+        fast_dlclist = wt_opt['aeroelastic.dlc_list']
 
 
         #duration of  time series
@@ -150,11 +156,42 @@ for IGLOB in range(restartAt,nGlobalIter):
             i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
             i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
 
+        # ----------------------------------------------------------------------------------------------
         # -- Compute extrapolated lifetime DEL for life --
 
+        # Identify what time series correspond to DEL - as per IEC standard, we use NTW -- labeled DLC 1.1
+        jDEL = []
+        for j in range(Nj):
+            if 1.1 == fast_dlclist[j]:
+                jDEL.append(j)        
+        
+        if not jDEL:
+            raise Warning("I did not find required data among time series to compute DEL! They will end up being 0.")
+        else:
+            print(f"Time series {jDEL} are being processed for DEL...")
+
         #probability of the turbine to operate in specific conditions. For now let's assume uniform distribution. 
-        # TODO: Should come from the wind distro.
-        pj = np.ones(Nj) / Nj  
+        pp = PowerProduction(wt_init['assembly']['turbine_class'])
+        iec_dlc_for_del = 1.1 #hardcoded
+        iec_dlc_for_extr = 1.3 #hardcoded
+        iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
+        iec_del = {}
+        iec_extr = {}
+        for dlc in iec_settings:
+            if iec_dlc_for_del == dlc["DLC"]:
+                iec_del = dlc
+                Udel_str = iec_del["U"]
+            if iec_dlc_for_extr == dlc["DLC"]:
+                iec_extr = dlc
+
+        pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
+        pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
+        #--
+        # pj = np.ones(Nj) / Nj   #uniform probability instead
+
+        print("Weight of the series (probability):")
+        print(pj)
+        
 
         # a. Obtain the equivalent number of cycles
         fj = Tlife / Tj * pj
@@ -164,7 +201,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         k=0
         for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
             #loop over the DELs from all time series and sum
-            for j in range(Nj):
+            for j in jDEL:
                 DEL_life_B1[:,k] += fj[j] * npDelstar[j][ids] 
             k+=1
         DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
@@ -180,13 +217,47 @@ for IGLOB in range(restartAt,nGlobalIter):
         print(np.transpose(DEL_life_B1))
 
 
+        # ----------------------------------------------------------------------------------------------
+        # -- proceed to extreme load/gust extrapolation if requested
 
-        # -- write the analysis file?
+        # Identify what time series correspond to extreme loads - as per IEC standard, we use ETW -- labeled DLC 1.3
+        jEXTR = []
+        for j in range(Nj):
+            if 1.3 == fast_dlclist[j]:
+                jEXTR.append(j)  
+        
+        if not jEXTR:
+            raise Warning("I did not find required data among time series to compute extreme loads! They will end up being 0.")
+        else:
+            print(f"Time series {jEXTR} are being processed for extreme loads...")
+
+
+        # ----------------------------------------------------------------------------------------------
+        # -- Create a descriptor:
+
+        #Just a string written in the DEL export files to describe what's in there
+        if iec_del:
+            del_descr_str = "DEL computed based on DLC %f with %i seeds and the following vels: %s"%(
+                iec_del['DLC'], len(iec_del['Seeds']), iec_del['U']
+            )
+        else:
+            del_descr_str = "DEL unavailable"
+
+        if iec_extr:
+            extr_descr_str = "extreme loading computed based on DLC %f with %i seeds and the following vels: %s"%(
+                iec_extr['DLC'], len(iec_extr['Seeds']), iec_extr['U']
+            )
+        else:
+            extr_descr_str = "extreme loading unavailable"
+
+        # ----------------------------------------------------------------------------------------------
+        # -- write the analysis file
 
         schema = load_yaml(fname_analysis_options)
         #could use load_analysis_yaml from weis instead
 
         schema["DEL"] = {}
+        schema["DEL"]["description"] = del_descr_str
         schema["DEL"]["grid_nd"] = np.linspace(0.,1.,nx).tolist() #note: the node gauges are located at np.arange(1./nx/2., 1, 1./nx) but I prefer consider that it spans then entire interval [0,1]
         schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
         schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
@@ -208,6 +279,7 @@ for IGLOB in range(restartAt,nGlobalIter):
 
         schema_hifi = {}
         schema_hifi["DEL"] = {}
+        schema_hifi["DEL"]["description"] = del_descr_str
         schema_hifi["DEL"]["grid_nd"] = schema["DEL"]["grid_nd"]
         schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
         schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
