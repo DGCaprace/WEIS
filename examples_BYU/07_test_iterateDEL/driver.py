@@ -4,7 +4,7 @@ import yaml
 from wisdem import run_wisdem
 from weis.glue_code.runWEIS import run_weis
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
-from pCrunch import PowerProduction#, LoadsAnalysis
+from pCrunch import PowerProduction, LoadsAnalysis
 from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
 
 import sys, shutil
@@ -13,8 +13,35 @@ import matplotlib.pyplot as plt
 
 
 # ---------------------
+magnitude_channels = {}
+fatigue_channels = {}
+fatigue_channels = {}
+for i in range(1,41): #TODO: must read this number from somewhere!!
+    tag = "B1N%03iMLx"%(i)
+    fatigue_channels[tag] = 10
+    tag = "B1N%03iMLy"%(i)
+    fatigue_channels[tag] = 10
+    tag = "B1N%03iFLz"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFn"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFt"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFx"%(i)
+    fatigue_channels[tag] = 10
+    tag = "AB1N%03iFy"%(i)
+    fatigue_channels[tag] = 10
+
+# la = LoadsAnalysis(
+#     outputs=[],
+#     magnitude_channels=magnitude_channels,
+#     fatigue_channels=fatigue_channels,
+#     #extreme_channels=channel_extremes,
+# )
+
+# ---------------------
 def my_write_yaml(instance, foutput):
-    if not os.path.isfile(foutput):
+    if os.path.isfile(foutput):
         print(f"File {foutput} already exists... replacing it.")
         os.remove(foutput)
     # Write yaml with updated values
@@ -32,6 +59,12 @@ def myOpenFASTread(fname):
         output.read()
 
     return output
+
+def extrapolate_extremeLoads(x,mat):
+
+    #
+    pass
+
 
 #==================== DEFINITIONS  =====================================
 
@@ -55,12 +88,16 @@ doLofiOptim = True  #skip lofi optimization
 nGlobalIter = 1
 restartAt = 0
 
+readOutputFrom = "" #results path where to get output data. I not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
 
 #==================== ======== =====================================
 ## Preprocessing
 
 if not withDEL and not doLofiOptim: nGlobalIter = 0
 if not withDEL or not doLofiOptim: nGlobalIter = 1
+
+iec_dlc_for_del = 1.1 #hardcoded
+iec_dlc_for_extr = 1.3 #hardcoded
 
 # analysis_opt = load_yaml(fname_analysis_options)
 wt_init = load_yaml(fname_wt_input)
@@ -96,15 +133,95 @@ for IGLOB in range(restartAt,nGlobalIter):
     #           PHASE 1 : Compute DEL and extrapolate extreme loads
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     if withDEL:
-        # Run the base simulation
-        wt_opt, modeling_options, opt_options = run_weis(
-            current_wt_input, fname_modeling_options, fname_analysis_options_WEIS
-        )
+        
+        if not readOutputFrom:
+
+            # Run the base simulation
+            wt_opt, modeling_options, opt_options = run_weis(
+                current_wt_input, fname_modeling_options, fname_analysis_options_WEIS
+            )
+
+            DELs = wt_opt['aeroelastic.DELs']
+
+            fast_fnames = DELs.index #the names in here are the filename prefix
+            ext = ".outb"
+            if modeling_options["Level3"]["simulation"]["OutFileFmt"] == 1: ext = ".out"
+            for f in fast_fnames:
+                f += ext #appending the right extension
+
+            fast_dlclist = wt_opt['aeroelastic.dlc_list']
+
+            print("\n\n\n  -------------- DONE WITH WEIS ------------------\n\n\n\n")
+            sys.stdout.flush()
+
+        else:
+            modeling_options = load_yaml(fname_modeling_options)
+            # opt_options = load_yaml(fname_analysis_options_WEIS)
+
+            # list all output files in the dir
+            fast_fnames = []
+            ls = os.listdir(readOutputFrom)
+            for file in ls:
+                if ".out" in file:
+                    fast_fnames.append(file)
+
+            if not fast_fnames:
+                raise Warning(f"could not find any output files in the directory {readOutputFrom}")
+            print(f"Will try to read the following files: {fast_fnames}")
+            
+            fast_fnames.sort() # sort filename list to make sure they come in the same order as they were computed
+
+            la = LoadsAnalysis(
+                outputs= fast_fnames,
+                directory = readOutputFrom,
+                magnitude_channels=magnitude_channels,
+                fatigue_channels=fatigue_channels,
+                #extreme_channels=channel_extremes,
+                trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]),
+            )
+
+            la.process_outputs(1) #TODO: MULTICORE?
+            # summary_stats = la._summary_stats
+            # extremes = la._extremes
+            DELs = la._dels
 
 
-        print("\n\n\n  -------------- DONE WITH WEIS ------------------\n\n\n\n")
-        sys.stdout.flush()
+            # orig_dir = os.getcwd()
+            # os.chdir(readOutputFrom)
 
+            # ss = {}
+            # et = {}
+            # DELs = {}
+            # # ct = [] #output dict...
+            # for c in fast_fnames:
+            #     currFile = readOutputFrom + os.sep + c
+            #     print(f"Reading {currFile}")
+
+            #     output = myOpenFASTread(currFile)
+            #     if modeling_options["Level3"]["simulation"]["TStart"] > 0.0:
+            #         output.trim_data(tmin=modeling_options["Level3"]["simulation"]["TStart"], tmax=modeling_options["Level3"]["simulation"]["TMax"])
+            #     _name, sum_stats, extremes, dels = la._process_output(output)
+
+            #     ss[_name] = sum_stats
+            #     et[_name] = extremes
+            #     DELs[_name] = dels
+
+            #     # del output          
+            
+            # # if save_file: write_fast
+            # os.chdir(orig_dir)
+
+            # Re-determine what were the DLCs run in each simulation
+            fast_dlclist = []
+            iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
+            for dlc in iec_settings:
+                if iec_dlc_for_del == dlc["DLC"]:
+                    for i in dlc["U"]:
+                        fast_dlclist.append(dlc["DLC"])
+                if iec_dlc_for_extr == dlc["DLC"]:
+                    for i in dlc["U"]:
+                        fast_dlclist.append(dlc["DLC"])
+            
         # ----------------------------------------------------------------------------------------------
         #    specific preprocessing and definitions
 
@@ -123,6 +240,31 @@ for IGLOB in range(restartAt,nGlobalIter):
         fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
 
         # ----------------------------------------------------------------------------------------------
+        #    probability of the turbine to operate in specific conditions. 
+
+        pp = PowerProduction(wt_init['assembly']['turbine_class'])
+        iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
+        iec_del = {}
+        iec_extr = {}
+        Udel_str = [] #dummy
+        Uextr_str = [] #dummy
+        for dlc in iec_settings:
+            if iec_dlc_for_del == dlc["DLC"]:
+                iec_del = dlc
+                Udel_str = iec_del["U"]
+            if iec_dlc_for_extr == dlc["DLC"]:
+                iec_extr = dlc
+                Uextr_str = iec_extr["U"]
+
+        pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
+        pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
+        #--
+        # pj = np.ones(Nj) / Nj   #uniform probability instead
+
+        pj_extr = pp.prob_WindDist([float(u) for u in Uextr_str], disttype='pdf')
+        pj_extr = pj_extr / np.sum(pj_extr) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
+
+        # ----------------------------------------------------------------------------------------------
         #   reading DEL data and setting up indices
         
         # Init our lifetime DEL
@@ -130,22 +272,22 @@ for IGLOB in range(restartAt,nGlobalIter):
 
         #  -- Retreive the DELstar --
         # (after removing "elapsed" from the del post_processing routine in weis)
-        npDelstar = wt_opt['aeroelastic.DELs'].to_numpy()
-
-        fast_fnames = wt_opt['aeroelastic.DELs'].index #the names in here are the filename prefix
-        fast_dlclist = wt_opt['aeroelastic.dlc_list']
-
-
+        npDelstar = DELs.to_numpy()
+        
         #duration of  time series
         Tj = modeling_options["Level3"]["simulation"]["TMax"] - modeling_options["Level3"]["simulation"]["TStart"]
 
         #number of time series
         Nj = len(npDelstar)
         print(f"Found {Nj} time series...")
-        wt_opt['aeroelastic.DELs'].info()
+        DELs.info()
+
+        if len(pj)+len(pj_extr) != Nj: 
+            raise Warning("Not the same number of velocities in the input yaml and in the output files.")
+            #later, treat the case of DLCs other than 1.1 and 1.3
 
         # Indices where to find DELs for the various nodes:
-        colnames = wt_opt['aeroelastic.DELs'].columns
+        colnames = DELs.columns
         i_AB1Fn = np.zeros(nx,int)
         i_AB1Ft = np.zeros(nx,int)
         i_B1MLx = np.zeros(nx,int)
@@ -174,25 +316,6 @@ for IGLOB in range(restartAt,nGlobalIter):
         else:
             print(f"Time series {jDEL} are being processed for DEL...")
 
-        #probability of the turbine to operate in specific conditions. For now let's assume uniform distribution. 
-        pp = PowerProduction(wt_init['assembly']['turbine_class'])
-        iec_dlc_for_del = 1.1 #hardcoded
-        iec_dlc_for_extr = 1.3 #hardcoded
-        iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
-        iec_del = {}
-        iec_extr = {}
-        Udel_str = [9.,] #dummy
-        for dlc in iec_settings:
-            if iec_dlc_for_del == dlc["DLC"]:
-                iec_del = dlc
-                Udel_str = iec_del["U"]
-            if iec_dlc_for_extr == dlc["DLC"]:
-                iec_extr = dlc
-
-        pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
-        pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
-        #--
-        # pj = np.ones(Nj) / Nj   #uniform probability instead
 
         print("Weight of the series (probability):")
         print(pj)
@@ -236,29 +359,62 @@ for IGLOB in range(restartAt,nGlobalIter):
         else:
             print(f"Time series {jEXTR} are being processed for extreme loads...")
 
-        # Init our extreme loads
-        EXTR_life_B1 = np.zeros([nx,5])    
-        
+        nbins = 100
 
+        # Init our extreme loads
+        EXTR_distro_B1 = np.zeros([nx,5,nbins])    
+        
+        #must use the same range if we want to be able to simply sum with a weight corresponding to wind probability:
+        #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
+        rng = [ (-2.e3,10.e3),
+                (-2.e3,6.e3),
+                (-8.e3,8.e3),
+                (-5.e3,2.e4),
+                (-1.e3,4.e3)] 
 
         for j in jEXTR:
             # Because raw data are not available as such, need to go back look into the output files:
             fname = mydir + os.sep + "temp" + os.sep + fast_fnames[j]
-            ext = ".outb"
-            if modeling_options["Level3"]["simulation"]["OutFileFmt"] == 1: ext = ".out"
-            fulldata = myOpenFASTread(fname + ext)
+            fulldata = myOpenFASTread(fname)
+      
+            # i = 0
+            # print(fulldata["AB1N%03iFx"%(i+1)])
+            
+            k = 0
+            for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
+                for i in range(nx):
+                    hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
+                    # S = bns[:-1] + np.diff(bns) / 2.
+                
+                    EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[j]
+                k+=1
 
-            # "AB1N%03iFx"%(i+1)
-            # "AB1N%03iFy"%(i+1)
-            # "B1N%03iMLx"%(i+1)
-            # "B1N%03iMLy"%(i+1)
-            # "B1N%03iFLz"%(i+1)
-            i = 0
-            print(fulldata["AB1N%03iFx"%(i+1)])
-
-
-            # extrapolate_extremeLoads
             del(fulldata)
+
+        labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+
+        for k in range(5):
+            stp = (rng[k][1]-rng[k][0])/(nbins)
+            xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
+            plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+            plt.plot(xbn,EXTR_distro_B1[5,k,:] )
+            plt.plot(xbn,EXTR_distro_B1[25,k,:] )
+            plt.plot(xbn,EXTR_distro_B1[15,k,:] )
+            plt.xlabel(labs[k])
+
+        plt.show()
+
+
+        EXTR_life_B1 = extrapolate_extremeLoads(rng, EXTR_distro_B1)
+
+
+    #    # More processing:
+    #     #1) switch from IEC local blade frame to "airfoil frame" with x towards TE
+    #     tmp = DEL_life_B1[:,2].copy()
+    #     DEL_life_B1[:,2] = -DEL_life_B1[:,3]
+    #     DEL_life_B1[:,3] = tmp
+    #     DEL_life_B1[:,4] = -DEL_life_B1[:,4] #change sign because RotorSE strain computation considers positive loads are compression??
+
 
         # ----------------------------------------------------------------------------------------------
         # -- Create a descriptor:
@@ -331,18 +487,16 @@ for IGLOB in range(restartAt,nGlobalIter):
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
     # +++++++++++++++++++++++++++++++++++++++
-
-    if not os.path.isdir(folder_arch):
-        os.makedirs(folder_arch)
+    if os.path.isfolder(folder_arch):
+        shutil.rmtree(folder_arch,ignore_errors=True)
+    os.makedirs(folder_arch)
 
     currFolder = f"iter_{IGLOB}"
 
-    
     # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
     # shutil.copytree
+    
     if withDEL and IGLOB==0:
-        if os.path.isfile(folder_arch+os.sep+"aggregatedEqLoads.yaml"):
-            os.remove(folder_arch+os.sep+"aggregatedEqLoads.yaml")
         shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
     if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
         shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
