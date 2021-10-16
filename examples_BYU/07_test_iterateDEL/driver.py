@@ -49,7 +49,11 @@ def my_write_yaml(instance, foutput):
         yaml.dump(instance, f)
 
 
-def myOpenFASTread(fname):
+def myOpenFASTread(fname,addExt=0):
+    if addExt>0 and not ".out" in fname:
+        ext = ".outb"
+        if  addExt == 1: ext = ".out"
+        fname += ext #appending the right extension
     try:
         output = OpenFASTAscii(fname) #magnitude_channels=self._mc
         output.read()
@@ -144,10 +148,6 @@ for IGLOB in range(restartAt,nGlobalIter):
             DELs = wt_opt['aeroelastic.DELs']
 
             fast_fnames = DELs.index #the names in here are the filename prefix
-            ext = ".outb"
-            if modeling_options["Level3"]["simulation"]["OutFileFmt"] == 1: ext = ".out"
-            for f in fast_fnames:
-                f += ext #appending the right extension
 
             fast_dlclist = wt_opt['aeroelastic.dlc_list']
 
@@ -375,7 +375,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         for j in jEXTR:
             # Because raw data are not available as such, need to go back look into the output files:
             fname = mydir + os.sep + "temp" + os.sep + fast_fnames[j]
-            fulldata = myOpenFASTread(fname)
+            fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
       
             # i = 0
             # print(fulldata["AB1N%03iFx"%(i+1)])
@@ -487,7 +487,7 @@ for IGLOB in range(restartAt,nGlobalIter):
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
     # +++++++++++++++++++++++++++++++++++++++
-    if os.path.isfolder(folder_arch):
+    if os.path.isdir(folder_arch):
         shutil.rmtree(folder_arch,ignore_errors=True)
     os.makedirs(folder_arch)
 
