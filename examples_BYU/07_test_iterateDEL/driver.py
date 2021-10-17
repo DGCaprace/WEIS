@@ -64,10 +64,28 @@ def myOpenFASTread(fname,addExt=0):
 
     return output
 
-def extrapolate_extremeLoads(x,mat):
+def extrapolate_extremeLoads(rng,mat):
+    nbins = np.shape(mat)[2]
+    n1 = np.shape(mat)[0]
+    n2 = np.shape(mat)[1]
 
-    #
-    pass
+    A = mat#.copy()
+    avg = np.zeros((n1,n2))
+    std = np.zeros((n1,n2))
+
+    for k in range(n2):
+        stp = (rng[k][1]-rng[k][0])/(nbins)
+        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
+        print(x)
+        for i in range(n1):
+            avg[i,k] = np.sum( A[i,k,:] * x ) / np.sum(A[i,k,:])
+            std[i,k] = np.sqrt( np.sum( A[i,k,:] * x**2 ) / np.sum(A[i,k,:]) - avg[i,k] )
+            
+    
+    # avg = np.mean(A,axis=2)
+    # std = np.std( A,axis=2)
+    
+    return avg , std
 
 
 #==================== DEFINITIONS  =====================================
@@ -113,6 +131,11 @@ analysis_options_WEIS["general"]["folder_output"] = "outputs_WEIS"
 analysis_options_WEIS["general"]["fname_output"] = "DTU10MW_Madsen"
 
 my_write_yaml(analysis_options_WEIS, fname_analysis_options_WEIS)
+
+if readOutputFrom:
+    simfolder = readOutputFrom
+else:
+    simfolder = mydir + os.sep + "temp"
 
 # Restart from a previous iteration:
 restartAt = max(0,restartAt)
@@ -330,7 +353,8 @@ for IGLOB in range(restartAt,nGlobalIter):
         for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
             #loop over the DELs from all time series and sum
             for j in jDEL:
-                DEL_life_B1[:,k] += fj[j] * npDelstar[j][ids] 
+                jloc = j - jDEL[0]
+                DEL_life_B1[:,k] += fj[jloc] * npDelstar[jloc][ids] 
             k+=1
         DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
 
@@ -373,8 +397,9 @@ for IGLOB in range(restartAt,nGlobalIter):
                 (-1.e3,4.e3)] 
 
         for j in jEXTR:
+            jloc = j - jEXTR[0]
             # Because raw data are not available as such, need to go back look into the output files:
-            fname = mydir + os.sep + "temp" + os.sep + fast_fnames[j]
+            fname = simfolder + os.sep + fast_fnames[j]
             fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
       
             # i = 0
@@ -384,12 +409,17 @@ for IGLOB in range(restartAt,nGlobalIter):
             for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
                 for i in range(nx):
                     hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
-                    # S = bns[:-1] + np.diff(bns) / 2.
                 
-                    EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[j]
+                    EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
                 k+=1
 
             del(fulldata)
+
+
+        EXTR_life_B1_avg, EXTR_life_B1_std = extrapolate_extremeLoads(rng, EXTR_distro_B1)
+
+        n_std_extreme = 3.0
+        EXTR_life_B1 = EXTR_life_B1_avg + n_std_extreme * EXTR_life_B1_std #should rather be 
 
         labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
 
@@ -398,14 +428,16 @@ for IGLOB in range(restartAt,nGlobalIter):
             xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
             plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
             plt.plot(xbn,EXTR_distro_B1[5,k,:] )
-            plt.plot(xbn,EXTR_distro_B1[25,k,:] )
             plt.plot(xbn,EXTR_distro_B1[15,k,:] )
+            plt.plot(xbn,EXTR_distro_B1[25,k,:] )
             plt.xlabel(labs[k])
+
+            plt.plot(EXTR_life_B1_avg[5,k] + [0, 3*EXTR_life_B1_std[5,k]], [0, 0], 'x' )
+            plt.plot(EXTR_life_B1_avg[15,k]+ [0, 3*EXTR_life_B1_std[15,k]], [0, 0], 'x' )
+            plt.plot(EXTR_life_B1_avg[25,k]+ [0, 3*EXTR_life_B1_std[25,k]], [0, 0], 'x' )
 
         plt.show()
 
-
-        EXTR_life_B1 = extrapolate_extremeLoads(rng, EXTR_distro_B1)
 
 
     #    # More processing:
@@ -446,7 +478,11 @@ for IGLOB in range(restartAt,nGlobalIter):
         schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
         schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
         schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
-        # schema["extreme"] = {}
+        schema["extreme"] = {}
+        schema["extreme"]["description"] = extr_descr_str
+        schema["extreme"]["deMLx"] = EXTR_life_B1[:,2].tolist()
+        schema["extreme"]["deMLy"] = EXTR_life_B1[:,3].tolist()
+        schema["extreme"]["deFLz"] = EXTR_life_B1[:,4].tolist()
 
         schema["general"]["folder_output"] = "outputs_struct_withFatigue"
         schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
@@ -467,7 +503,11 @@ for IGLOB in range(restartAt,nGlobalIter):
         schema_hifi["DEL"]["grid_nd"] = schema["DEL"]["grid_nd"]
         schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
         schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
-        # schema_hifi["extreme"] = {}
+        schema_hifi["extreme"] = {}
+        schema_hifi["extreme"]["description"] = extr_descr_str
+        schema_hifi["extreme"]["grid_nd"] = schema["DEL"]["grid_nd"]
+        schema_hifi["extreme"]["Fn"] = EXTR_life_B1[:,0].tolist()
+        schema_hifi["extreme"]["Ft"] = EXTR_life_B1[:,1].tolist()
 
         my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
 
@@ -500,7 +540,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
     if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
         shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
-        shutil.move(mydir + os.sep + "temp", folder_arch + os.sep + "sim" + os.sep + currFolder)
+        shutil.move(simfolder, folder_arch + os.sep + "sim" + os.sep + currFolder)
     if os.path.isdir(mydir + os.sep + "outputs_struct_withFatigue"):
         shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
     if os.path.isdir(mydir + os.sep + "outputs_struct"):
