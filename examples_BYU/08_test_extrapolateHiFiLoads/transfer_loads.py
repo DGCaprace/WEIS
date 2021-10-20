@@ -4,16 +4,23 @@ import ast
 import numpy as np
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
-import io
 import yaml
 
-debug = True
-fakeHiFi = False
-fakeLoFi = False
-useDEL = True
+debug = True #mostly plots and outputs an xdmf file to visualize load vector field (original and scaled)
+fakeHiFi = False #use a fake high-fidelity reference loading.
+
+loFiSource = 3
+# 1= use a fake lofi distribution
+# 2= use a reference static load distribution from low fidelity
+# 3= use the aggregated/extrapolated loads from unsteady simulations (see bottom of this file)
 
 method = 2
-#method 1 is wrong: nodal values are in N/m2, not N
+# 1= scale loads based on a reconstructed  (THIS IS WRONG: nodal values are in N/m2, not N)
+# 2= scale the loads using the local value of the known reference and target distributed loads (RECOMMENDED)
+# Note: method 1 was an attemps to avoid relying on the hifi "lift" output (the known reference).
+
+
+fl = ["orig.xmf","scaled.xmf","Fn.png","Ft.png","scaling.png"]
 
 #from ADflow:
 def read_force_file(fname):
@@ -325,16 +332,19 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
             plt.plot(r_interp,FnHF_interp)
             plt.plot(r_interp,FnHF_interp*scaling,'--')
             plt.ylabel("Fn [N/m]")
+            plt.savefig("Fn.png")
 
             fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
             plt.plot(r_interp,FtEL_interp)
             plt.plot(r_interp,FtHF_interp)
             plt.plot(r_interp,FtHF_interp*scaling,'--')
             plt.ylabel("Ft [N/m]")
+            plt.savefig("Ft.png")
 
             fig5, ax5 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
             plt.plot(r_interp,scaling,'--')
             plt.ylabel("scaling")
+            plt.savefig("scaling.png")
 
 
         # fig = plt.figure()
@@ -412,28 +422,66 @@ if __name__=='__main__':
     from OTCDparser import OFparse
 
     FastFile = "inputs/DTU_10MW_V8_TSR781.out"
-    DEL_File = "../07_test_iterateDEL/results-IEC1.3_5vels_120s/aggregatedEqLoads.yaml"
+
+    loadFolder = "results-IEC1.1_5vels_120s_0Glob"
+    loadFolder = "results-IEC1.3_5vels_120s_0Glob" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
+    loadFolder = "results-IEC1.1-IEC1.3_5vels_120s_0Glob_chi2" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
+    loadFile = f"../07_test_iterateDEL/{loadFolder}/aggregatedEqLoads.yaml"
+
     R0 = 2.8
     R = 89.166
+    meshLevel = "L2" #note that the conversion of aero load to structural load can handle any load level.
+
+    ref_HiFi_forceFile = f"inputs/force_allwalls_{meshLevel}_0.txt"
+    ref_HiFi_liftFile = f"inputs/Analysis_DTU10MW_V8_TSR781_000_lift.dat" #MUST BE ADAPTED DEPENDING ON MESH LEVEL
 
     suff = ""
-    if fakeLoFi:
+    if loFiSource ==1:
+        suff = "DUMMY"
         dummy_r    = [0,.5,.99,1.] 
         dummy_FnEL = np.array([1.,1.,1.,0.])*1e2
         dummy_FtEL = np.array([1.,1.,1.,0.])*1e1
-    if useDEL:
-        suff = "DEL"
-        dict = my_read_yaml(DEL_File)
-        dummy_r = dict["DEL"]["grid_nd"]
-        dummy_FnEL = dict["DEL"]["Fn"]
-        dummy_FtEL = dict["DEL"]["Ft"]
-    else:
-        suff = "RESCALED"
+        
+        aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"force_allwalls_{meshLevel}_{suff}.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+    elif loFiSource ==2:
+        suff = "STEADY_REF"
         dummy_r = np.array([0.000000e+00, 2.643018e+00, 5.379770e+00, 8.202738e+00, 1.110314e+01, 1.407102e+01, 1.709533e+01, 2.016412e+01, 2.326467e+01, 2.638370e+01, 2.950764e+01, 3.262279e+01, 3.571564e+01, 3.877302e+01, 4.178239e+01, 4.473200e+01, 4.761106e+01, 5.040992e+01, 5.312010e+01, 5.573444e+01, 5.824705e+01, 6.065336e+01, 6.295010e+01, 6.513516e+01, 6.720760e+01, 6.916749e+01, 7.101585e+01, 7.275451e+01, 7.438597e+01, 7.591335e+01, 7.734022e+01, 7.867052e+01, 7.990848e+01, 8.105852e+01, 8.212516e+01, 8.311296e+01, 8.402649e+01, 8.487025e+01, 8.564866e+01, 8.636600e+01])/(R-R0)
         _, _, _, dummy_FnEL, dummy_FtEL = OFparse(FastFile, nodeR=dummy_r)
+
+        dummy_FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
+
+        aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"force_allwalls_{meshLevel}_{suff}.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+    else:
+        dict = my_read_yaml(loadFile)
         
-    dummy_FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
+        if not os.path.isdir("./" + loadFolder):
+            os.makedirs("./" + loadFolder)
 
+        suff = "DEL"
+        if suff in dict.keys():
+            r = dict[suff]["grid_nd"]
+            FnEL = dict[suff]["Fn"]
+            FtEL = dict[suff]["Ft"]
+            FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
 
-    # aero_HiFi_2_Lofi("inputs/old/force_allwalls_L3.txt","force_allwalls_L3_RESCALED.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R)
-    aero_HiFi_2_Lofi("inputs/force_allwalls_L2_0.txt",f"force_allwalls_L2_{suff}.txt",dummy_r, dummy_FnEL, dummy_FtEL, R0, R, fname_HFdistro="inputs/Analysis_DTU10MW_V8_TSR781_000_lift.dat")
+            aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+            for f in fl:
+                if os.path.isfile(f):
+                    os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")
+
+        
+        suff = "extreme"
+        if suff in dict.keys():
+            r = dict[suff]["grid_nd"]
+            FnEL = dict[suff]["Fn"]
+            FtEL = dict[suff]["Ft"]
+            FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
+
+            aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+            for f in fl:
+                if os.path.isfile(f):
+                    os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")
+
+   
+    
+    
