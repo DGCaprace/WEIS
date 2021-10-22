@@ -427,6 +427,7 @@ if __name__=='__main__':
     loadFolder = "results-IEC1.3_5vels_120s_0Glob" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
     loadFolder = "results-IEC1.1-IEC1.3_5vels_120s_0Glob_chi2" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
     loadFolder = "results-IEC1.1_5vels_120s_0Glob_feq10"
+    loadFolder = "results-IEC1.1_5vels_120s_0Glob_neq1"
     loadFile = f"../07_test_iterateDEL/{loadFolder}/aggregatedEqLoads.yaml"
 
     R0 = 2.8

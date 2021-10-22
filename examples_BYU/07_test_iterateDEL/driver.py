@@ -212,14 +212,21 @@ readOutputFrom = mydir + os.sep + "tmp2"
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
 fname_analysis_options_FORCED = ""
+
 doPlots = True
 
 # Design choice in fatigue: for how long do you size the turbine + other parameters
 m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper 
     #TODO: could handle this better by not relying on the output of run_weis but instead rereading all the .out files with a new instance of LoadsAnalysis that uses the fatigue channels defined above
 Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
-f_eq = 10 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- THIS IS TOTALLY ARBITRARY FOR NOW
-
+# f_eq = 10 #rotor rotation freq is around 0.1Hz. -- THIS IS TOTALLY ARBITRARY FOR NOW
+f_eq = 1/Tlife #--> RECOMMENDED SETTING
+#Note on the choice of f_eq:
+# - it has no influence at all on low fidelity optimization
+# - for high-fidelity, it may have some. However, the formulation that uses 1/Tlife ensures that the 
+#   damage constraint takes the same expression as the failure constraint. So applying the corresponding
+#   DEL to the structure and checking for failure is equivalent to making sure there is no fatigue failure.
+#   - Anyway, we recommend keeping f_eq<=1. We observed overstimated damage with higher values.
 
 #==================== ======== =====================================
 ## Preprocessing
