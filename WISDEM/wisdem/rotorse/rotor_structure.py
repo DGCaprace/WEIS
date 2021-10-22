@@ -1497,17 +1497,17 @@ class RotorStructure(Group):
             CCBladeEvaluate(modeling_options=modeling_options),
             promotes=promoteListAeroLoads + ["presweep", "presweepTip"],
         )
-        self.add_subsystem(
-            "constr", DesignConstraints(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"]
-        )
-        #add subsystem for fatigue, or add to constraints?
-        self.add_subsystem("brs", BladeRootSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"]))
 
         #Add the system and the corresponding constraint for user-inputed extreme loading
         # Alternatly, we could replace the above gust completely
         # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
         self.add_subsystem("aero_gust_external", ProcessExtreme(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("extreme_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) #using pBeam option to force rotation of the DEL in principal axes
+        #Adding the constraint subsystems
+        self.add_subsystem(
+            "constr", DesignConstraints(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"]
+        )
+        self.add_subsystem("brs", BladeRootSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"]))
             
         # if modeling_options['rotorse']['FatigueMode'] > 0: 
         #     promoteListFatigue = ['r', 'gamma_f', 'gamma_m', 'E', 'Xt', 'Xc', 'x_tc', 'y_tc', 'EIxx', 'EIyy', 'pitch_axis', 'chord', 'layer_name', 'layer_mat', 'definition_layer', 'sc_ss_mats','sc_ps_mats','te_ss_mats','te_ps_mats','rthick']
