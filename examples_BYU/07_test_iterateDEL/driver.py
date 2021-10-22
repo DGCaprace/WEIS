@@ -195,7 +195,7 @@ folder_arch = mydir + os.sep + "results"
 #location of servodyn lib (./local of weis)
 run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
 
-withEXTR = False  #compute EXTREME moments 
+withEXTR = True  #compute EXTREME moments 
 withDEL = True  #compute DEL moments - if both are False, the lofi optimization falls back to a default WISDEM run
 doLofiOptim = False  #skip lofi optimization, if you are only interested in getting the DEL and EXTR outputs (e.g. for HiFi)
 nGlobalIter = 1
@@ -207,7 +207,6 @@ extremeExtrapMeth = 3
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
 
 readOutputFrom = "" #results path where to get output data. I not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
-# readOutputFrom = mydir + os.sep + "tmp"
 readOutputFrom = mydir + os.sep + "tmp2"
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
@@ -219,7 +218,7 @@ doPlots = True
 m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper 
     #TODO: could handle this better by not relying on the output of run_weis but instead rereading all the .out files with a new instance of LoadsAnalysis that uses the fatigue channels defined above
 Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
-# f_eq = 10 #rotor rotation freq is around 0.1Hz. -- THIS IS TOTALLY ARBITRARY FOR NOW
+# f_eq = 1 #rotor rotation freq is around 0.1Hz. -- THIS IS TOTALLY ARBITRARY FOR NOW
 f_eq = 1/Tlife #--> RECOMMENDED SETTING
 #Note on the choice of f_eq:
 # - it has no influence at all on low fidelity optimization
@@ -241,6 +240,7 @@ iec_dlc_for_extr = 1.3 #hardcoded
 
 # analysis_opt = load_yaml(fname_analysis_options)
 wt_init = load_yaml(fname_wt_input)
+modeling_options = load_yaml(fname_wt_input)  #initial load
 
 #  Write the WEIS input file
 analysis_options_WEIS = {}
@@ -249,11 +249,6 @@ analysis_options_WEIS["general"]["folder_output"] = "outputs_WEIS"
 analysis_options_WEIS["general"]["fname_output"] = "DTU10MW_Madsen"
 
 my_write_yaml(analysis_options_WEIS, fname_analysis_options_WEIS)
-
-if readOutputFrom:
-    simfolder = readOutputFrom
-else:
-    simfolder = mydir + os.sep + "temp"
 
 #  Ability to restart from a previous iteration:
 restartAt = max(0,restartAt)
@@ -293,6 +288,12 @@ for IGLOB in range(restartAt,nGlobalIter):
     print("\n\n\n  ============== ============== ===================\n")
     print(f"  ============== GLOBAL ITER {IGLOB} ===================\n")
     print("  ============== ============== ===================\n\n\n\n")
+
+    # preliminary definition:
+    if readOutputFrom:
+        simfolder = readOutputFrom
+    else:
+        simfolder = mydir + os.sep + modeling_options["openfast"]["file_management"]["FAST_runDirectory"]
 
 
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -741,6 +742,8 @@ for IGLOB in range(restartAt,nGlobalIter):
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"
 
+    #reset path to any precomputed data, so that if there is more iterations, we will actually do up-to-date computations
+    readOutputFrom = "" 
 
 ## -- plot successive DEL --
 
