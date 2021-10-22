@@ -212,7 +212,7 @@ readOutputFrom = mydir + os.sep + "tmp2"
 
 fname_analysis_options_FORCED = ""
 
-doPlots = True
+showPlots = False
 
 # Design choice in fatigue: for how long do you size the turbine + other parameters
 m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper 
@@ -564,40 +564,41 @@ for IGLOB in range(restartAt,nGlobalIter):
                 EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob)
 
 
-            if doPlots:
-                for k in range(5):
-                    stp = (rng[k][1]-rng[k][0])/(nbins)
-                    xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
-                    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    ss1 = plt.plot(xbn,EXTR_distro_B1[5,k,:] )
-                    ss2 = plt.plot(xbn,EXTR_distro_B1[15,k,:])
-                    ss3 = plt.plot(xbn,EXTR_distro_B1[25,k,:])
-                    plt.xlabel(labs[k])
+            
+            for k in range(5):
+                stp = (rng[k][1]-rng[k][0])/(nbins)
+                xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
+                plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                ss1 = plt.plot(xbn,EXTR_distro_B1[5,k,:] )
+                ss2 = plt.plot(xbn,EXTR_distro_B1[15,k,:])
+                ss3 = plt.plot(xbn,EXTR_distro_B1[25,k,:])
+                plt.xlabel(labs[k])
 
-                    plt.plot(EXTR_life_B1[5,k] , 0, 'x' , color=ss1[0].get_color())
-                    plt.plot(EXTR_life_B1[15,k], 0, 'x' , color=ss2[0].get_color())
-                    plt.plot(EXTR_life_B1[25,k], 0, 'x' , color=ss3[0].get_color())
+                plt.plot(EXTR_life_B1[5,k] , 0, 'x' , color=ss1[0].get_color())
+                plt.plot(EXTR_life_B1[15,k], 0, 'x' , color=ss2[0].get_color())
+                plt.plot(EXTR_life_B1[25,k], 0, 'x' , color=ss3[0].get_color())
 
-                    dx = (rng[k][1]-rng[k][0])/(nbins)
-                    xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
+                dx = (rng[k][1]-rng[k][0])/(nbins)
+                xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
 
-                    
-                    print(EXTR_distr_p[5,k,:])
-                    print(EXTR_distr_p[15,k,:])
-                    print(EXTR_distr_p[25,k,:])
+                
+                print(EXTR_distr_p[5,k,:])
+                print(EXTR_distr_p[15,k,:])
+                print(EXTR_distr_p[25,k,:])
 
-                    if "norm" in distr[k]:
-                        plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
-                        plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
-                        plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
-                    elif "twiceMaxForced" in distr[k]:
-                        pass
-                    else:
-                        this = getattr(stats,distr[k])
-                        plt.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
-                        plt.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
-                        plt.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
-                    plt.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                if "norm" in distr[k]:
+                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
+                elif "twiceMaxForced" in distr[k]:
+                    pass
+                else:
+                    this = getattr(stats,distr[k])
+                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
+                plt.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
+            if showPlots:
                 plt.show()
 
             # More processing:
@@ -683,17 +684,18 @@ for IGLOB in range(restartAt,nGlobalIter):
         my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
 
 
-        if doPlots:
-            for k in range(5):
-                plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                if withEXTR:
-                    plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
-                if withDEL:
-                    plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
-                plt.ylabel(labs[k])
-                plt.xlabel("r/R")
-                plt.legend()
-                plt.savefig(f"{labs[k].split(' ')[0]}.png")
+        
+        for k in range(5):
+            plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+            if withEXTR:
+                plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
+            if withDEL:
+                plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
+            plt.ylabel(labs[k])
+            plt.xlabel("r/R")
+            plt.legend()
+            plt.savefig(f"{labs[k].split(' ')[0]}.png")
+        if showPlots:
             plt.show()
     elif fname_analysis_options_FORCED:
         #if you already postprocessed the data above, and want to do the lofi optimization
@@ -738,6 +740,8 @@ for IGLOB in range(restartAt,nGlobalIter):
         shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
     if os.path.isdir(mydir + os.sep + "outputs_struct"):
         shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+
+    os.system(f"mv *.png {folder_arch + os.sep + 'figs' + os.sep + currFolder}")
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"
