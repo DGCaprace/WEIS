@@ -467,7 +467,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             tmp = DEL_life_B1[:,2].copy()
             DEL_life_B1[:,2] = -DEL_life_B1[:,3]
             DEL_life_B1[:,3] = tmp
-            DEL_life_B1[:,4] = -DEL_life_B1[:,4] #change sign because RotorSE strain computation considers positive loads are compression??
+            DEL_life_B1[:,4] = DEL_life_B1[:,4]
 
             print("Damage eq loads:")
             print(np.transpose(DEL_life_B1))
@@ -597,7 +597,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             tmp = EXTR_life_B1[:,2].copy()
             EXTR_life_B1[:,2] = -EXTR_life_B1[:,3]
             EXTR_life_B1[:,3] = tmp
-            EXTR_life_B1[:,4] = -EXTR_life_B1[:,4] #change sign because RotorSE strain computation considers positive loads are compression??
+            EXTR_life_B1[:,4] = EXTR_life_B1[:,4]
 
             for k in range(5):
                 EXTR_life_B1[:,k] *= fac[k]

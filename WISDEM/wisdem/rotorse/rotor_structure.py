@@ -803,10 +803,10 @@ class ComputeStrains(ExplicitComponent):
 
             # compute strain
             x, y = rotate(xuu, yuu)
-            strainU = M1 / EI11 * y - M2 / EI22 * x - F3 / EA
+            strainU = M1 / EI11 * y - M2 / EI22 * x + F3 / EA  # Hansen, wind energy handbook, Eq.11.10
 
             x, y = rotate(xll, yll)
-            strainL = M1 / EI11 * y - M2 / EI22 * x - F3 / EA
+            strainL = M1 / EI11 * y - M2 / EI22 * x + F3 / EA
 
             return strainU, strainL
 
