@@ -1027,10 +1027,19 @@ class DesignConstraints(ExplicitComponent):
 
         m = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] #Wohler exponent
         eta = self.opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta"] #safety factor
-        NcycleU =  np.power( max_strainU_spar / abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / eta , m)
-        NcycleL =  np.power( max_strainL_spar / abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / eta , m)
-        outputs["constr_damageU_spar"] = self.eq_NcycleU_spar / NcycleU
-        outputs["constr_damageL_spar"] = self.eq_NcycleL_spar / NcycleL
+
+        #Here is what we should do to strictly follow the definition of damage
+        # NcycleU =  np.power( max_strainU_spar / abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) / eta , m)
+        # NcycleL =  np.power( max_strainL_spar / abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) / eta , m)
+        # outputs["constr_damageU_spar"] = self.eq_NcycleU_spar / NcycleU
+        # outputs["constr_damageL_spar"] = self.eq_NcycleL_spar / NcycleL
+        #--
+        #Here is an equivalent formulation of the constraint, with a better scaling. This is not anymore a "damage" per se
+        ooNcycleU = abs(np.interp(s_opt_spar_cap_ss, s, fatigue_strainU_spar)) * eta / max_strainU_spar
+        ooNcycleL = abs(np.interp(s_opt_spar_cap_ps, s, fatigue_strainL_spar)) * eta / max_strainL_spar
+        outputs["constr_damageU_spar"] = np.power(self.eq_NcycleU_spar, 1/m) * ooNcycleU
+        outputs["constr_damageL_spar"] = np.power(self.eq_NcycleL_spar, 1/m) * ooNcycleL
+        
 
         print("Current damage on the SS/PS spar:")
         print(outputs["constr_damageU_spar"])
