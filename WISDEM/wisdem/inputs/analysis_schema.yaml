@@ -690,6 +690,10 @@ properties:
                 default: {}
                 description: Constraints associated with the blade design
                 properties:
+                    extreme_loads_from_user_inputs:
+                        type: boolean
+                        default: False
+                        description: Use user-provided extreme loads when evaluating gust.
                     strains_spar_cap_ss:
                         type: object
                         default: {}
@@ -744,8 +748,6 @@ properties:
                         properties:
                             flag: *flag
                             eq_Ncycle: *eqncycle
-                            # grid_nd: *del_grid
-                            # del: *dels
                             index_start: *index_start
                             index_end: *index_end
                             m_wohler: *wholer

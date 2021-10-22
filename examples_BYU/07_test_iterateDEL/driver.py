@@ -651,7 +651,8 @@ for IGLOB in range(restartAt,nGlobalIter):
             schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"] = float(n_life_eq)
             schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] = m_wohler
             schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["m_wohler"] = m_wohler
-        #TODO: instruct WISDEM to use my EXTR loading instead of the gusts that it usualy uses
+        if withEXTR:
+            schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True
 
         fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
         my_write_yaml(schema, fname_analysis_options_struct)

@@ -83,7 +83,7 @@ class RotorPower(Group):
 
 
 class GustETM(ExplicitComponent):
-    # OpenMDAO component that generates an "equivalent gust" wind speed by summing an user-defined wind speed at hub height with 3 times sigma. sigma is the turbulent wind speed standard deviation for the extreme turbulence model, see IEC-61400-1 Eq. 19 paragraph 6.3.2.3
+    # OpenMDAO component that generates an "equivalent gust" wind speed by summing an user-defined wind speed at hub height with 3 times sigma. sigma is the turbulent wind speed standard deviation for the extreme turbulence model, see IEC-61400-1 Eq. 20 paragraph 6.3.3.4 (March2020)
 
     def initialize(self):
         # number of standard deviations for strength of gust

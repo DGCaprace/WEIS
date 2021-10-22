@@ -523,32 +523,24 @@ class ProcessDels(ExplicitComponent):
 
         #read the DEL/DEM:
         if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
-            self.s_del = opt_options["DEL"]["grid_nd"]
+            self.s_usr = opt_options["DEL"]["grid_nd"]
             self.deMLx = opt_options["DEL"]["deMLx"]
             self.deMLy = opt_options["DEL"]["deMLy"]
             self.deFLz = opt_options["DEL"]["deFLz"]
         else:
-            self.s_del = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
+            self.s_usr = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
             # self.deFn  = -np.ones(n_span)
             # self.deFt  = -np.ones(n_span)
             self.deMLx = -np.ones(n_span)
             self.deMLy = -np.ones(n_span)
             self.deFLz = -np.ones(n_span)
 
-
-        # Inputs strains
-        self.add_input(
-            "alpha",
-            val=np.zeros(n_span),
-            units="deg",
-            desc="Angle between blade c.s. and principal axes",
-        )
+        # Inputs
         self.add_input(
             "s",
             val=np.zeros(n_span),
             desc="1D array of the non-dimensional spanwise grid defined along blade axis (0-blade root, 1-blade tip)",
         )
-        #any other relevant angle ?
 
         # Outputs
         self.add_output(
@@ -585,9 +577,72 @@ class ProcessDels(ExplicitComponent):
         #       "The blade reference axis locates the origin and orientation of each a local coordinate system where the cross-sectional 6x6 stiffness and mass matrices are defined in the BeamDyn blade input file. It should not really matter where in the cross section the 6x6 stiffness and mass matrices are defined relative to, as long as the reference axis is consistently defined and closely follows the natural geometry of the blade."
         
         # Reinterpolate: (rotation from will be done in the next component)
-        outputs["M1"] = np.interp(s, self.s_del, self.deMLx)
-        outputs["M2"] = np.interp(s, self.s_del, self.deMLy)
-        outputs["F3"] = np.interp(s, self.s_del, self.deFLz)
+        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx)
+        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy)
+        outputs["F3"] = np.interp(s, self.s_usr, self.deFLz)
+
+
+# NOTE: could probably gather this class and the previous one, instead of almost dupolicating code
+class ProcessExtreme(ExplicitComponent):
+    # OpenMDAO component that processes the Damage equivalent loads and moments (DEL/DEMs)
+    def initialize(self):
+        self.options.declare("modeling_options")
+        self.options.declare("opt_options")
+
+    def setup(self):
+        rotorse_options = self.options["modeling_options"]["WISDEM"]["RotorSE"]
+        self.n_span = n_span = rotorse_options["n_span"]
+        
+        self.opt_options = opt_options = self.options["opt_options"]
+
+        #read the forces/moments:
+        if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
+            self.s_usr = opt_options["extreme"]["grid_nd"]
+            self.deMLx = opt_options["extreme"]["deMLx"]
+            self.deMLy = opt_options["extreme"]["deMLy"]
+            self.deFLz = opt_options["extreme"]["deFLz"]
+        else:
+            self.s_usr = np.zeros(n_span)
+            self.deMLx = np.zeros(n_span)
+            self.deMLy = np.zeros(n_span)
+            self.deFLz = np.zeros(n_span)
+
+        # Inputs
+        self.add_input(
+            "s",
+            val=np.zeros(n_span),
+            desc="1D array of the non-dimensional spanwise grid defined along blade axis (0-blade root, 1-blade tip)",
+        )
+
+        # Outputs
+        self.add_output(
+            "M1",
+            val=np.zeros(n_span),
+            units="N*m",
+            desc="distribution along blade span of bending moment w.r.t principal axis 1",
+        )
+        self.add_output(
+            "M2",
+            val=np.zeros(n_span),
+            units="N*m",
+            desc="distribution along blade span of bending moment w.r.t principal axis 2",
+        )
+        self.add_output(
+            "F3",
+            val=np.zeros(n_span),
+            units="N",
+            desc="axial resultant along blade span",
+        )
+
+    def compute(self, inputs, outputs):
+
+        # Constraints on blade strains
+        s = inputs["s"]
+        
+        # Reinterpolate: (rotation from will be done in the next component)
+        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx)
+        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy)
+        outputs["F3"] = np.interp(s, self.s_usr, self.deFLz)
 
 
 class ComputeStrains(ExplicitComponent):
@@ -844,6 +899,16 @@ class DesignConstraints(ExplicitComponent):
             val=np.zeros(n_span),
             desc="strain in spar cap on lower surface at location xl,yl_strain with fatigue loads",
         )
+        self.add_input(
+            "extreme_strainU_spar",
+            val=np.zeros(n_span),
+            desc="strain in spar cap on upper surface at location xu,yu_strain with user extreme loads",
+        )
+        self.add_input(
+            "extreme_strainL_spar",
+            val=np.zeros(n_span),
+            desc="strain in spar cap on lower surface at location xl,yl_strain with user extreme loads",
+        )
 
         self.add_input("min_strainU_spar", val=0.0, desc="minimum strain in spar cap suction side")
         self.add_input("max_strainU_spar", val=0.0, desc="minimum strain in spar cap pressure side")
@@ -907,6 +972,16 @@ class DesignConstraints(ExplicitComponent):
             desc="constraint for damage in spar cap pressure side, due to fatigue loads",
         )
         self.add_output(
+            "constr_extreme_strainU_spar",
+            val=np.zeros(n_opt_spar_cap_ss),
+            desc="constraint for extreme strain in spar cap suction side",
+        )
+        self.add_output(
+            "constr_extreme_strainL_spar",
+            val=np.zeros(n_opt_spar_cap_ps),
+            desc="constraint for extreme strain in spar cap pressure side",
+        )
+        self.add_output(
             "constr_flap_f_margin",
             val=np.zeros(n_freq2),
             desc="constraint on flap blade frequency such that ratio of 3P/f is above or below gamma with constraint <= 0",
@@ -958,7 +1033,19 @@ class DesignConstraints(ExplicitComponent):
         print(outputs["constr_damageU_spar"])
         print(outputs["constr_damageL_spar"])
 
-        
+
+        # strain based on user-specified loads
+        extreme_strainU_spar = inputs["extreme_strainU_spar"]
+        extreme_strainL_spar = inputs["extreme_strainL_spar"]
+
+        outputs["constr_extreme_strainU_spar"] = abs(np.interp(s_opt_spar_cap_ss, s, extreme_strainU_spar)) / max_strainU_spar
+        outputs["constr_extreme_strainL_spar"] = abs(np.interp(s_opt_spar_cap_ps, s, extreme_strainL_spar)) / max_strainL_spar
+
+        print("Current EXTREME on the SS/PS spar:")
+        print(outputs["constr_extreme_strainU_spar"])
+        print(outputs["constr_extreme_strainL_spar"])
+
+
         # Constraints on blade frequencies
         threeP = discrete_inputs["blade_number"] * inputs["rated_Omega"] / 60.0
         flap_f = inputs["flap_mode_freqs"]
@@ -1350,13 +1437,13 @@ class RotorStructure(Group):
         ]
         # self.add_subsystem('aero_rated',        CCBladeLoads(modeling_options = modeling_options), promotes=promoteListAeroLoads)
 
+        # the following uses V_gust, rated pitch and rated omega coming from RotorPower system (see rotor.py)
         self.add_subsystem(
             "aero_gust", CCBladeLoads(modeling_options=modeling_options), promotes=promoteListAeroLoads + ["nSector"]
         )
         # self.add_subsystem('aero_storm_1yr',    CCBladeLoads(modeling_options = modeling_options), promotes=promoteListAeroLoads)
         # self.add_subsystem('aero_storm_50yr',   CCBladeLoads(modeling_options = modeling_options), promotes=promoteListAeroLoads)
 
-        #TODO: input DEMs: should this be a subsystem?
 
         # Add centrifugal and gravity loading to aero loading
         # promotes = ["tilt", "theta", "rhoA", "z", "totalCone", "z_az"]
@@ -1416,6 +1503,12 @@ class RotorStructure(Group):
         #add subsystem for fatigue, or add to constraints?
         self.add_subsystem("brs", BladeRootSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"]))
 
+        #Add the system and the corresponding constraint for user-inputed extreme loading
+        # Alternatly, we could replace the above gust completely
+        # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
+        self.add_subsystem("aero_gust_external", ProcessExtreme(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
+        self.add_subsystem("extreme_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) #using pBeam option to force rotation of the DEL in principal axes
+            
         # if modeling_options['rotorse']['FatigueMode'] > 0: 
         #     promoteListFatigue = ['r', 'gamma_f', 'gamma_m', 'E', 'Xt', 'Xc', 'x_tc', 'y_tc', 'EIxx', 'EIyy', 'pitch_axis', 'chord', 'layer_name', 'layer_mat', 'definition_layer', 'sc_ss_mats','sc_ps_mats','te_ss_mats','te_ps_mats','rthick']
         #     self.add_subsystem('fatigue', BladeFatigue(modeling_options = modeling_options, opt_options = opt_options), promotes=promoteListFatigue)
@@ -1448,15 +1541,12 @@ class RotorStructure(Group):
         self.connect("frame.EI22", "strains.EI22")
         #Why is EA not changing?
 
-        # Processing of DEL/DEMs
-        self.connect("frame.alpha", "del.alpha")
-
         # DEM to fatigue strains
         self.connect("frame.alpha", "fatigue_strains.alpha")  #We can reuse the `frame` data: alpha is between the airfoil c.s. and the principal axis (and theta between the blade and airfoil c.s.)
         self.connect("frame.EI11" , "fatigue_strains.EI11") # 11,22 correspond to principal axes whereas xx,yy refer to airfoil-aligned c.s.
         self.connect("frame.EI22" , "fatigue_strains.EI22")
         #   however this should come from the inputs directly
-        # TODO: CAUTION> are these input supposed to be in principal axes or in airfoil coordinates? The former I guess
+        # CAUTION> are these input supposed to be in principal axes or in airfoil coordinates? The former I guess
         self.connect("del.M1", "fatigue_strains.M1")
         self.connect("del.M2", "fatigue_strains.M2")
         self.connect("del.F3", "fatigue_strains.F3")
@@ -1477,5 +1567,16 @@ class RotorStructure(Group):
         self.connect("fatigue_strains.strainU_spar","constr.fatigue_strainU_spar")
         self.connect("fatigue_strains.strainL_spar","constr.fatigue_strainL_spar")
 
+        # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
+        # user Extreme to strains
+        self.connect("frame.alpha", "extreme_strains.alpha")  #We can reuse the `frame` data: alpha is between the airfoil c.s. and the principal axis (and theta between the blade and airfoil c.s.)
+        self.connect("frame.EI11" , "extreme_strains.EI11") # 11,22 correspond to principal axes whereas xx,yy refer to airfoil-aligned c.s.
+        self.connect("frame.EI22" , "extreme_strains.EI22")
+        self.connect("aero_gust_external.M1", "extreme_strains.M1")
+        self.connect("aero_gust_external.M2", "extreme_strains.M2")
+        self.connect("aero_gust_external.F3", "extreme_strains.F3")
+        self.connect("extreme_strains.strainU_spar","constr.extreme_strainU_spar")
+        self.connect("extreme_strains.strainL_spar","constr.extreme_strainL_spar")
+        
         # Blade root moment to blade root sizing
         self.connect("frame.root_M", "brs.root_M")

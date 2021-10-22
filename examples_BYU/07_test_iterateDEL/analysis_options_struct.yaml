@@ -25,6 +25,7 @@ merit_figure: blade_mass
 
 constraints:
     blade:
+        extreme_loads_from_user_inputs: False
         strains_spar_cap_ss:
             flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade suction side
             max:    3500.e-6   # Value of maximum strains [-]
