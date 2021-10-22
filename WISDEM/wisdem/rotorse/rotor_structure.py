@@ -565,7 +565,7 @@ class ProcessDels(ExplicitComponent):
     # def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
     def compute(self, inputs, outputs):
 
-        # I already read the DEL/DEM. Now let's rotate them as needed, and reinterpolate at the location of "s".
+        # I already read the DEL/DEM. Now let's reinterpolate at the location of "s".
         #   Note that interpolation at s is not stricly required since we will interpolate a second time in the constraint at the location where we define the fatigue
         #   constraint. But we would then need to define another component to compute the strain.
 
@@ -573,9 +573,12 @@ class ProcessDels(ExplicitComponent):
         s = inputs["s"]
         
         # DEL/DEM are given in "floating coordinate system local to the deflected beam":
-        #       It is not clear whether it corresponds to the local section elastic/principal axis or the local aerodynami/chord-based axes.
+        # From BeamDyn:
         #       "The blade reference axis locates the origin and orientation of each a local coordinate system where the cross-sectional 6x6 stiffness and mass matrices are defined in the BeamDyn blade input file. It should not really matter where in the cross section the 6x6 stiffness and mass matrices are defined relative to, as long as the reference axis is consistently defined and closely follows the natural geometry of the blade."
-        
+        # From FAST manual about the "local xb frame":
+        #       "When you request output of motions or loads for various span locations along the blade with the BldGagNd array, a local coordinate system similar to the standard blade system, but the x-axis and y-axis are aligned with the local principal axes and the local coordinate systems orient themselves with the deflected blade."
+        # ---> M1,M2,F3 are assumed already in the principal axes. Confirmed by comparing their shape to Frame3DD output.
+
         # Reinterpolate: (rotation from will be done in the next component)
         outputs["M1"] = np.interp(s, self.s_usr, self.deMLx)
         outputs["M2"] = np.interp(s, self.s_usr, self.deMLy)
@@ -1490,7 +1493,8 @@ class RotorStructure(Group):
         ]
         self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
-        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) #using pBeam option to force rotation of the DEL in principal axes
+        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options, pbeam=False), promotes=promoteListStrains) 
+            #pBeam=False: DEL input already in principal axes. No need for further rotation
         self.add_subsystem("tip_pos", TipDeflection(), promotes=["tilt", "pitch_load"])
         self.add_subsystem(
             "aero_hub_loads",
@@ -1502,7 +1506,9 @@ class RotorStructure(Group):
         # Alternatly, we could replace the above gust completely
         # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
         self.add_subsystem("aero_gust_external", ProcessExtreme(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
-        self.add_subsystem("extreme_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) #using pBeam option to force rotation of the DEL in principal axes
+        self.add_subsystem("extreme_strains", ComputeStrains(modeling_options=modeling_options, pbeam=False), promotes=promoteListStrains) 
+            #pBeam=False: extreme load input already in principal axes. No need for further rotation
+
         #Adding the constraint subsystems
         self.add_subsystem(
             "constr", DesignConstraints(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"]
