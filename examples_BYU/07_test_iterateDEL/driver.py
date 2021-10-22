@@ -211,6 +211,7 @@ readOutputFrom = "" #results path where to get output data. I not empty, we do b
 readOutputFrom = mydir + os.sep + "tmp2"
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
+fname_analysis_options_FORCED = ""
 doPlots = True
 
 # Design choice in fatigue: for how long do you size the turbine + other parameters
@@ -226,7 +227,7 @@ f_eq = 10 #rotor rotation freq is around 0.1Hz. Let's multiply by 10...100  -- T
 withDorE = withDEL or withEXTR
 
 if not withDorE and not doLofiOptim: nGlobalIter = 0
-if not withDorE or not doLofiOptim: nGlobalIter = 1
+if not withDorE or not doLofiOptim or fname_analysis_options_FORCED: nGlobalIter = 1
 
 iec_dlc_for_del = 1.1 #hardcoded
 iec_dlc_for_extr = 1.3 #hardcoded
@@ -290,7 +291,7 @@ for IGLOB in range(restartAt,nGlobalIter):
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     #           PHASE 1 : Compute DEL and extrapolate extreme loads
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    if withDorE:
+    if withDorE and not fname_analysis_options_FORCED:
         
         if not readOutputFrom:
 
@@ -544,7 +545,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             distr = ["weibull_min","weibull_min","norm","norm","norm"]
             distr = ["chi2","chi2","chi2","chi2","chi2"]
             distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #what we recommend but chi2 curve fitting may lead to oscillations in the output loading
-            distr = ["norm","norm","twiceMaxForced","norm","norm"] #safer from a numerical perspective
+            # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
             # distr = ["normForced","normForced","normForced","normForced","normForced"]
             if extremeExtrapMeth ==1:
                 #assumes only normal
@@ -576,11 +577,6 @@ for IGLOB in range(restartAt,nGlobalIter):
                     print(EXTR_distr_p[5,k,:])
                     print(EXTR_distr_p[15,k,:])
                     print(EXTR_distr_p[25,k,:])
-                    if k == 0:
-                        print(EXTR_distro_B1[5,k,:])
-                        print(EXTR_distro_B1[15,k,:])
-                        print(EXTR_distro_B1[25,k,:])
-                        print(xx)
 
                     if "norm" in distr[k]:
                         plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
@@ -690,7 +686,10 @@ for IGLOB in range(restartAt,nGlobalIter):
                 plt.legend()
                 plt.savefig(f"{labs[k].split(' ')[0]}.png")
             plt.show()
-
+    elif fname_analysis_options_FORCED:
+        #if you already postprocessed the data above, and want to do the lofi optimization
+        print(f"Forced use of analysis file: {fname_analysis_options_FORCED}\nI will not check that this file contains DEL or EXTRM info. Please make sure it matches your current request.")
+        fname_analysis_options_struct = fname_analysis_options_FORCED
     else:
         fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
 
@@ -716,7 +715,7 @@ for IGLOB in range(restartAt,nGlobalIter):
     # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
     # shutil.copytree
     
-    if withDEL and IGLOB==0:
+    if os.path.isfile(fname_aggregatedEqLoads) and IGLOB==0:
         shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
     if os.path.isfile(fname_modeling_options):
         os.system(f"cp {fname_modeling_options} {folder_arch + os.sep}")
@@ -724,6 +723,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         os.system(f"cp {fname_analysis_options_struct} {folder_arch + os.sep}")
     if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
         shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
+    if not readOutputFrom and os.path.isdir(simfolder): #let's not move the file if it is a path provided by the user
         shutil.move(simfolder, folder_arch + os.sep + "sim" + os.sep + currFolder)
     if os.path.isdir(mydir + os.sep + "outputs_struct_withFatigue"):
         shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
