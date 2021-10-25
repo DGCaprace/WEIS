@@ -213,7 +213,7 @@ def assign_internal_structure_2d_fem_values(wt_opt, modeling_options, internal_s
                 else:
                     raise ValueError(
                         "Invalid rotation reference for web "
-                        + self.modeling_options["WISDEM"]["RotorSE"]["web_name"][i]
+                        + modeling_options["WISDEM"]["RotorSE"]["web_name"][i]
                         + ". Please check the yaml input file"
                     )
             else:

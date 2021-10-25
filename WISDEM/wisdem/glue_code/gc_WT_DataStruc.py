@@ -1672,7 +1672,7 @@ class Compute_Blade_Internal_Structure_2D_FEM(om.ExplicitComponent):
                     outputs["web_offset_y_pa"][j, i] = copy.copy(offset)
 
                 if discrete_inputs["definition_web"][j] == 1:
-                    web_rotation[j, i] = -inputs["twist"][i]
+                    web_rotation[j, i] = inputs["twist"][i] 
                     web_start_nd[j, i], web_end_nd[j, i] = calc_axis_intersection(
                         inputs["coord_xy_dim"][i, :, :],
                         -web_rotation[j, i],
@@ -1681,7 +1681,7 @@ class Compute_Blade_Internal_Structure_2D_FEM(om.ExplicitComponent):
                         ["suction", "pressure"],
                     )
                 elif discrete_inputs["definition_web"][j] == 2:
-                    web_rotation[j, i] = -inputs["web_rotation_yaml"][j, i]
+                    web_rotation[j, i] = inputs["web_rotation_yaml"][j, i]
                     web_start_nd[j, i], web_end_nd[j, i] = calc_axis_intersection(
                         inputs["coord_xy_dim"][i, :, :],
                         -web_rotation[j, i],
@@ -1728,9 +1728,9 @@ class Compute_Blade_Internal_Structure_2D_FEM(om.ExplicitComponent):
                     discrete_inputs["definition_layer"][j] == 2 or discrete_inputs["definition_layer"][j] == 3
                 ):  # Midpoint and width
                     if discrete_inputs["definition_layer"][j] == 2:
-                        layer_rotation[j, i] = -inputs["twist"][i]
+                        layer_rotation[j, i] = inputs["twist"][i]
                     else:
-                        layer_rotation[j, i] = -inputs["layer_rotation_yaml"][j, i]
+                        layer_rotation[j, i] = inputs["layer_rotation_yaml"][j, i]
                     midpoint = calc_axis_intersection(
                         inputs["coord_xy_dim"][i, :, :],
                         -layer_rotation[j, i],

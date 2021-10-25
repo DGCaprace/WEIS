@@ -62,7 +62,7 @@ components:
                   offset_y_pa:
                       #spanwise loc:
                       grid: &grid_webs [0.030, 0.050, 0.100, 0.150, 0.200, 0.250, 0.325, 0.400, 0.475, 0.550, 0.625, 0.700, 0.775, 0.850, 0.925]
-                      #chordwise loc: [m], negative towards TE
+                      #chordwise loc: [m], negative towards LE
                       values: [-0.44250, -0.43750, -0.42500, -0.41250, -0.40000, -0.38750, -0.36875, -0.35000, -0.33125, -0.31250, -0.29375, -0.27500, -0.25625, -0.23750, -0.21875]
                   #ALTERNATIVELY: can define start/end_nd_arc instead of rotation and offset_y_pa
                -  name: rear_web
