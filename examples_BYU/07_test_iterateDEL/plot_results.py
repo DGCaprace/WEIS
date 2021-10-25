@@ -18,6 +18,10 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
 
 folder_arch = mydir + os.sep + "results-IEC1.1_5vels_120s_4Glob"
+folder_arch = mydir + os.sep + "results-60sec_TMP"
+# folder_arch = mydir + os.sep + "results-120sec_TMP"
+folder_arch = mydir + os.sep + "results__1vel_600s"  #-> before fixing wrong structural twist 
+folder_arch = mydir + os.sep + "results__1vel_120s_fix" #-> after fixing wrong structural twist 
 
 nGlobalIter = 4
 
@@ -69,10 +73,10 @@ for IGLOB in range(nGlobalIter):
     if not thickPS:
         print("Could not find Spar cap pressure side")
 
-    roR_d = analysis["DELs"]["grid_nd"]
-    deML1 = np.array(analysis["DELs"]["deMLx"])
-    deML2 = np.array(analysis["DELs"]["deMLy"])
-    deFL3 = np.array(analysis["DELs"]["deFLz"])
+    roR_d = analysis["DEL"]["grid_nd"]
+    deML1 = np.array(analysis["DEL"]["deMLx"])
+    deML2 = np.array(analysis["DEL"]["deMLy"])
+    deFL3 = np.array(analysis["DEL"]["deFLz"])
     if IGLOB ==0:
         deML1_0 = deML1
         deML2_0 = deML2
@@ -94,4 +98,49 @@ for IGLOB in range(nGlobalIter):
 
 ax1.legend()
 ax2s[2].legend()
+
+# plt.tight_layout()
+fig1.savefig(folder_arch + "/thickness.png")
+fig2.savefig(folder_arch + "/DELs.png")
+
+
+
+#==================== LOAD DATA AND PLOT FROM OPTIMIZATION =====================================
+
+WISDEMout = folder_arch + "/outputs_optim/iter_%i/blade_out.npz"
+
+fig3, ax3 = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
+plt.xlabel("r/R")
+
+for IGLOB in range(nGlobalIter): 
+    with np.load(WISDEMout%(IGLOB)) as a:
+
+        r = np.array(a["rotorse.rs.z_az_m"])
+        r = (r-r[0])/(r[-1]-r[0])
+        
+        #DEL stuff:
+        # data = a["rotorse.rs.fatigue_strains.M1_N*m"]
+        # data = a["rotorse.rs.fatigue_strains.M2_N*m"]
+        # data = a["rotorse.rs.fatigue_strains.F3_N"]
+        # data = a["rotorse.rs.fatigue_strains.strainU_spar"]
+        # data = a["rotorse.rs.fatigue_strains.strainL_spar"]
+        data1 = a["rotorse.rs.fatigue_strains.strainU_spar"] / 3500.e-6 #surrogate to damage constraint
+        data2 = a["rotorse.rs.fatigue_strains.strainL_spar"] / 3500.e-6 #surrogate to damage constraint
+        
+        # #EXTRM stuff:
+        # data = a["rotorse.rs.strains.M1_N*m"]
+        # data = a["rotorse.rs.strains.M2_N*m"]
+        # data = a["rotorse.rs.strains.F3_N"]
+        # data = a["rotorse.rs.strains.strainU_spar"]
+        # data = a["rotorse.rs.strains.strainL_spar"]
+        # data = a["rotorse.rs.constr.constr_max_strainU_spar"]
+        # data = a["rotorse.rs.constr.constr_max_strainL_spar"]
+        # r = range(4)
+
+        ax3[0].plot(r,data1,'x-', label=f'i{IGLOB}')
+        ax3[1].plot(r,data2,'x-', label=f'i{IGLOB}')
+
+ax3[0].legend()
+plt.xlabel("r/R")
+
 plt.show()
