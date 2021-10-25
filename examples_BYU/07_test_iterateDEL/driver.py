@@ -207,7 +207,7 @@ extremeExtrapMeth = 3
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
 
 readOutputFrom = "" #results path where to get output data. I not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
-readOutputFrom = mydir + os.sep + "tmp2"
+# readOutputFrom = mydir + os.sep + "tmp2"
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
 fname_analysis_options_FORCED = ""
@@ -240,7 +240,7 @@ iec_dlc_for_extr = 1.3 #hardcoded
 
 # analysis_opt = load_yaml(fname_analysis_options)
 wt_init = load_yaml(fname_wt_input)
-modeling_options = load_yaml(fname_wt_input)  #initial load
+modeling_options = load_yaml(fname_modeling_options)  #initial load
 
 #  Write the WEIS input file
 analysis_options_WEIS = {}
@@ -717,9 +717,10 @@ for IGLOB in range(restartAt,nGlobalIter):
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
     # +++++++++++++++++++++++++++++++++++++++
-    if os.path.isdir(folder_arch):
-        shutil.rmtree(folder_arch,ignore_errors=True)
-    os.makedirs(folder_arch)
+    if IGLOB==0:
+        if os.path.isdir(folder_arch):
+            shutil.rmtree(folder_arch,ignore_errors=True)
+        os.makedirs(folder_arch)
 
     currFolder = f"iter_{IGLOB}"
 
@@ -741,7 +742,13 @@ for IGLOB in range(restartAt,nGlobalIter):
     if os.path.isdir(mydir + os.sep + "outputs_struct"):
         shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
 
-    os.system(f"mv *.png {folder_arch + os.sep + 'figs' + os.sep + currFolder}")
+    figdir = folder_arch + os.sep + 'figs' 
+    if not os.path.isdir(figdir):
+        os.makedirs(figdir)
+    thisfdir = figdir + os.sep + currFolder
+    if not os.path.isdir(thisfdir):
+        os.makedirs(thisfdir)
+    os.system(f"mv *.png {thisfdir}")
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"
