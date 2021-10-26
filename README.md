@@ -5,6 +5,14 @@
 [![Documentation Status](https://readthedocs.org/projects/weis/badge/?version=develop)](https://weis.readthedocs.io/en/develop/?badge=develop)
 
 
+# BYU note
+
+This is BYU's modified version of WEIS. The purpose is to be able to use a fatigue constraint in WISDEM optimization, where the damage is obtained from OpenFAST simulations. The coupling is loose, and can be iterated. Damage equavalent loads are also computed, and can be used as an input to MACH optimmization (that uses ADflow and TACS).
+
+See dedicated examples in `./example_BYU`. *Case7* enables the computation of the damage equivalent loads, optionally runs an optimization with WISDEM, and optionally iterates over the previous 2 steps. *Case8* presents a method to extrapolate loads from low-fidelity to high-fidelity (ADflow-compatible) loadings.
+
+# Original Readme
+
 WEIS, Wind Energy with Integrated Servo-control, performs multifidelity co-design of wind turbines. WEIS is a framework that combines multiple NREL-developed tools to enable design optimization of floating offshore wind turbines.
 
 Author: [NREL WISDEM & OpenFAST & Control Teams](mailto:systems.engineering@nrel.gov) 
