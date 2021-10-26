@@ -22,6 +22,7 @@ folder_arch = mydir + os.sep + "results-60sec_TMP"
 # folder_arch = mydir + os.sep + "results-120sec_TMP"
 folder_arch = mydir + os.sep + "results__1vel_600s"  #-> before fixing wrong structural twist 
 folder_arch = mydir + os.sep + "results__1vel_120s_fix" #-> after fixing wrong structural twist 
+folder_arch = mydir + os.sep + "results"
 
 nGlobalIter = 4
 
@@ -128,8 +129,8 @@ for IGLOB in range(nGlobalIter):
         data2 = a["rotorse.rs.fatigue_strains.strainL_spar"] / 3500.e-6 #surrogate to damage constraint
         
         # #EXTRM stuff:
-        # data = a["rotorse.rs.strains.M1_N*m"]
-        # data = a["rotorse.rs.strains.M2_N*m"]
+        # data1 = a["rotorse.rs.strains.M1_N*m"]
+        # data2 = a["rotorse.rs.strains.M2_N*m"]
         # data = a["rotorse.rs.strains.F3_N"]
         # data = a["rotorse.rs.strains.strainU_spar"]
         # data = a["rotorse.rs.strains.strainL_spar"]
