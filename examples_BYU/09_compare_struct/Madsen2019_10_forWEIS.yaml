@@ -1,4 +1,4 @@
-name: DTU 10MW (Madsen2019) - WITH prebend
+name: DTU 10MW (Madsen2019) aluminium - no prebend, NO SHEAR
 
 assembly:
     turbine_class: I
