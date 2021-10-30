@@ -119,3 +119,9 @@ results*
 *.png
 *.xmf
 tmp*
+temp*
+results*
+optim_*
+DBG*
+sim*
+old*
