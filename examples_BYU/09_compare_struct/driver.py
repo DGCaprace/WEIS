@@ -55,6 +55,7 @@ fast_fnames = ["DTU10MW_powercurve_0"]
 nx = 9
 chans = ["Spn%1iTDxb1","Spn%1iTDyb1","Spn%1iRDzb1"]
 data_avg = np.zeros((len(chans),nx,len(wt_input)))
+data_std = np.zeros((len(chans),nx,len(wt_input)))
 
 for ifi in range(len(wt_input)):
     wt_file = wt_input[ifi]
@@ -127,6 +128,7 @@ for ifi in range(len(wt_input)):
         for i in range(nx):
             # EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
             data_avg[k,i,ifi] = np.mean(fulldata[lab%(i+1)])
+            data_std[k,i,ifi] = np.std(fulldata[lab%(i+1)])
 
         k+=1
 
@@ -141,7 +143,10 @@ for ifi in range(len(wt_input)):
     wt_file = wt_input[ifi]
 
     for k in range(len(chans)):
-        ax[k].plot(data_avg[k,:,ifi],'x-', label=wt_file)
+        hp = ax[k].plot(data_avg[k,:,ifi],'x-', label=wt_file)
+        
+        ax[k].plot(data_avg[k,:,ifi]+data_std[k,:,ifi],'--', color=hp[0].get_color())
+        ax[k].plot(data_avg[k,:,ifi]-data_std[k,:,ifi],'--', color=hp[0].get_color())
     
         ax[k].set_ylabel(f"{chans[k]%(0)}")
 # plt.xlabel("U [m/s]")
