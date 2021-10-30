@@ -121,17 +121,18 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob):
                 extr[i,k] = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
                 p[i,k,0] = params[0] #can I do something better than this?
                 p[i,k,1] = params[1] #can I do something better than this?
-        elif 'norm' in distr_list[k]:
+        elif 'norm' in distr_list[k] or 'gumbel' in distr_list[k]: #--> 2 parameters distributions 
+            distr = getattr(stats,distr_list[k])
             for i in range(n1):
                 failed = False
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 try: 
-                    params, covf = curve_fit(stats.norm.pdf, x, mat[i,k,:], p0 = [avg,std])  #best possible starting point
+                    params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0 = [avg,std])  #best possible starting point
                     perr = np.sqrt(np.diag(covf))
                     if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
                         failed = True
-                    extr[i,k] = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
+                    extr[i,k] = distr.ppf(extr_prob, loc = params[0], scale = params[1])
                 except RuntimeError:   
                     failed = True
 
@@ -143,10 +144,8 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob):
                 
                 p[i,k,0] = params[0] #can I do something better than this?
                 p[i,k,1] = params[1] #can I do something better than this?
-        else:
+        else: #--> 3 parameters distributions: chi2, weibul
             distr = getattr(stats,distr_list[k])
-            #not sure the implementation with loc and scale is super general though
-            # works with chi2
             for i in range(n1):
                 failed = False
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
@@ -202,12 +201,11 @@ nGlobalIter = 1
 restartAt = 0
 
 extremeExtrapMeth = 3
-#1: just compute avg and std of the data, and rebuild a normal distribution for that
+#1: statistical moment-based method: just compute avg and std of the data, and rebuild a normal distribution for that
 #2: try the fit function of scipy.stats to the whole data: EXPERIMENTAL, and does not seem to be using it properly
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
 
 readOutputFrom = "" #results path where to get output data. I not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
-# readOutputFrom = mydir + os.sep + "tmp2"
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
 fname_analysis_options_FORCED = ""
@@ -516,7 +514,8 @@ for IGLOB in range(restartAt,nGlobalIter):
                 print(f"Time series {jEXTR} are being processed for extreme loads...")
 
             nbins = 100
-            nt = int( Tj / modeling_options["Level3"]["simulation"]["DT"] ) + 1
+            dt = modeling_options["Level3"]["simulation"]["DT"]
+            nt = int( Tj / dt ) + 1
 
             # Init our extreme loads
             EXTR_distro_B1 = np.zeros([nx,5,nbins])    
@@ -559,20 +558,30 @@ for IGLOB in range(restartAt,nGlobalIter):
                 normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
                 EXTR_distro_B1[:,k,:] *= normFac 
 
-            IEC_50yr_prob = 1. - Tj / (50*3600*24*365) #=1 - 3.8e-7 for 10min sims
+            IEC_50yr_prob = 1. - dt / (50*3600*24*365) #=return period 50yr
+            # Explanation: This is only due to how we fit the probability distro
+            #   - I normalize the histogtam by normFac, i.e. the Y axis is 1/load. The integral of the histogram gives a density of 1.0 (unitless)
+            #   - Thus, instead of computing prob with T/50yr, I do dt/50yr since I normalized already with nt.
+            #   - There is no time in this density function, except implicitely the sampling period. 
+            #   - The max load that cooresponds to a return period of 2dT has a probability of 1-dt/2dt = 0.5, that is the mean of our distribution.
+            #   - So the prob should read: 50yr corresponds to 
+            #   - What's conterintuitive to me: the smaller the dt, the larger the 50yr. load... but this might be ok: if dt increases, you have a better certainty on the distro.
+
 
             #-- Assumed distr for each of the channels --
             # Note: 
             # - the longer the simulation window, the better (avoid at all cost to include the initial transient)
             # - the beam residual moments are well approximated by Gaussian
             # - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
-            # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). This will likely overestimate the extreme loads.
+            # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
             # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
             # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
             distr = ["weibull_min","weibull_min","norm","norm","norm"]
             distr = ["chi2","chi2","chi2","chi2","chi2"]
             distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #what we recommend but chi2 curve fitting may lead to oscillations in the output loading
             # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
+            # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
+            # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
             # distr = ["normForced","normForced","normForced","normForced","normForced"]
             if extremeExtrapMeth ==1:
                 #assumes only normal
@@ -587,17 +596,38 @@ for IGLOB in range(restartAt,nGlobalIter):
             for k in range(5):
                 stp = (rng[k][1]-rng[k][0])/(nbins)
                 xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
-                plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                ss1 = plt.plot(xbn,EXTR_distro_B1[5,k,:] )
-                ss2 = plt.plot(xbn,EXTR_distro_B1[15,k,:])
-                ss3 = plt.plot(xbn,EXTR_distro_B1[25,k,:])
-                plt.xlabel(labs[k])
-
-                plt.plot(EXTR_life_B1[5,k] , 0, 'x' , color=ss1[0].get_color())
-                plt.plot(EXTR_life_B1[15,k], 0, 'x' , color=ss2[0].get_color())
-                plt.plot(EXTR_life_B1[25,k], 0, 'x' , color=ss3[0].get_color())
-
                 dx = (rng[k][1]-rng[k][0])/(nbins)
+                
+                f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                ax1.set_xlabel(labs[k])
+                
+                ss1 = ax1.plot(xbn,EXTR_distro_B1[5,k,:] )
+                ss2 = ax1.plot(xbn,EXTR_distro_B1[15,k,:])
+                ss3 = ax1.plot(xbn,EXTR_distro_B1[25,k,:])
+                ax1.plot(EXTR_life_B1[5,k] , 0, 'x' , color=ss1[0].get_color())
+                ax1.plot(EXTR_life_B1[15,k], 0, 'x' , color=ss2[0].get_color())
+                ax1.plot(EXTR_life_B1[25,k], 0, 'x' , color=ss3[0].get_color())
+
+                f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                ax2.set_yscale('log')
+                ax2.set_xlabel(labs[k])
+                ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])                
+
+                dsf1= 1.-np.cumsum(EXTR_distro_B1[5,k,:] )*dx 
+                dsf2= 1.-np.cumsum(EXTR_distro_B1[15,k,:])*dx 
+                dsf3= 1.-np.cumsum(EXTR_distro_B1[25,k,:])*dx 
+                dsf1[(dsf1>=1.-1E-16) | (dsf1<=1E-16)] = np.nan
+                dsf2[(dsf2>=1.-1E-16) | (dsf2<=1E-16)] = np.nan
+                dsf3[(dsf3>=1.-1E-16) | (dsf3<=1E-16)] = np.nan
+                ax2.plot(xbn,dsf1)
+                ax2.plot(xbn,dsf2)
+                ax2.plot(xbn,dsf3)
+                ax2.plot(EXTR_life_B1[5,k] , 1.-IEC_50yr_prob, 'x' , color=ss1[0].get_color())
+                ax2.plot(EXTR_life_B1[15,k], 1.-IEC_50yr_prob, 'x' , color=ss2[0].get_color())
+                ax2.plot(EXTR_life_B1[25,k], 1.-IEC_50yr_prob, 'x' , color=ss3[0].get_color())
+                
+                
+
                 xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
 
                 
@@ -605,18 +635,28 @@ for IGLOB in range(restartAt,nGlobalIter):
                 print(EXTR_distr_p[15,k,:])
                 print(EXTR_distr_p[25,k,:])
 
-                if "norm" in distr[k]:
-                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    plt.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
+                if "norm" in distr[k] or "gumbel" in distr[k]: #2params models
+                    this = getattr(stats,distr[k])
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
+
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
                 elif "twiceMaxForced" in distr[k]:
                     pass
-                else:
+                else: #3params models
                     this = getattr(stats,distr[k])
-                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    plt.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
-                plt.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
+
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
+                f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
             if showPlots:
                 plt.show()
 
