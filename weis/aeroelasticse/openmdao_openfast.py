@@ -80,6 +80,12 @@ class FASTLoadCases(ExplicitComponent):
         self.add_input('beam:rhoA',             val=np.zeros(n_span), units='kg/m', desc='mass per unit length')
         self.add_input('beam:EIyy',             val=np.zeros(n_span), units='N*m**2', desc='flatwise stiffness (bending about y-direction of airfoil aligned coordinate system)')
         self.add_input('beam:EIxx',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+        self.add_input('beam:EIxy',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+        self.add_input('beam:GJ',               val=np.zeros(n_span), units='N*m**2', desc='torsional stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+        self.add_input('beam:EA',               val=np.zeros(n_span), units='N', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+        self.add_input('beam:flap_iner',        val=np.zeros(n_span), units='kg*m', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+        self.add_input('beam:edge_iner',        val=np.zeros(n_span), units='kg*m', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+
         self.add_input('x_tc',                  val=np.zeros(n_span), units='m',      desc='x-distance to the neutral axis (torsion center)')
         self.add_input('y_tc',                  val=np.zeros(n_span), units='m',      desc='y-distance to the neutral axis (torsion center)')
         self.add_input('flap_mode_shapes',      val=np.zeros((n_freq_blade,5)), desc='6-degree polynomial coefficients of mode shapes in the flap direction (x^2..x^6, no linear or constant term)')
@@ -435,6 +441,8 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDyn']         = {}
         fst_vt['ElastoDynBlade']    = {}
         fst_vt['ElastoDynTower']    = {}
+        fst_vt['BeamDyn']           = {}
+        fst_vt['BeamDynBlade']      = {}
         fst_vt['AeroDyn15']         = {}
         fst_vt['AeroDynBlade']      = {}
         fst_vt['ServoDyn']          = {}
@@ -455,6 +463,9 @@ class FASTLoadCases(ExplicitComponent):
             
         for key in modeling_options['Level3']['ElastoDynTower']:
             fst_vt['ElastoDynTower'][key] = modeling_options['Level3']['ElastoDynTower'][key]
+
+        for key in modeling_options['Level3']['BeamDyn']:
+            fst_vt['BeamDyn'][key] = modeling_options['Level3']['BeamDyn'][key]
             
         for key in modeling_options['Level3']['AeroDyn']:
             fst_vt['AeroDyn15'][key] = copy.copy(modeling_options['Level3']['AeroDyn'][key])
@@ -645,10 +656,12 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDynBlade']['BlFract'][0] = 0.
         fst_vt['ElastoDynBlade']['BlFract'][-1]= 1.
         fst_vt['ElastoDynBlade']['PitchAxis']  = inputs['le_location']
-        fst_vt['ElastoDynBlade']['StrcTwst']   = inputs['theta'] # to do: structural twist is not nessessarily (nor likely to be) the same as aero twist
+        fst_vt['ElastoDynBlade']['StrcTwst']   = inputs['theta'] # XXX: structural twist is not nessessarily (nor likely to be) the same as aero twist
         fst_vt['ElastoDynBlade']['BMassDen']   = inputs['beam:rhoA']
-        fst_vt['ElastoDynBlade']['FlpStff']    = inputs['beam:EIyy']
+        fst_vt['ElastoDynBlade']['FlpStff']    = inputs['beam:EIyy'] #This is the output of precomp, supposedly in the airfoil frame, but we MISS the EIxy entry 
         fst_vt['ElastoDynBlade']['EdgStff']    = inputs['beam:EIxx']
+        # TODO: replace the above by EI11, EI22 and the actual structural twist. These are all outputs of beam system!
+
         fst_vt['ElastoDynBlade']['BldFl1Sh']   = np.zeros(5)
         fst_vt['ElastoDynBlade']['BldFl2Sh']   = np.zeros(5)
         fst_vt['ElastoDynBlade']['BldEdgSh']   = np.zeros(5)
@@ -812,6 +825,105 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['ElastoDyn']['TwrGagNd'] = [idx+1 for idx in idx_out]
         fst_vt['AeroDyn15']['NTwOuts'] = 0
         self.Z_out_ED_twr = np.hstack((0., [twr_fract[i] for i in idx_out], 1.))
+
+        # Set BeamDyn properties if the user requested its use.
+        if fst_vt['Fst']['CompElast'] == 2:
+            #Note: defaults: see modeling_schema
+            fst_vt['BeamDyn']['Echo'] = False
+            # fst_vt['BeamDyn']['QuasiStaticInit'] #default
+            # fst_vt['BeamDyn']['rhoinf']  #default
+            # fst_vt['BeamDyn']['quadrature'] #default= 2  ?? ['1', '2', gaussian, Gaussian, GAUSSIAN, trapezoidal, Trapezoidal, TRAPEZOIDAL]
+            fst_vt['BeamDyn']['refine'] = 'default'
+            fst_vt['BeamDyn']['n_fact'] = 'default'
+            fst_vt['BeamDyn']['DTBeam'] = 'default'
+            fst_vt['BeamDyn']['load_retries'] = 'default'
+            fst_vt['BeamDyn']['NRMax'] = 100 #default is 10, decided to increase it a bit
+            fst_vt['BeamDyn']['stop_tol'] = 'default'
+            fst_vt['BeamDyn']['tngt_stf_fd'] = 'default'
+            fst_vt['BeamDyn']['tngt_stf_comp'] = 'default'
+            fst_vt['BeamDyn']['tngt_stf_pert'] = 'default'
+            fst_vt['BeamDyn']['tngt_stf_difftol'] = 'default'
+            # fst_vt['BeamDyn']['RotStates'] = 'default'
+
+            fst_vt['BeamDyn']['member_total'] = 1
+            fst_vt['BeamDyn']['kp_total'] = self.n_span
+            fst_vt['BeamDyn']['members'] = [{},]*fst_vt['BeamDyn']['member_total']
+
+            for m in range(fst_vt['BeamDyn']['member_total']):
+                fst_vt['BeamDyn']['members'][m]["kp_xr"] = inputs['ref_axis_blade'][:,0]
+                fst_vt['BeamDyn']['members'][m]["kp_yr"] = inputs['ref_axis_blade'][:,1]
+                fst_vt['BeamDyn']['members'][m]["kp_zr"] = inputs['ref_axis_blade'][:,2]
+                fst_vt['BeamDyn']['members'][m]["initial_twist"] = inputs['theta']
+                #Note: we use the output of precomp that is in the airfoil reference frame, i.e. with twist corresponding to the aero twist
+                #   Another option would be to use the properties in the principal elastic axes and use the structural twist here instead.
+
+            fst_vt['BeamDyn']['order_elem'] = 21 #default =5
+            # fst_vt['BeamDyn']['UsePitchAct']
+            # fst_vt['BeamDyn']['PitchJ']
+            # fst_vt['BeamDyn']['PitchK']
+            # fst_vt['BeamDyn']['PitchC']
+            fst_vt['BeamDyn']['SumPrint'] = False
+            fst_vt['BeamDyn']['OutFmt'] = "ES10.3E2"
+            idx_out       = [np.argmin(abs(bld_fract-ri)) for ri in r_out_target]
+            fst_vt['BeamDyn']['OutNd']     = [str(idx+1) for idx in idx_out]
+            fst_vt['BeamDyn']['NNodeOuts'] = len(idx_out)
+
+
+            #-------- blade file ----------
+            fst_vt['BeamDynBlade']['station_total'] = self.n_span
+            fst_vt['BeamDynBlade']['damp_type'] = 0 #0: no damping, 1: damped
+            fst_vt['BeamDynBlade']['mu1'] = 1.0E-03
+            fst_vt['BeamDynBlade']['mu2'] = 1.0E-03
+            fst_vt['BeamDynBlade']['mu3'] = 1.0E-03
+            fst_vt['BeamDynBlade']['mu4'] = 0.0014
+            fst_vt['BeamDynBlade']['mu5'] = 0.0022
+            fst_vt['BeamDynBlade']['mu6'] = 0.0022
+            fst_vt['BeamDynBlade']['radial_stations'] = r
+            #1st index: radial station, 2nd index: row, 3rd: column
+            
+            fst_vt['BeamDynBlade']['beam_stiff'] = np.zeros((self.n_span,6,6))
+            fst_vt['BeamDynBlade']['beam_inertia'] = np.zeros((self.n_span,6,6))
+            for i in range(self.n_span):
+                #These are provided in a frame rotated by the angle given in "initial_twist"
+                fst_vt['BeamDynBlade']['beam_stiff'][i,0,0] = inputs["beam:EA"][i] # EdgeShearStiff, ASSUMED = EA
+                fst_vt['BeamDynBlade']['beam_stiff'][i,1,1] = inputs["beam:EA"][i] # FlapShearStiff, ASSUMED = EA
+                fst_vt['BeamDynBlade']['beam_stiff'][i,2,2] = inputs["beam:EA"][i]
+                fst_vt['BeamDynBlade']['beam_stiff'][i,3,3] = inputs["beam:EIxx"][i] #edgewise
+                fst_vt['BeamDynBlade']['beam_stiff'][i,4,4] = inputs["beam:EIyy"][i] #flapwise
+                fst_vt['BeamDynBlade']['beam_stiff'][i,3,4] = fst_vt['BeamDynBlade']['beam_stiff'][i,4,3] =  inputs["beam:EIxy"][i]  #e-f
+                fst_vt['BeamDynBlade']['beam_stiff'][i,5,5] = inputs["beam:GJ"][i]
+                # MISSING THE FOLLOWING THAT IS READILY AVAILABLE AS PRECOM OUTPUT.
+                # THESE ARE CRUTIAL FOR TWIST-BENDING COUPLING!!
+                # fst_vt['BeamDynBlade']['beam_stiff'][i,3,5] = fst_vt['BeamDynBlade']['beam_stiff'][i,5,3] = inputs["beam:EIxz"][i] #edge-torsion
+                # fst_vt['BeamDynBlade']['beam_stiff'][i,4,5] = fst_vt['BeamDynBlade']['beam_stiff'][i,5,4] = inputs["beam:EIyz"][i] #flap-torsion
+                # fst_vt['BeamDynBlade']['beam_stiff'][i,2,3] = fst_vt['BeamDynBlade']['beam_stiff'][i,3,2] = inputs["beam:Sae"][i] #axial-edge
+                # fst_vt['BeamDynBlade']['beam_stiff'][i,2,4] = fst_vt['BeamDynBlade']['beam_stiff'][i,4,2] = inputs["beam:Saf"][i] #axial-flap
+                # fst_vt['BeamDynBlade']['beam_stiff'][i,2,5] = fst_vt['BeamDynBlade']['beam_stiff'][i,5,2] = inputs["beam:Sat"][i] #axial-torsion
+
+                #Note on EdgeShearStiff, FlapShearStiff:
+                # For isotropic materials, they can be obtained as 
+                # # Ay = A/ky #ky: shear correction factor
+                # # Az = A/kz #kz: shear correction factor
+                # # G = E/(2*(1+nu))
+                # # EdgeShearStiff = (G*Az)
+                # # FlapShearStiff = (G*Ay)
+
+
+                #Recompute the inertial properties in the airfoil axes:
+                alpha = inputs['beam:Tw_iner'][i] - inputs['theta'][i] #angle between airfoil axes and inertia principal axes
+                Ixx = inputs['beam:edge_iner'][i] * np.cos(alpha)**2 + inputs['beam:flap_iner'][i] * np.sin(alpha)**2
+                Iyy = inputs['beam:flap_iner'][i] * np.cos(alpha)**2 + inputs['beam:edge_iner'][i] * np.sin(alpha)**2
+                Ixy = (inputs['beam:edge_iner'][i] - inputs['beam:flap_iner'][i]) * np.sin(alpha)**2 * np.cos(alpha)
+                Izz = inputs['beam:flap_iner'][i] + inputs['beam:edge_iner'][i]
+
+                fst_vt['BeamDynBlade']['beam_inertia'][i,0,0] = inputs['beam:rhoA'][i]
+                fst_vt['BeamDynBlade']['beam_inertia'][i,1,1] = inputs['beam:rhoA'][i]
+                fst_vt['BeamDynBlade']['beam_inertia'][i,2,2] = inputs['beam:rhoA'][i]
+                fst_vt['BeamDynBlade']['beam_inertia'][i,3,3] = Ixx
+                fst_vt['BeamDynBlade']['beam_inertia'][i,4,4] = Iyy
+                fst_vt['BeamDynBlade']['beam_inertia'][i,5,5] = Izz
+                fst_vt['BeamDynBlade']['beam_inertia'][i,3,4] = fst_vt['BeamDynBlade']['beam_inertia'][i,4,3] = Ixy
+
 
         # SubDyn inputs- monopile and floating
         if modeling_options['flags']['monopile']:

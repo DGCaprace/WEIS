@@ -218,11 +218,16 @@ class PreComp:
                 mat_idxW,
             )
 
-            beam_EIxx[i] = results[1]  # EIedge
-            beam_EIyy[i] = results[0]  # EIflat
+            beam_EIxx[i] = results[1]  # EIedge  Nm2
+            beam_EIyy[i] = results[0]  # EIflap  Nm2
             beam_GJ[i] = results[2]
             beam_EA[i] = results[3]
-            beam_EIxy[i] = results[4]  # EIflapedge
+            beam_EIxy[i] = results[4]  # EIflapedge  Nm2
+            # beam_Saf[i] = results[5]  # axial-flap  Nm
+            # beam_Sae[i] = results[6]  # axial-edge  Nm
+            # beam_EIyz[i] = results[7]  # flap-torsion  Nm2
+            # beam_EIxz[i] = results[8]  # edge-torsion  Nm2
+            # beam_Sat[i] = results[9]  # axial-torsion Nm
             beam_x_sc[i] = results[10]
             beam_y_sc[i] = results[11]
             beam_x_tc[i] = results[12]

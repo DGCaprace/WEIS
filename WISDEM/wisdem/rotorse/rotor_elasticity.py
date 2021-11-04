@@ -229,13 +229,13 @@ class RunPreComp(ExplicitComponent):
         self.add_output(
             "flap_iner",
             val=np.zeros(n_span),
-            units="kg/m",
+            units="kg*m",
             desc="Section flap inertia about the Y_G axis per unit length.",
         )
         self.add_output(
             "edge_iner",
             val=np.zeros(n_span),
-            units="kg/m",
+            units="kg*m",
             desc="Section lag inertia about the X_G axis per unit length",
         )
         # self.add_output('eps_crit_spar',    val=np.zeros(n_span), desc='critical strain in spar from panel buckling calculation')

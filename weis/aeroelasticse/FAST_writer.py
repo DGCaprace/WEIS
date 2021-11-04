@@ -605,7 +605,7 @@ class InputWriter_OpenFAST(InputWriter_Common):
         f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['Echo'], 'Echo', '- Echo input data to "<RootName>.ech" (flag)\n'))
         f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['QuasiStaticInit'], 'QuasiStaticInit', '- Use quasistatic pre-conditioning with centripetal accelerations in initialization (flag) [dynamic solve only]\n'))
         f.write('{:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['rhoinf'], 'rhoinf', '- Numerical damping parameter for generalized-alpha integrator\n'))
-        f.write('{:<22d} {:<11} {:}'.format(self.fst_vt['BeamDyn']['quadrature'], 'quadrature', '- Quadrature method: 1=Gaussian; 2=Trapezoidal (switch)\n'))
+        f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['quadrature'], 'quadrature', '- Quadrature method: 1=Gaussian; 2=Trapezoidal (switch)\n'))
         f.write('{:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['refine'], 'refine', '- Refinement factor for trapezoidal quadrature (-). DEFAULT = 1 [used only when quadrature=2]\n'))
         f.write('{:<22} {:<11} {:}'.format(self.fst_vt['BeamDyn']['n_fact'], 'n_fact', '- Factorization frequency (-). DEFAULT = 5\n'))
         f.write(float_default_out(self.fst_vt['BeamDyn']['DTBeam']) + '   {:<11} {:}'.format('DTBeam', '- Time step size (s).\n'))
@@ -692,10 +692,10 @@ class InputWriter_OpenFAST(InputWriter_Common):
         for i in range(len(self.fst_vt['BeamDynBlade']['radial_stations'])):
             f.write('{: 2.15e}\n'.format(self.fst_vt['BeamDynBlade']['radial_stations'][i]))
             for j in range(6):
-                f.write(" ".join(['{: 2.15e}'.format(i) for i in self.fst_vt['BeamDynBlade']['beam_stiff'][i,j,:]])+'\n')
+                f.write(" ".join(['{: 2.15e}'.format(e) for e in self.fst_vt['BeamDynBlade']['beam_stiff'][i,j,:]])+'\n')
             f.write('\n')
             for j in range(6):
-                f.write(" ".join(['{: 2.15e}'.format(i) for i in self.fst_vt['BeamDynBlade']['beam_inertia'][i,j,:]])+'\n')
+                f.write(" ".join(['{: 2.15e}'.format(e) for e in self.fst_vt['BeamDynBlade']['beam_inertia'][i,j,:]])+'\n')
             f.write('\n')
 
         f.write('\n')

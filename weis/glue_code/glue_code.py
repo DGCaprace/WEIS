@@ -398,7 +398,18 @@ class WindPark(om.Group):
             self.connect('rotorse.rhoA',                    'aeroelastic.beam:rhoA')
             self.connect('rotorse.EIxx',                    'aeroelastic.beam:EIxx')
             self.connect('rotorse.EIyy',                    'aeroelastic.beam:EIyy')
-            self.connect('rotorse.re.Tw_iner',                 'aeroelastic.beam:Tw_iner')
+            self.connect('rotorse.EIxy',                    'aeroelastic.beam:EIxy')
+            self.connect('rotorse.GJ',                      'aeroelastic.beam:GJ')
+            self.connect('rotorse.EA',                      'aeroelastic.beam:EA')
+            
+            self.connect('rotorse.re.Tw_iner',              'aeroelastic.beam:Tw_iner')
+            self.connect('rotorse.re.precomp.flap_iner',    'aeroelastic.beam:flap_iner')
+            self.connect('rotorse.re.precomp.edge_iner',    'aeroelastic.beam:edge_iner')
+            #If we needed to use stifness properties in principal axes, we could use the following. Probably less accurate: beam only uses EIxx and EIyy
+            # self.connect("rotorse.rs.frame.alpha", "aeroelastic.beam:alpha")
+            # self.connect('rotorse.rs.frame.EI11',  'aeroelastic.beam:EI11')
+            # self.connect('rotorse.rs.frame.EI22',  'aeroelastic.beam:EI22')
+
             self.connect('rotorse.rs.frame.flap_mode_shapes',       'aeroelastic.flap_mode_shapes')
             self.connect('rotorse.rs.frame.edge_mode_shapes',       'aeroelastic.edge_mode_shapes')
             self.connect('rotorse.rp.powercurve.V',                'aeroelastic.U_init')
