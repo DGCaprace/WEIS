@@ -1055,6 +1055,9 @@ class DesignConstraints(ExplicitComponent):
         outputs["constr_extreme_strainU_spar"] = abs(np.interp(s_opt_spar_cap_ss, s, extreme_strainU_spar)) / max_strainU_spar
         outputs["constr_extreme_strainL_spar"] = abs(np.interp(s_opt_spar_cap_ps, s, extreme_strainL_spar)) / max_strainL_spar
 
+        print("Current ORIGINAL GUST strain on the SS/PS spar:")
+        print(outputs["constr_max_strainU_spar"])
+        print(outputs["constr_max_strainL_spar"])
         print("Current EXTREME on the SS/PS spar:")
         print(outputs["constr_extreme_strainU_spar"])
         print(outputs["constr_extreme_strainL_spar"])

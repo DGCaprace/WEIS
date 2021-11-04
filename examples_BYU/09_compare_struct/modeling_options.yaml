@@ -29,11 +29,11 @@ Level3:
     #hard setting of parameters:
     simulation:
         TMax: 60.
-        DT: 0.01
+        DT: 0.01 #BeamDyn requires much smaller timestep!! Recommend DT: 0.0015
         # DT_Out: 0.01
         TStart: 50.0  #allow rapid transient to die at the beginning of the simulation before we actually start recording
         NumCrctn: 0 #number of iteration aero-struct
-        # CompElast: 1
+        CompElast: 1 #1: ED, 2:BD
         # CompInflow: 1
         # CompAero: 2
         CompServo: 1 #can't turn this off otherwise AEP is not computed because GenPwr is not present
@@ -86,9 +86,41 @@ Level3:
         # NcIMUxn  :
         # NcIMUyn  :
         # NcIMUzn  :
+    # BeamDyn: #files will only be written if CompElast is set to 2 above
+    #     #...
     ServoDyn:
         YawSpr: 1.0E+10 
         YawDamp: 1.0E+06
+    outlist:
+        BeamDyn:
+            N1TDxr: True
+            N2TDxr: True
+            N3TDxr: True
+            N4TDxr: True
+            N5TDxr: True
+            N6TDxr: True
+            N7TDxr: True
+            N8TDxr: True
+            N9TDxr: True
+            N1TDyr: True
+            N2TDyr: True
+            N3TDyr: True
+            N4TDyr: True
+            N5TDyr: True
+            N6TDyr: True
+            N7TDyr: True
+            N8TDyr: True
+            N9TDyr: True
+            N1RDzr: True
+            N2RDzr: True
+            N3RDzr: True
+            N4RDzr: True
+            N5RDzr: True
+            N6RDzr: True
+            N7RDzr: True
+            N8RDzr: True
+            N9RDzr: True
+
 
 # All options for OpenFAST
 openfast:
