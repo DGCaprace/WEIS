@@ -29,21 +29,41 @@ def myOpenFASTread(fname,addExt=0):
 
     return output
 
+def my_write_yaml(instance, foutput):
+    if os.path.isfile(foutput):
+        print(f"File {foutput} already exists... replacing it.")
+        os.remove(foutput)
+    # Write yaml with updated values
+    with open(foutput, "w", encoding="utf-8") as f:
+        yaml.dump(instance, f)
+
 #==================== DEFINITIONS  =====================================
 
 ## File management
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 wt_input = [  "Madsen2019_10_forWEIS.yaml",
-                    "Madsen2019_10_forWEIS_isotropic.yaml"]
+                    # "Madsen2019_10_forWEIS_isotropic.yaml",
+                    "Madsen2019_10_forWEIS_isotropic_ED.yaml",
+                    # "Madsen2019_10_forWEIS_isotropic_BD.yaml", #there is a bug somewhere there
+                    ]
 # wt_input = ["Madsen2019_10_forWEIS_isotropic.yaml"]
 # wt_input = ["Madsen2019_10_forWEIS.yaml"]
+
 
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
 # fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
 
-# I look for the steady solution. 
+
+# Need to define these parameters since we do not use explicitely the drivetrain model, and BeamDyn requires them when GenDOF is on.
+HubMass  = 105.52E3   
+HubIner  = 325.6709E3 
+GenIner  = 1500.5     
+NacMass  = 446.03625E3
+NacYIner = 7326.3465E3
+# 2.317025E9
+# 9240560
 
 plotOnly = True
 fast_fnames = ["DTU10MW_powercurve_0"]
@@ -51,11 +71,21 @@ fast_fnames = ["DTU10MW_powercurve_0"]
 #==================== RUN THE TURBINE WITH WEIS, FROM YAML INPUTS =====================================
 # Loading the wisdem/weis compatible yaml, and propagate information to aeroelasticse
 
+# Construct a dict with values to overwrite
+overridden_values = {}
+overridden_values["aeroelastic.hub_system_mass"] = [HubMass,]
+overridden_values["aeroelastic.hub_system_I"]    = [HubIner,0,0,0,0,0]
+overridden_values["aeroelastic.GenIner"]         = GenIner
+overridden_values["aeroelastic.above_yaw_mass"]  = [NacMass,]
+overridden_values["aeroelastic.nacelle_I_TT"]    = [0,0,NacYIner,0,0,0]
 
-nx = 9
-chans = ["Spn%1iTDxb1","Spn%1iTDyb1","Spn%1iRDzb1"]
-data_avg = np.zeros((len(chans),nx,len(wt_input)))
-data_std = np.zeros((len(chans),nx,len(wt_input)))
+nx = 9 #XXX HARDCODED
+data_avg = np.zeros((3,nx,len(wt_input)))
+data_std = np.zeros((3,nx,len(wt_input)))
+
+nx_a = 30 #XXX HARDCODED
+data_a_avg = np.zeros((2,nx_a,len(wt_input)))
+data_a_std = np.zeros((2,nx_a,len(wt_input)))
 
 for ifi in range(len(wt_input)):
     wt_file = wt_input[ifi]
@@ -68,9 +98,11 @@ for ifi in range(len(wt_input)):
 
 
     if not plotOnly:
-        # Run the base simulation
+
+        # Run the modified simulation with the overwritten values
         wt_opt, modeling_options, opt_options = run_weis(
-            fname_wt_input, fname_modeling_options, fname_analysis_options_WEIS
+            fname_wt_input, fname_modeling_options, fname_analysis_options_WEIS,
+            overridden_values=overridden_values,
         )
 
         # ref_V = wt_opt['rotorse.rp.powercurve.V']
@@ -97,10 +129,15 @@ for ifi in range(len(wt_input)):
         if os.path.isdir(simfolder): #let's not move the file if it is a path provided by the user
             shutil.move(simfolder, folder_arch + os.sep + "sim")
         os.system(f"cp {fname_wt_input} {folder_arch}")
+        os.system(f"cp {fname_modeling_options} {folder_arch}")
 
 
     else: 
-        modeling_options = load_yaml(fname_modeling_options)
+        curr_modeling_options = fname_modeling_options.split(os.sep)[-1]
+        if os.path.isdir(curr_modeling_options):
+            modeling_options = load_yaml(curr_modeling_options) 
+        else:
+            modeling_options = load_yaml(fname_modeling_options) 
 
 
         # simfolder = mydir + os.sep + modeling_options["openfast"]["file_management"]["FAST_runDirectory"]
@@ -111,13 +148,19 @@ for ifi in range(len(wt_input)):
         #     shutil.move(simfolder, folder_arch + os.sep + "sim")
 
     
-    
-
-
 
     #==================== POST PROCESSING =====================================
 
-    #LOOP OVER THE FILES?
+    if modeling_options["Level3"]["simulation"]["CompElast"] == 1: #Elastodyn
+        chans = ["Spn%1iTDxb1","Spn%1iTDyb1","Spn%1iRDzb1"]
+    else: #BeamDyn
+        chans = ["B1N%1iTDxr","B1N%1iTDyr","B1N%1iRDzr"] #RDzr  is Wiener-Malenkoviz
+        #B1N030_MyL        
+
+    chans_a = ["AB1N%03iFx","AB1N%03iFy"]
+
+    locs = np.linspace(0.,1.,nx_a) #XXX
+
 
     # Because raw data are not available as such, need to go back look into the output files:
     fname = folder_arch + os.sep + "sim" + os.sep + fast_fnames[0]
@@ -129,14 +172,38 @@ for ifi in range(len(wt_input)):
             # EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
             data_avg[k,i,ifi] = np.mean(fulldata[lab%(i+1)])
             data_std[k,i,ifi] = np.std(fulldata[lab%(i+1)])
+        k+=1
 
+    k = 0
+    for lab in chans_a:
+        for i in range(nx_a):
+            data_a_avg[k,i,ifi] = np.mean(fulldata[lab%(i+1)])
+            data_a_std[k,i,ifi] = np.std(fulldata[lab%(i+1)])
         k+=1
 
     del(fulldata)
 
+#==================== Export the nominal loads ====================
+    
+    # XXX Assuming that we run only 1 U on a power curve
+    run_settings = modeling_options["openfast"]["dlc_settings"]["Power_Curve"] 
+
+    fname_nominalLoads = folder_arch + os.sep + "nominalLoads.yaml"
+
+    schema = {}
+
+    schema["nominal"] = {}
+    schema["nominal"]["description"] = f"nominal loads obtained for inflow velocity {run_settings['U']}"
+    schema["nominal"]["grid_nd"] = locs.tolist()
+    schema["nominal"]["Fn"] = data_a_avg[0,:,ifi].tolist()
+    schema["nominal"]["Ft"] = data_a_avg[1,:,ifi].tolist()
+
+    my_write_yaml(schema, fname_nominalLoads)
 
 
-## Compare ##
+#==================== Compare  Plots #====================
+
+#deflections
 fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(15, 5))
 
 for ifi in range(len(wt_input)):
@@ -150,6 +217,24 @@ for ifi in range(len(wt_input)):
     
         ax[k].set_ylabel(f"{chans[k]%(0)}")
 # plt.xlabel("U [m/s]")
-    
+
 plt.legend()
+
+
+
+#loads
+fig, axa = plt.subplots(nrows=2, ncols=1, figsize=(15, 5))
+
+for ifi in range(len(wt_input)):
+    wt_file = wt_input[ifi]
+
+    for k in range(len(chans_a)):
+        hp = axa[k].plot(locs,data_a_avg[k,:,ifi],'x-', label=wt_file)
+        
+        axa[k].plot(locs,data_a_avg[k,:,ifi]+data_a_std[k,:,ifi],'--', color=hp[0].get_color())
+        axa[k].plot(locs,data_a_avg[k,:,ifi]-data_a_std[k,:,ifi],'--', color=hp[0].get_color())
+    
+        axa[k].set_ylabel(f"{chans_a[k]%(0)}")
+    
+
 plt.show()

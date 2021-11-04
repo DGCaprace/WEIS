@@ -694,7 +694,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         schema = load_yaml(fname_analysis_options)
         #could use load_analysis_yaml from weis instead
 
-        locs = np.linspace(0.,1.,nx)
+        locs = np.linspace(0.,1.,nx) #XXX Is this right? Shoule we obtain it from rotorse instead?
 
         if withDEL:
             schema["DEL"] = {}
