@@ -33,6 +33,7 @@ wt_input = "Madsen2019_10_forWEIS_isotropic_ED/outputs_WEIS/DTU10MW_Madsen.yaml"
 wt_output = "Madsen2019_10_forWEIS_isotropic_TEST.yaml"
 
 DV_input = "aeroload_DVCentres.dat"
+DV_input = "aeroload_DVCentresCon.dat"
 # DV_input = "Fatigue_force_allwalls_L2_DEL_neq1_0DVCentres.dat"
 DV_folder = mydir + os.sep + "HiFi_DVs"
 
@@ -63,24 +64,29 @@ debug = False
 #==================== LOAD HiFi DVs DATA =====================================
 
 DV_file = DV_folder + os.sep + DV_input
+ncon = 0
 
-#Read
+#Read the constitutive component file
 with open(DV_file, 'r') as f:
     lines = f.readlines()
 
+    nentry = len(lines[0].split(" "))
+    ncon = nentry-6
+
     HiFiDVs_pos = np.zeros((len(lines),3))
     HiFiDVs_thi = np.zeros(len(lines))
+    HiFiDVs_con = np.zeros((len(lines), ncon))
     HiFiDVs_des = [None]*len(lines)
 
     i = 0
     for line in lines:
         buff = line.split(" ")
-        HiFiDVs_pos[i,:] = [ float(b) for b in buff[0:3] ]
-        HiFiDVs_thi[i] = float(buff[3]) 
-        HiFiDVs_des[i] = buff[4]
+        HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ]
+        HiFiDVs_thi[i] = float(buff[4]) 
+        HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] 
+        HiFiDVs_des[i] = buff[-1]
         i+=1
 
-#need to make a difference between webs and skin?
 
 #Identify the number of non-identical y position in the hifi data
 # assuming they are organized in sections
@@ -112,6 +118,9 @@ if debug:
     print(yhf_web)
     print("Spanwise hf skin locations:")
     print(yhf_skn)
+
+#Allocate a mapping object: for each constitutive element, gather the spanwise index, and the name of the corresponding lofi zone 
+HiFiDVs_mapping = [{} for i in range(len(HiFiDVs_thi))]
 
 #==================== LOAD TURBINE =====================================
 
@@ -194,8 +203,10 @@ lay_ls = turbine["components"]["blade"]["internal_structure_2d_fem"]["layers"]
 if len(skinLoFi) != ncPanelHiFi:
     raise ValueError("Can't match lofi and hifi representations because they use different number of panels.")
 
-skin_hifi = np.nan*np.ones((nhf_skn,ncPanelHiFi,2))
+skin_hifi = np.nan*np.empty((nhf_skn,ncPanelHiFi,2))
 skin_hifi[:,0,1] = 0
+
+skin_hifi_con = np.nan*np.empty((nhf_skn,ncPanelHiFi,ncon))
 
 for i in range(nid):
 
@@ -232,6 +243,12 @@ for i in range(nid):
         skin_hifi[iz,ic,0] = loc_s
         skin_hifi[iz,ic,1] = HiFiDVs_thi[i]
 
+        if ncon>0:
+            skin_hifi_con[iz,ic,:] = HiFiDVs_con[i,:]
+
+        HiFiDVs_mapping[i]["zone"] = skinLoFi[ic]
+        HiFiDVs_mapping[i]["iz"] = iz
+
 #now sort them to follow precomp convension
 for j in range(nhf_skn):
     sort_idx = np.argsort(skin_hifi[j,:,0])
@@ -252,6 +269,7 @@ if len(websLoFi) != len(websHiFi):
 nwebs = len(websHiFi)
 
 webs_hifi = -np.ones((nhf_web,nwebs))
+webs_hifi_con = np.nan*np.empty((nhf_web,nwebs,ncon))
 
 for i in range(nid):
 
@@ -268,6 +286,12 @@ for i in range(nid):
             continue
 
         webs_hifi[iz,iw] = HiFiDVs_thi[i]
+
+        if ncon>0:
+            webs_hifi_con[iz,iw,:] = HiFiDVs_con[i,:]
+
+        HiFiDVs_mapping[i]["zone"] = websLoFi[iw]
+        HiFiDVs_mapping[i]["iz"] = iz
 
 if debug:
     print("High fidelity webs:")
@@ -492,7 +516,7 @@ write_geometry_yaml(turbine, fname_wt_output)
 
 
 
-#==================== Compare  Plots #====================
+#==================== Compare DV Plots #====================
 
 #------- skin ----------
 fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
@@ -527,5 +551,53 @@ for isk in range(len(websLoFi)):
 ax.set_ylabel("thickness [mm]")
 ax.set_xlabel("r/R")
 plt.legend()
+
+
+
+#==================== Compare CONSTRAINTS Plots #====================
+
+if ncon>0:
+    #------- skin ----------
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+
+    for isk in range(len(skinLoFi)):
+        
+        values = np.zeros((len(ylf_skn_oR),ncon))
+        for c in range(ncon):
+            for j in range(nhf_web):
+                values[2*j,c] = skin_hifi_con[j,isk,c]
+                values[2*j+1,c] = skin_hifi_con[j,isk,c]
+
+        hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
+        if ncon>1:
+            ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
+            
+    ax.set_ylabel("failure")
+    ax.set_xlabel("r/R")
+    plt.legend()
+
+
+    #------- webs ----------
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+
+    for isk in range(len(websLoFi)):
+
+        values = np.zeros((len(ylf_web_oR),ncon))
+        for c in range(ncon):
+            for j in range(nhf_web):
+                values[2*j,c] = webs_hifi_con[j,isk,c]
+                values[2*j+1,c] = webs_hifi_con[j,isk,c]
+
+        hp = ax.plot(ylf_web_oR,values[:,0], '-', label=skinLoFi[isk])
+        if ncon>1:
+            ax.plot(ylf_web_oR,values[:,1], '--', color=hp[0].get_color())
+        
+    ax.set_ylabel("failure")
+    ax.set_xlabel("r/R")
+    plt.legend()
+
+
+
+
 
 plt.show()
