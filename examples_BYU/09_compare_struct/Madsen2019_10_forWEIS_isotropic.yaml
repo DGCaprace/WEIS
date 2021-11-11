@@ -87,7 +87,7 @@ components:
             #           grid: [0.0, 1.0]
             #           values: [0.0005, 0.0005]
                 #SPAR CAP SS
-               -  name: DP13_DP10 #upper spar (keep this name so that don't need to change modeling file)
+               -  name: DP13_DP10_uniax #upper spar (keep this name so that don't need to change modeling file)
                   material: alu_2024
                   thickness:
                       grid: &grid_struct2 [0.000, 0.125, 0.250, 0.375, 0.500, .625, 0.750, 0.875, 1.000]
@@ -124,11 +124,11 @@ components:
                   start_nd_arc:
                       fixed: DP17_DP15
                   end_nd_arc:
-                      fixed: DP13_DP10
+                      fixed: DP13_DP10_uniax
                
                 # SPAR CAP PS
                 #DP07-DP04 [Table 76]
-               -  name: DP07_DP04 #upper spar (keep this name so that don't need to change modeling file)
+               -  name: DP07_DP04_uniax #upper spar (keep this name so that don't need to change modeling file)
                   material: alu_2024
                   thickness:
                       grid: *grid_struct2
@@ -162,7 +162,7 @@ components:
                     grid: *grid_struct2
                     values: [0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009]                      
                   start_nd_arc:
-                      fixed: DP13_DP10
+                      fixed: DP13_DP10_uniax
                   end_nd_arc:
                       fixed: DP09_DP08
 
@@ -175,7 +175,7 @@ components:
                   start_nd_arc:
                       fixed: DP09_DP08
                   end_nd_arc:
-                      fixed: DP07_DP04
+                      fixed: DP07_DP04_uniax
 
                 #DP02-DP00 [Table 74]
                -  name: DP02_DP00
@@ -199,7 +199,7 @@ components:
                       grid: *grid_struct2
                       values: [0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009, 0.009]                      
                   start_nd_arc:
-                      fixed: DP07_DP04
+                      fixed: DP07_DP04_uniax
                   end_nd_arc:
                       fixed: DP02_DP00
 

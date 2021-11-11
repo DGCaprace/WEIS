@@ -61,6 +61,8 @@ trans_len = 0.01 #length of the transition between panels in the lofi model, in 
 doPlot = True
 debug = False
 
+spars = ["DP07_DP04","DP13_DP10"] #SS,PS
+
 #==================== LOAD HiFi DVs DATA =====================================
 
 DV_file = DV_folder + os.sep + DV_input
@@ -98,10 +100,10 @@ yhf_skn = []
 
 for i in range(nid):
     if any([cmp in HiFiDVs_des[i] for cmp in websHiFi]):
-        if all( abs(yhf_web - HiFiDVs_pos[i,span_dir]) > thr ):
+        if all( abs(yhf_web - HiFiDVs_pos[i,span_dir]) > thr ) and HiFiDVs_pos[i,span_dir] >= R0:
             yhf_web.append(HiFiDVs_pos[i,span_dir])
     elif any([cmp in HiFiDVs_des[i] for cmp in [leHiFi,ssHiFi,psHiFi]]):
-        if all( abs(yhf_skn - HiFiDVs_pos[i,span_dir]) > thr ):
+        if all( abs(yhf_skn - HiFiDVs_pos[i,span_dir]) > thr ) and HiFiDVs_pos[i,span_dir] >= R0:
             yhf_skn.append(HiFiDVs_pos[i,span_dir])
     else:
         print(f"WARNING: no group found for id {i} with descr {HiFiDVs_des[i]}")
@@ -209,7 +211,7 @@ skin_hifi[:,0,1] = 0
 skin_hifi_con = np.nan*np.empty((nhf_skn,ncPanelHiFi,ncon))
 
 for i in range(nid):
-
+    if HiFiDVs_pos[i,span_dir] >= R0: #only do blade 1
         #determine my index along the span
         iz = np.where(yhf_skn >= HiFiDVs_pos[i,span_dir] - thr)[0][0]
 
@@ -272,7 +274,7 @@ webs_hifi = -np.ones((nhf_web,nwebs))
 webs_hifi_con = np.nan*np.empty((nhf_web,nwebs,ncon))
 
 for i in range(nid):
-
+    if HiFiDVs_pos[i,span_dir] >= R0: #only do blade 1
         #determine my index along the span
         iz = np.where(yhf_web >= HiFiDVs_pos[i,span_dir] - thr)[0][0]
 
@@ -559,6 +561,8 @@ plt.legend()
 if ncon>0:
     #------- skin ----------
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+    if len(spars)>0:
+        fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
 
     for isk in range(len(skinLoFi)):
         
@@ -571,6 +575,10 @@ if ncon>0:
         hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
         if ncon>1:
             ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
+
+        if len(spars)>0:
+            if any( [ skinLoFi[isk] in sp for sp in spars ]):
+                ax2.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk], color=hp[0].get_color())
             
     ax.set_ylabel("failure")
     ax.set_xlabel("r/R")
@@ -588,7 +596,7 @@ if ncon>0:
                 values[2*j,c] = webs_hifi_con[j,isk,c]
                 values[2*j+1,c] = webs_hifi_con[j,isk,c]
 
-        hp = ax.plot(ylf_web_oR,values[:,0], '-', label=skinLoFi[isk])
+        hp = ax.plot(ylf_web_oR,values[:,0], '-', label=websLoFi[isk])
         if ncon>1:
             ax.plot(ylf_web_oR,values[:,1], '--', color=hp[0].get_color())
         

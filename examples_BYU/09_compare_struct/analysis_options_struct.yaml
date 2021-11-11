@@ -1,0 +1,75 @@
+general:
+    folder_output: outputs_struct
+    fname_output: blade_out
+
+# design_variables:
+#     blade:
+#         structure:
+#             spar_cap_ss:
+#                 flag: True             # Flag to optimize the spar cap thickness on the suction side
+#                 n_opt: 4               # Number of control points along blade span
+#                 max_decrease: 0.7      # Maximum nondimensional decrease at the n_opt locations
+#                 max_increase: 2.3      # Maximum nondimensional increase at the n_opt locations
+#                 index_start: 1         # Lock the first DV from blade root
+#                 index_end: 3           # The last DV at blade tip is locked
+#             spar_cap_ps:
+#                 flag: True             # Flag to optimize the spar cap thickness on the pressure side
+#                 equal_to_suction: True # Flag to impose the spar cap thickness on pressure and suction sides equal
+#                 n_opt: 4               # Number of control points along blade span
+#                 max_decrease: 0.7      # Maximum nondimensional decrease at the n_opt locations
+#                 max_increase: 2.3      # Maximum nondimensional increase at the n_opt locations
+#                 index_start: 1         # Lock the first DV from blade root
+#                 index_end: 3           # The last DV at blade tip is locked
+
+merit_figure: blade_mass
+
+constraints:
+    blade:
+        extreme_loads_from_user_inputs: False
+        strains_spar_cap_ss:
+            flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade suction side
+            max:    3500.e-6   # Value of maximum strains [-] (This seems to be ok for alu2024, as a limit to the elastic region). The actual ultimate strain is closer to 0.18
+            index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ss
+            index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ss
+        strains_spar_cap_ps:
+            flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade pressure side
+            max:    3500.e-6   # Value of maximum strains [-] (This seems to be ok for alu2024, as a limit to the elastic region). The actual ultimate strain is closer to 0.18
+            index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ps
+            index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
+        fatigue_spar_cap_ss:
+            flag: False 
+            # Could add safety factor and wholer expo here
+            index_start: 1  
+            index_end: 3    #must be <= n_opt
+            eta: 1.0  #safety factor
+            # #The following will be overwritten by the driver:
+            # m_wohler: 10 #wohler expo, CAUTION: also hardcoded in fast_pywrapper
+            # eq_Ncycle:  12.e+6
+        fatigue_spar_cap_ps:
+            flag: False    
+            # Could add safety factor and wholer expo here  
+            index_start: 1  
+            index_end: 3
+            eta: 1.0  #safety factor
+            # #The following will be overwritten by the driver:
+            # m_wohler: 10 #wohler expo
+            # eq_Ncycle:  12.e+6
+
+        # tip_deflection:
+        #     flag: True
+        #     margin: 1.134 #1.4175
+
+driver:
+    optimization:
+        flag: False         # Flag to enable optimization
+        tol: 1.e-3          # Optimality tolerance
+        # max_major_iter: 10  # Maximum number of major design iterations (SNOPT)
+        # max_minor_iter: 100 # Maximum number of minor design iterations (SNOPT)
+        max_iter: 50         # Maximum number of iterations (SLSQP)
+        solver: SLSQP       # Optimization solver. Other options are 'SLSQP' - 'CONMIN'
+        step_size: 1.e-3    # Step size for finite differencing
+        form: forward       # Finite differencing mode, either forward or central
+
+recorder:
+    flag: True             # Flag to activate OpenMDAO recorder
+    file_name: log_opt.sql # Name of OpenMDAO recorder
