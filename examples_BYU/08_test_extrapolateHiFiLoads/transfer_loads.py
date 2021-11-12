@@ -423,12 +423,17 @@ if __name__=='__main__':
 
     FastFile = "inputs/DTU_10MW_V8_TSR781.out"
 
+    #EXTREME/FATIGUE LOADS
     loadFolder = "results-IEC1.1_5vels_120s_0Glob"
     loadFolder = "results-IEC1.3_5vels_120s_0Glob" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
     loadFolder = "results-IEC1.1-IEC1.3_5vels_120s_0Glob_chi2" #DEL computed with ETW... not recommended because too much, should always use NTW for fatigue (see DLC1.2)
     loadFolder = "results-IEC1.1_5vels_120s_0Glob_feq10"
     loadFolder = "results-IEC1.1_5vels_120s_0Glob_neq1"
     loadFile = f"../07_test_iterateDEL/{loadFolder}/aggregatedEqLoads.yaml"
+
+    #NOMINAL LOADS
+    loadFolder = "Madsen2019_10_forWEIS_isotropic"
+    loadFile = f"../09_compare_struct/{loadFolder}/nominalLoads.yaml"
 
     R0 = 2.8
     R = 89.166
@@ -459,30 +464,19 @@ if __name__=='__main__':
         if not os.path.isdir("./" + loadFolder):
             os.makedirs("./" + loadFolder)
 
-        suff = "DEL"
-        if suff in dict.keys():
-            r = dict[suff]["grid_nd"]
-            FnEL = dict[suff]["Fn"]
-            FtEL = dict[suff]["Ft"]
-            FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
+        suffs = ["DEL","extreme","nominal"]
 
-            aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
-            for f in fl:
-                if os.path.isfile(f):
-                    os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")
+        for suff in suffs:
+            if suff in dict.keys():
+                r = dict[suff]["grid_nd"]
+                FnEL = dict[suff]["Fn"]
+                FtEL = dict[suff]["Ft"]
+                FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
 
-        
-        suff = "extreme"
-        if suff in dict.keys():
-            r = dict[suff]["grid_nd"]
-            FnEL = dict[suff]["Fn"]
-            FtEL = dict[suff]["Ft"]
-            FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
-
-            aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
-            for f in fl:
-                if os.path.isfile(f):
-                    os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")
+                aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+                for f in fl:
+                    if os.path.isfile(f):
+                        os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")
 
    
     
