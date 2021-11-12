@@ -51,14 +51,23 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 # folder_arch = mydir + os.sep + "LoFiEval_composite_nominalLoads"
 # withNominal = True
 
+#Original constant thickness model, under DEL
 fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
 fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
 folder_arch = mydir + os.sep + "LoFiEval_isotropic_DEL"
 withDEL = True
-WRONG_CONVENTION = True
+WRONG_CONVENTION = True # to use old DEL files
 m_wohler = 10
 n_life_eq = 1
 
+#Optimized 1st iter model, under DEL
+fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_DEL_ITER1.yaml"
+fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
+folder_arch = mydir + os.sep + "LoFiEval_isotropic_ITER1_DEL"
+withDEL = True
+WRONG_CONVENTION = True # to use old DEL files
+m_wohler = 10
+n_life_eq = 1
 
 runWISDEM = True
 

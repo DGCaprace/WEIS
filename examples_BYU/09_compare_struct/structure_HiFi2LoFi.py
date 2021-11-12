@@ -29,16 +29,28 @@ def my_write_yaml(instance, foutput):
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 # wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
-wt_input = "Madsen2019_10_forWEIS_isotropic_ED/outputs_WEIS/DTU10MW_Madsen.yaml" #MUST use a form where the structure is defined with start_nd_arc and end_nd_arc (e.g. output by WEIS)
+wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
 wt_output = "Madsen2019_10_forWEIS_isotropic_TEST.yaml"
 
 DV_input = "aeroload_DVCentres.dat"
-DV_input = "aeroload_DVCentresCon.dat"
-# DV_input = "Fatigue_force_allwalls_L2_DEL_neq1_0DVCentres.dat"
+DV_input = "aeroload_DVCentresCon.dat" #from a structural analysis under nominal loads
+# DV_input = "Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #(partial) result of an optimization under DEL
+# DV_input = "TMP/aeroload_DVCentresCon.dat" #using IC from the case above, and nominal loads
+# DV_input = "glo_iter1/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #full result of an optimization under DEL
 DV_folder = mydir + os.sep + "HiFi_DVs"
 
+#Original constant thickness model, under DEL
+DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
+DV_folder = ""
+
+# #Optimized 1st iter model, under DEL
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
+# DV_folder = ""
+# wt_output = "Madsen2019_10_forWEIS_isotropic_DEL_ITER1.yaml"
+
+
 #from TE_SS to TE_PS: list of the structural zones
-skinLoFi = ["DP17_DP15","DP15_DP13","DP13_DP10","DP10_DP09","DP09_DP08","DP08_DP07","DP07_DP04","DP04_DP02","DP02_DP00",]
+skinLoFi = ["DP17_DP15","DP15_DP13","DP13_DP10_uniax","DP10_DP09","DP09_DP08","DP08_DP07","DP07_DP04_uniax","DP04_DP02","DP02_DP00",]
 websLoFi = ["Web_fore_panel","Web_aft_panel","Web_te_panel"] #the name they have in the LAYER section **NOT** the WEB section!
 leHiFi = "SPAR.04" #identifier of the leading edge in the hifi descriptor
 ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
@@ -61,7 +73,8 @@ trans_len = 0.01 #length of the transition between panels in the lofi model, in 
 doPlot = True
 debug = False
 
-spars = ["DP07_DP04","DP13_DP10"] #SS,PS
+spars = ["DP07_DP04_uniax","DP13_DP10_uniax"] 
+spars_legend = ["PS","SS"]
 
 #==================== LOAD HiFi DVs DATA =====================================
 
@@ -578,11 +591,15 @@ if ncon>0:
 
         if len(spars)>0:
             if any( [ skinLoFi[isk] in sp for sp in spars ]):
-                ax2.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk], color=hp[0].get_color())
+                isp = spars.index(skinLoFi[isk])
+                ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
             
     ax.set_ylabel("failure")
     ax.set_xlabel("r/R")
-    plt.legend()
+    ax.legend()
+    ax2.set_ylabel("failure")
+    ax2.set_xlabel("r/R")
+    ax2.legend()
 
 
     #------- webs ----------
@@ -602,7 +619,7 @@ if ncon>0:
         
     ax.set_ylabel("failure")
     ax.set_xlabel("r/R")
-    plt.legend()
+    ax.legend()
 
 
 
