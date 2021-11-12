@@ -211,7 +211,7 @@ for ifi in range(len(wt_input)):
     schema["nominal"]["Fn"] = data_a_avg[0,:,ifi].tolist()
     schema["nominal"]["Ft"] = data_a_avg[1,:,ifi].tolist()
     schema["nominal"]["deMLx"] = data_a_avg[2,:,ifi].tolist()
-    schema["nominal"]["deMLy"] = data_a_avg[3,:,ifi].tolist()
+    schema["nominal"]["deMLy"] = -data_a_avg[3,:,ifi].tolist() #change sign to match precomp axes: Y positive towards TE.
     schema["nominal"]["deFLz"] = data_a_avg[4,:,ifi].tolist()
 
     my_write_yaml(schema, fname_nominalLoads)

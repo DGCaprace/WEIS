@@ -304,13 +304,13 @@ class PreComp:
                 xun[i] = 0.5 * (csU.loc[idx_ss] + csU.loc[idx_ss + 1])
                 yun[i] = np.interp(xun[i], pf.x, pf.yu)
 
-        # make dimensional and define relative to elastic center
+        # make dimensional and define relative to elastic center: : x positive towards TE, y positive towards Suction side
         xu = xun * self.chord - self.x_ec_nose
         xl = xln * self.chord - self.x_ec_nose
         yu = yun * self.chord - self.y_ec_nose
         yl = yln * self.chord - self.y_ec_nose
 
-        # switch to airfoil coordinate system
+        # switch to PreComp coordinate system : x positive towards Suction side, y positive towards TE
         xu, yu = yu, xu
         xl, yl = yl, xl
 

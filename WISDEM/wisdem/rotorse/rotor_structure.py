@@ -582,8 +582,8 @@ class ProcessDels(ExplicitComponent):
         # ---> From our observations M1,M2,F3 are in th AIROIL coordinate system, NOT in the principal axes. We will thus need to rotate them by alpha.
 
         # Reinterpolate: (rotation from will be done in the next component)
-        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx)
-        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy)
+        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx) #1: positive towards suction side
+        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy) #2: positive towards trailing edge
         outputs["F3"] = np.interp(s, self.s_usr, self.deFLz)
 
 
@@ -645,8 +645,8 @@ class ProcessExtreme(ExplicitComponent):
         s = inputs["s"]
         
         # Reinterpolate: (rotation from will be done in the next component)
-        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx)
-        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy)
+        outputs["M1"] = np.interp(s, self.s_usr, self.deMLx) #1: positive towards suction side
+        outputs["M2"] = np.interp(s, self.s_usr, self.deMLy) #2: positive towards trailing edge
         outputs["F3"] = np.interp(s, self.s_usr, self.deFLz)
 
 
@@ -1508,7 +1508,7 @@ class RotorStructure(Group):
         self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
         self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) 
-            #pBeam=True: DEL input are in airfoil axes. PBeam option will rotate them by alpha to put them in principal axes frame.
+            #pBeam=True: DEL input are in airfoil axes. PBeam option will swap and rotate them by alpha to put them in principal axes frame.
         self.add_subsystem("tip_pos", TipDeflection(), promotes=["tilt", "pitch_load"])
         self.add_subsystem(
             "aero_hub_loads",
@@ -1521,7 +1521,7 @@ class RotorStructure(Group):
         # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
         self.add_subsystem("aero_gust_external", ProcessExtreme(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("extreme_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) 
-            #pBeam=True: extreme input are in airfoil axes. PBeam option will rotate them by alpha to put them in principal axes frame.
+            #pBeam=True: extreme input are in airfoil axes. PBeam option will swap and rotate them by alpha to put them in principal axes frame.
 
         #Adding the constraint subsystems
         self.add_subsystem(
