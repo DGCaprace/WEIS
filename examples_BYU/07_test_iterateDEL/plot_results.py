@@ -18,11 +18,8 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
 
 folder_arch = mydir + os.sep + "results-IEC1.1_5vels_120s_4Glob"
-folder_arch = mydir + os.sep + "results-60sec_TMP"
-# folder_arch = mydir + os.sep + "results-120sec_TMP"
-folder_arch = mydir + os.sep + "results__1vel_600s"  #-> before fixing wrong structural twist 
-folder_arch = mydir + os.sep + "results__1vel_120s_fix" #-> after fixing wrong structural twist 
-folder_arch = mydir + os.sep + "results"
+# folder_arch = mydir + os.sep + "results__1vel_120s_fix" #-> after fixing wrong structural twist 
+# folder_arch = mydir + os.sep + "results"
 
 nGlobalIter = 4
 
@@ -120,26 +117,32 @@ for IGLOB in range(nGlobalIter):
         r = (r-r[0])/(r[-1]-r[0])
         
         #DEL stuff:
-        # data = a["rotorse.rs.fatigue_strains.M1_N*m"]
-        # data = a["rotorse.rs.fatigue_strains.M2_N*m"]
+        data3 = a["rotorse.rs.fatigue_strains.M1_N*m"]
+        data4 = a["rotorse.rs.fatigue_strains.M2_N*m"]
         # data = a["rotorse.rs.fatigue_strains.F3_N"]
         # data = a["rotorse.rs.fatigue_strains.strainU_spar"]
         # data = a["rotorse.rs.fatigue_strains.strainL_spar"]
         data1 = a["rotorse.rs.fatigue_strains.strainU_spar"] / 3500.e-6 #surrogate to damage constraint
         data2 = a["rotorse.rs.fatigue_strains.strainL_spar"] / 3500.e-6 #surrogate to damage constraint
         
-        # #EXTRM stuff:
-        # data1 = a["rotorse.rs.strains.M1_N*m"]
-        # data2 = a["rotorse.rs.strains.M2_N*m"]
+        # #original gust stuff:
+        data1 = a["rotorse.rs.strains.M1_N*m"]
+        data2 = a["rotorse.rs.strains.M2_N*m"]
         # data = a["rotorse.rs.strains.F3_N"]
-        # data = a["rotorse.rs.strains.strainU_spar"]
-        # data = a["rotorse.rs.strains.strainL_spar"]
+        # data1 = a["rotorse.rs.strains.strainU_spar"] / 3500.e-6
+        # data2 = a["rotorse.rs.strains.strainL_spar"] / 3500.e-6
         # data = a["rotorse.rs.constr.constr_max_strainU_spar"]
         # data = a["rotorse.rs.constr.constr_max_strainL_spar"]
         # r = range(4)
 
+        # #EXTRM stuff:
+
+
+
         ax3[0].plot(r,data1,'x-', label=f'i{IGLOB}')
         ax3[1].plot(r,data2,'x-', label=f'i{IGLOB}')
+        ax3[0].plot(r,data3,'o-', label=f'i{IGLOB}')
+        ax3[1].plot(r,data4,'o-', label=f'i{IGLOB}')
 
 ax3[0].legend()
 plt.xlabel("r/R")
