@@ -10,7 +10,7 @@ from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
 import sys, shutil
 import numpy as np
 from scipy import stats
-# from scipy.optimize import curve_fit
+import extrapolate_utils as exut
 import matplotlib.pyplot as plt
 
 
@@ -445,13 +445,17 @@ for IGLOB in range(restartAt,nGlobalIter):
             # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
             # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
             # distr = ["normForced","normForced","normForced","normForced","normForced"]
+            # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
+            discardData = None #no restriction
+            discardData = 0.5
+            # ------------
             if extremeExtrapMeth ==1:
                 #assumes only normal
-                EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
+                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
             elif extremeExtrapMeth ==2:
-                EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
+                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
             elif extremeExtrapMeth ==3:
-                EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob)
+                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, discardData=discardData)
 
             if saveExtrNpy:
                 np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)
@@ -501,7 +505,17 @@ for IGLOB in range(restartAt,nGlobalIter):
                 print(EXTR_distr_p[15,k,:])
                 print(EXTR_distr_p[25,k,:])
 
-                if "norm" in distr[k] or "gumbel" in distr[k]: #2params models
+                if "twiceMaxForced" in distr[k]:
+                    pass
+                elif "normForced" in distr[k]:
+                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
+
+                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
+                elif "norm" in distr[k] or "gumbel" in distr[k]: #2params models
                     this = getattr(stats,distr[k])
                     ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
                     ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
@@ -510,8 +524,6 @@ for IGLOB in range(restartAt,nGlobalIter):
                     ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
                     ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
                     ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
-                elif "twiceMaxForced" in distr[k]:
-                    pass
                 else: #3params models
                     this = getattr(stats,distr[k])
                     ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
