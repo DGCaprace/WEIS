@@ -10,7 +10,7 @@ from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
 import sys, shutil
 import numpy as np
 from scipy import stats
-from scipy.optimize import curve_fit
+# from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 
 
@@ -39,142 +39,6 @@ def myOpenFASTread(fname,addExt=0):
 
     return output
 
-def extrapolate_extremeLoads_hist(rng,mat,extr_prob):
-    nbins = np.shape(mat)[2]
-    n1 = np.shape(mat)[0]
-    n2 = np.shape(mat)[1]
-
-    p = np.nan*np.zeros((n1,n2,2))
-
-    for k in range(n2):
-        stp = (rng[k][1]-rng[k][0])/(nbins)
-        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
-        for i in range(n1):
-            p[i,k,0] = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-            p[i,k,1] = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg[i,k] )
-   
-    n_std_extreme = stats.norm.ppf(extr_prob)
-    EXTR_life_B1 = p[:,:,0] + n_std_extreme * p[:,:,1]
-
-    return EXTR_life_B1, p
-    
-
-def extrapolate_extremeLoads(mat, distr_list, extr_prob):
-    n1 = np.shape(mat)[0]
-    n2 = np.shape(mat)[1]
-
-    extr = np.zeros((n1,n2))
-
-    p = np.nan*np.zeros((n1,n2,3)) #not very general ...
-
-    for k in range(n2):
-        distr = getattr(stats,distr_list[k])
-        if 'norm' in distr_list[k]:
-            for i in range(n1):
-                params = distr.fit(mat[i,k,:])
-                extr[i,k] = distr.ppf(extr_prob, loc = params[0], scale = params[1])
-                # myppf = distr.ppf(extr_prob)
-                # extr[i,k] = params[0] + myppf * params[1]
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-        else:
-            #not sure the implementation with loc and scale is super general
-            for i in range(n1):
-                params = distr.fit(mat[i,k,:])
-                extr[i,k] = distr.ppf(extr_prob, params[0], loc=params[1], scale=params[2])
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-                p[i,k,2] = params[2] #can I do something better than this?
-            
-    return extr, p
-
-
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob):
-    nbins = np.shape(mat)[2]
-    n1 = np.shape(mat)[0]
-    n2 = np.shape(mat)[1]
-
-    thr = 1e-5 #threshold (normalized frequency)
-
-    extr = np.zeros((n1,n2))
-
-    p = np.nan*np.zeros((n1,n2,3)) #not very general ...
-
-    for k in range(n2):
-        stp = (rng[k][1]-rng[k][0])/(nbins)
-        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
-        
-        if 'twiceMaxForced'  in distr_list[k]:
-            for i in range(n1):
-                imax = np.where(mat[i,k,:] >= thr)
-                extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
-                
-        elif 'normForced' in distr_list[k]:
-            for i in range(n1):
-                #Curve fitting is a bit sensitive... we could also simply use the good old way.
-                # However, it curvefit does not succeed, maybe it is because the distro does not look like a normal at all... 
-                #   and would be a good idea not to force that and use a fallback condition instead.
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
-                params = (avg,std)
-
-                extr[i,k] = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-        elif 'norm' in distr_list[k] or 'gumbel' in distr_list[k]: #--> 2 parameters distributions 
-            distr = getattr(stats,distr_list[k])
-            for i in range(n1):
-                failed = False
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
-                try: 
-                    params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0 = [avg,std])  #best possible starting point
-                    perr = np.sqrt(np.diag(covf))
-                    if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
-                        failed = True
-                    extr[i,k] = distr.ppf(extr_prob, loc = params[0], scale = params[1])
-                except RuntimeError:   
-                    failed = True
-
-                if failed:
-                    print(f"Could not determine params for a {distr_list[k]} at {k},{i}. Will just double the max load.")
-                    imax = np.where(mat[i,k,:] >= thr)
-                    extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
-                    params = (np.nan,0,1)
-                
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-        else: #--> 3 parameters distributions: chi2, weibul
-            distr = getattr(stats,distr_list[k])
-            for i in range(n1):
-                failed = False
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
-                try:
-                    # params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0=[5,0,1000])  
-                    # params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0=[50,0,50])    #init conditions: works well but not all the time
-                    params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0=[20,-avg/2,std/2])  #empirical way of determining initial condition, works ok with chi2
-                    
-                    perr = np.sqrt(np.diag(covf))
-                    if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
-                        failed = True
-                    #     raise RuntimeError("")
-                    # print(f"{k},{i}: {perr}")
-                    extr[i,k] = distr.ppf(extr_prob, params[0], loc=params[1], scale=params[2])
-                except RuntimeError:
-                    failed = True
-                    
-                if failed:
-                    print(f"Could not determine params for a {distr_list[k]} at {k},{i}. Will just double the max load.")
-                    imax = np.where(mat[i,k,:] >= thr)
-                    extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
-                    params = (np.nan,0,1)
-
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-                p[i,k,2] = params[2] #can I do something better than this?
-
-    return extr, p
 
 
 #==================== DEFINITIONS  =====================================
@@ -211,6 +75,7 @@ readOutputFrom = "" #results path where to get output data. I not empty, we do b
 fname_analysis_options_FORCED = ""
 
 showPlots = False
+saveExtrNpy = "extrmDistro.npz"
 
 # Design choice in fatigue: for how long do you size the turbine + other parameters
 m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper 
@@ -588,7 +453,8 @@ for IGLOB in range(restartAt,nGlobalIter):
             elif extremeExtrapMeth ==3:
                 EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob)
 
-
+            if saveExtrNpy:
+                np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)
             
             for k in range(5):
                 stp = (rng[k][1]-rng[k][0])/(nbins)
@@ -601,9 +467,12 @@ for IGLOB in range(restartAt,nGlobalIter):
                 ss1 = ax1.plot(xbn,EXTR_distro_B1[5,k,:] )
                 ss2 = ax1.plot(xbn,EXTR_distro_B1[15,k,:])
                 ss3 = ax1.plot(xbn,EXTR_distro_B1[25,k,:])
-                ax1.plot(EXTR_life_B1[5,k] , 0, 'x' , color=ss1[0].get_color())
-                ax1.plot(EXTR_life_B1[15,k], 0, 'x' , color=ss2[0].get_color())
-                ax1.plot(EXTR_life_B1[25,k], 0, 'x' , color=ss3[0].get_color())
+                c1 = ss1[0].get_color()
+                c2 = ss2[0].get_color()
+                c3 = ss3[0].get_color()
+                ax1.plot(EXTR_life_B1[5,k] , 0, 'x' , color=c1)
+                ax1.plot(EXTR_life_B1[15,k], 0, 'x' , color=c2)
+                ax1.plot(EXTR_life_B1[25,k], 0, 'x' , color=c3)
 
                 f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
                 ax2.set_yscale('log')
@@ -619,9 +488,9 @@ for IGLOB in range(restartAt,nGlobalIter):
                 ax2.plot(xbn,dsf1)
                 ax2.plot(xbn,dsf2)
                 ax2.plot(xbn,dsf3)
-                ax2.plot(EXTR_life_B1[5,k] , 1.-IEC_50yr_prob, 'x' , color=ss1[0].get_color())
-                ax2.plot(EXTR_life_B1[15,k], 1.-IEC_50yr_prob, 'x' , color=ss2[0].get_color())
-                ax2.plot(EXTR_life_B1[25,k], 1.-IEC_50yr_prob, 'x' , color=ss3[0].get_color())
+                ax2.plot(EXTR_life_B1[5,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
+                ax2.plot(EXTR_life_B1[15,k], 1.-IEC_50yr_prob, 'x' , color=c2)
+                ax2.plot(EXTR_life_B1[25,k], 1.-IEC_50yr_prob, 'x' , color=c3)
                 
                 
 
@@ -634,24 +503,24 @@ for IGLOB in range(restartAt,nGlobalIter):
 
                 if "norm" in distr[k] or "gumbel" in distr[k]: #2params models
                     this = getattr(stats,distr[k])
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
 
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=ss3[0].get_color())                        
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
                 elif "twiceMaxForced" in distr[k]:
                     pass
                 else: #3params models
                     this = getattr(stats,distr[k])
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
+                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
 
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=ss1[0].get_color())
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=ss2[0].get_color())
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=ss3[0].get_color())
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
+                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
                 f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
                 f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
             if showPlots:
@@ -797,6 +666,8 @@ for IGLOB in range(restartAt,nGlobalIter):
         shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
     if os.path.isdir(mydir + os.sep + "outputs_struct"):
         shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+    if saveExtrNpy and os.path.isfile(saveExtrNpy):
+        os.system(f"cp {saveExtrNpy} {folder_arch + os.sep}")        
 
     figdir = folder_arch + os.sep + 'figs' 
     if not os.path.isdir(figdir):
