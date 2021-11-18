@@ -440,14 +440,21 @@ for IGLOB in range(restartAt,nGlobalIter):
             # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
             distr = ["weibull_min","weibull_min","norm","norm","norm"]
             distr = ["chi2","chi2","chi2","chi2","chi2"]
-            distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #what we recommend but chi2 curve fitting may lead to oscillations in the output loading
+            distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
             # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
             # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
             # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
             # distr = ["normForced","normForced","normForced","normForced","normForced"]
             # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
-            discardData = None #no restriction
-            discardData = 0.5
+            truncThr = None #no restriction
+            truncThr = 0.5
+
+            # new recommended setup:
+            distr = ["norm","norm","twiceMaxForced","norm","norm"] 
+            truncThr = [0.5,1.0,None,0.5,0.5]
+            # # the following works wll too but leads to less smooth spanwise aero distro:
+            # distr = ["weibull_min","weibull_min","twiceMaxForced","norm","norm"] 
+            # truncThr = [0.0,0.0,None,0.5,0.5]
             # ------------
             if extremeExtrapMeth ==1:
                 #assumes only normal
@@ -455,7 +462,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             elif extremeExtrapMeth ==2:
                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
             elif extremeExtrapMeth ==3:
-                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, discardData=discardData)
+                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr)
 
             if saveExtrNpy:
                 np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)

@@ -16,11 +16,29 @@ labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
 
 badThingsHappen = 50 #reccurring period [years]
 
-iplt = [25,15,5] #spanwise stations to plot
-
+iplt = [5,15,25] #spanwise stations to plot
+# iplt = [23] #75%
 
 reProcess = True
-discardData = None #We discard all data on the left of the distro `avg + discardData * std` for the fit. If None, keep everything.
+barplots = False
+pltSize = (10, 5)
+# pltSize = (6, 3)
+
+
+mydistr = ["weibull_min","weibull_min","norm","norm","norm"]
+mydistr = ["chi2","chi2","chi2","chi2","chi2"]
+# mydistr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
+# mydistr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
+# mydistr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
+# mydistr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
+# mydistr = ["normForced","normForced","normForced","normForced","normForced"]
+
+truncThr = None #We discard all data on the left of the distro `avg + truncThr * std` for the fit. If None, keep everything.
+truncThr = 0.5
+
+# # new recommended setup:
+mydistr = ["norm","norm","twiceMaxForced","norm","norm"] 
+truncThr = [0.5,1.0,None,0.5,0.5]
 
 # ========================================
 
@@ -38,31 +56,23 @@ IEC_50yr_prob = 1. - dt / (badThingsHappen*3600*24*365)
 
 
 if reProcess:
-
-    distr = ["weibull_min","weibull_min","norm","norm","norm"]
-    distr = ["chi2","chi2","chi2","chi2","chi2"]
-    distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #what we recommend but chi2 curve fitting may lead to oscillations in the output loading
-    # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
-    # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
-    # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
-    distr = ["normForced","normForced","normForced","normForced","normForced"]
-
+    distr = mydistr
     # if extremeExtrapMeth ==1:
     #     #assumes only normal
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
     # elif extremeExtrapMeth ==2:
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
     # elif extremeExtrapMeth ==3:
-    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, discardData=discardData)
+    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr)
 
 
 
 
 for k in range(5):
-    f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-    f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+    f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
+    f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
 
-    ax1.set_ylabel("normalized probability")
+    ax1.set_ylabel("probability density")
     ax2.set_ylabel("probability of exceedance")
 
     print(EXTR_distr_p[5,k,:])
@@ -77,8 +87,12 @@ for k in range(5):
         
         ax1.set_xlabel(labs[k])
         
-        ss1 = ax1.bar(xbn,EXTR_distro_B1[i,k,:] ,width=0.8*dx)
-        c1 = ss1[0].get_facecolor()
+        if barplots:
+            ss1 = ax1.bar(xbn,EXTR_distro_B1[i,k,:] ,width=0.8*dx)
+            c1 = ss1[0].get_facecolor()
+        else:
+            ss1 = ax1.plot(xbn,EXTR_distro_B1[i,k,:] )
+            c1 = ss1[0].get_color()
         ax1.plot(EXTR_life_B1[i,k] , 0, 'x' , color=c1)
         
         
@@ -109,21 +123,25 @@ for k in range(5):
             this = getattr(stats,distr[k])
             ax1.plot(xx, this.pdf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
             ax2.plot(xx, this.sf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
-    # f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
-    # f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
-
+        # ax2.plot([xx[0],xx[-1]],[1.-IEC_50yr_prob,1.-IEC_50yr_prob],'-k',linewidth=0.5 )
     f1.tight_layout()
     f2.tight_layout()
+    f1.savefig(f"{folder}/figs/fit_{labs[k].split(' ')[0]}_{distr[k]}.eps")
+    f2.savefig(f"{folder}/figs/fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.eps")
+
 plt.show()
 
 nx=np.size(EXTR_life_B1,axis=0)
 locs = np.linspace(0.,1.,nx)
 
 for k in range(5):
-    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+    plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
     
     plt.ylabel(labs[k])
     plt.xlabel("r/R")
     # plt.legend()
+
+    plt.tight_layout()
+    plt.savefig(f"{folder}/figs/{labs[k].split(' ')[0]}_{distr[k]}.eps")
 plt.show()

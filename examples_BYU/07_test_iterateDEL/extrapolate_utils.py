@@ -53,7 +53,7 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
     return extr, p
 
 
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, discardData=None, keepAtLeast=5):
+def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
@@ -94,10 +94,16 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, discardData
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
-                if discardData:
-                    spn = np.where(x>=avg+discardData*std)[0]
-                else:
+                if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
+                    #don't trash or truncate anything
                     spn = range(len(mat[i,k,:]))
+                    p0 = [avg,std] #initial search point
+                elif isinstance(truncThr,list):
+                    spn = np.where(x>=avg+truncThr[k]*std)[0]
+                    p0 = [avg+truncThr[k]*std,std/truncThr[k]] #move initial search point towards the tail
+                else:
+                    spn = np.where(x>=avg+truncThr*std)[0]
+                    p0 = [avg+truncThr*std,std/truncThr] #move initial search point towards the tail
                 if keepAtLeast>0:
                     if len(spn) == 0:
                         print("Warning: empty set. Reintroduce the whole dataset.")
@@ -106,7 +112,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, discardData
                         spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
 
                 try: 
-                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = [avg,std])  #best possible starting point
+                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = p0)  #best possible starting point
                     perr = np.sqrt(np.diag(covf))
                     if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
                         failed = True
@@ -130,10 +136,20 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, discardData
                 #compute average and std of entire dataset
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
-                if discardData:
-                    spn = np.where(x>=avg+discardData*std)[0]
-                else:
+                #compute the range over which the fit must be done, if user asked to reduce the dataset
+                if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     spn = range(len(mat[i,k,:]))
+                    #initial search point -- black magic
+                    # p0=[5,0,1000]  
+                    # p0=[50,0,50]    #init conditions: works well but not all the time
+                    p0=[20,-avg/2,std/2]  #empirical way of determining initial condition, works ok with chi2
+                elif isinstance(truncThr, list):
+                    spn = np.where(x>=avg+truncThr[k]*std)[0]
+                    p0=[5,avg,std/2]  #initial search point -- black magic. Works well for aero loads and moderate truncation.
+                else:
+                    spn = np.where(x>=avg+truncThr*std)[0]
+                    p0=[5,avg,std/2]  #initial search point -- black magic. Works well for aero loads and moderate truncation.
+
                 if keepAtLeast>0:
                     if len(spn) == 0:
                         print("Warning: empty set. Reintroduce the whole dataset.")
@@ -142,9 +158,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, discardData
                         spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
 
                 try:
-                    # params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0=[5,0,1000])  
-                    # params, covf = curve_fit(distr.pdf, x, mat[i,k,:], p0=[50,0,50])    #init conditions: works well but not all the time
-                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0=[20,-avg/2,std/2])  #empirical way of determining initial condition, works ok with chi2
+                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0=p0) 
                     
                     perr = np.sqrt(np.diag(covf))
                     if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
