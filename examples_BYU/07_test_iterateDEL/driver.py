@@ -69,7 +69,7 @@ extremeExtrapMeth = 3
 #2: try the fit function of scipy.stats to the whole data: EXPERIMENTAL, and does not seem to be using it properly
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
 
-readOutputFrom = "" #results path where to get output data. I not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
+readOutputFrom = "" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
 fname_analysis_options_FORCED = ""
@@ -386,7 +386,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             
             #must use the same range if we want to be able to simply sum with a weight corresponding to wind probability:
             #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
-            rng = [ (-2.e3,10.e3),
+            rng = [ (-2.e3,12.e3),
                     (-2.e3,6.e3),
                     (-8.e3,8.e3),
                     (-5.e3,2.e4),
