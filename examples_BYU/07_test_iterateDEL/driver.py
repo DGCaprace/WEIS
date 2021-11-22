@@ -13,6 +13,7 @@ from scipy import stats
 import extrapolate_utils as exut
 import matplotlib.pyplot as plt
 
+from mpi4py import MPI
 
 # ---------------------
 def my_write_yaml(instance, foutput):
@@ -92,6 +93,13 @@ f_eq = 1/Tlife #--> RECOMMENDED SETTING
 
 #==================== ======== =====================================
 ## Preprocessing
+if MPI:
+    rank = MPI.COMM_WORLD.Get_rank()
+    commSize = MPI.COMM_WORLD.Get_size()
+else:
+    rank = 0
+    commSize = 1
+
 
 withDorE = withDEL or withEXTR
 
@@ -111,7 +119,8 @@ analysis_options_WEIS["general"] = {}
 analysis_options_WEIS["general"]["folder_output"] = "outputs_WEIS"
 analysis_options_WEIS["general"]["fname_output"] = "DTU10MW_Madsen"
 
-my_write_yaml(analysis_options_WEIS, fname_analysis_options_WEIS)
+if rank == 0:
+    my_write_yaml(analysis_options_WEIS, fname_analysis_options_WEIS)
 
 #  Ability to restart from a previous iteration:
 restartAt = max(0,restartAt)
@@ -143,14 +152,16 @@ for i in range(1,41): #TODO: must read this number from somewhere!!
     tag = "AB1N%03iFy"%(i)
     fatigue_channels[tag] = m_wohler
 
+MPI.COMM_WORLD.Barrier()
 
 #==================== ======== =====================================
 # Unsteady loading computation from DLCs
 
 for IGLOB in range(restartAt,nGlobalIter):
-    print("\n\n\n  ============== ============== ===================\n")
-    print(f"  ============== GLOBAL ITER {IGLOB} ===================\n")
-    print("  ============== ============== ===================\n\n\n\n")
+    if rank == 0:
+        print("\n\n\n  ============== ============== ===================\n"
+            + f"  ============== GLOBAL ITER {IGLOB} ===================\n"
+            + "  ============== ============== ===================\n\n\n\n")
 
     # preliminary definition:
     if readOutputFrom:
@@ -171,11 +182,12 @@ for IGLOB in range(restartAt,nGlobalIter):
                 current_wt_input, fname_modeling_options, fname_analysis_options_WEIS
             )
 
-            DELs = wt_opt['aeroelastic.DELs']
+            if rank == 0:
+                DELs = wt_opt['aeroelastic.DELs']
 
-            fast_fnames = DELs.index #the names in here are the filename prefix
+                fast_fnames = DELs.index #the names in here are the filename prefix
 
-            fast_dlclist = wt_opt['aeroelastic.dlc_list']
+                fast_dlclist = wt_opt['aeroelastic.dlc_list']
 
             print("\n\n\n  -------------- DONE WITH WEIS ------------------\n\n\n\n")
             sys.stdout.flush()
@@ -206,7 +218,7 @@ for IGLOB in range(restartAt,nGlobalIter):
                 trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]),
             )
 
-            la.process_outputs(1) #TODO: MULTICORE?
+            la.process_outputs(commSize) 
             # summary_stats = la._summary_stats
             # extremes = la._extremes
             DELs = la._dels
@@ -223,431 +235,443 @@ for IGLOB in range(restartAt,nGlobalIter):
                         fast_dlclist.append(dlc["DLC"])
             
         # ----------------------------------------------------------------------------------------------
-        #    specific preprocessing and definitions
-
-        # nt = len(ct[0]["B1N001FLz"])
-        nx = modeling_options["WISDEM"]["RotorSE"]["n_span"]
-        nx_hard = 40 #hardcoded in runFAST_pywrapper
-        if nx > nx_hard: 
-            raise RuntimeError("Not enough channels for DELs provisionned in runFAST_pywrapper.")
-
-        fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
-        labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
-
         # ----------------------------------------------------------------------------------------------
-        #    probability of the turbine to operate in specific conditions. 
-
-        pp = PowerProduction(wt_init['assembly']['turbine_class'])
-        iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
-        iec_del = {}
-        iec_extr = {}
-        Udel_str = [] #dummy
-        Uextr_str = [] #dummy
-        for dlc in iec_settings:
-            if iec_dlc_for_del == dlc["DLC"]:
-                iec_del = dlc
-                Udel_str = iec_del["U"]
-            if iec_dlc_for_extr == dlc["DLC"]:
-                iec_extr = dlc
-                Uextr_str = iec_extr["U"]
-
-        pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
-        pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
-        #--
-        # pj = np.ones(Nj) / Nj   #uniform probability instead
-
-        pj_extr = pp.prob_WindDist([float(u) for u in Uextr_str], disttype='pdf')
-        pj_extr = pj_extr / np.sum(pj_extr) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
-
+        #### POST-PROCESSING
         # ----------------------------------------------------------------------------------------------
-        #   reading DEL data and setting up indices
+        # ----------------------------------------------------------------------------------------------
         
-        # Init our lifetime DEL
-        DEL_life_B1 = np.zeros([nx,5])    
+        # only by rank 0
+        if rank == 0:
 
-        #  -- Retreive the DELstar --
-        # (after removing "elapsed" from the del post_processing routine in weis)
-        npDelstar = DELs.to_numpy()
-        
-        #duration of  time series
-        Tj = modeling_options["Level3"]["simulation"]["TMax"] - modeling_options["Level3"]["simulation"]["TStart"]
-
-        #number of time series
-        Nj = len(npDelstar)
-
-
-        if withDEL:
-            print(f"Found {Nj} time series...")
-            DELs.info()
-
-            if len(pj)+len(pj_extr) != Nj: 
-                raise Warning("Not the same number of velocities in the input yaml and in the output files.")
-                #later, treat the case of DLCs other than 1.1 and 1.3
-
-            # Indices where to find DELs for the various nodes:
-            colnames = DELs.columns
-            i_AB1Fn = np.zeros(nx,int)
-            i_AB1Ft = np.zeros(nx,int)
-            i_B1MLx = np.zeros(nx,int)
-            i_B1MLy = np.zeros(nx,int)
-            i_B1FLz = np.zeros(nx,int)
-            for i in range(nx):
-                # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
-                # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
-                i_AB1Fn[i] = colnames.get_loc("AB1N%03iFx"%(i+1)) #rotor normal
-                i_AB1Ft[i] = colnames.get_loc("AB1N%03iFy"%(i+1)) #rotor tangential
-                i_B1MLx[i] = colnames.get_loc("B1N%03iMLx"%(i+1))
-                i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
-                i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
+            print(f"{rank} done with sim")
 
             # ----------------------------------------------------------------------------------------------
-            # -- Compute extrapolated lifetime DEL for life --
+            #    specific preprocessing and definitions
 
-            # Identify what time series correspond to DEL - as per IEC standard, we use NTW -- labeled DLC 1.1
-            jDEL = []
-            for j in range(Nj):
-                if 1.1 == fast_dlclist[j]:
-                    jDEL.append(j)        
+            # nt = len(ct[0]["B1N001FLz"])
+            nx = modeling_options["WISDEM"]["RotorSE"]["n_span"]
+            nx_hard = 40 #hardcoded in runFAST_pywrapper
+            if nx > nx_hard: 
+                raise RuntimeError("Not enough channels for DELs provisionned in runFAST_pywrapper.")
+
+            fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
+            labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+
+            # ----------------------------------------------------------------------------------------------
+            #    probability of the turbine to operate in specific conditions. 
+
+            pp = PowerProduction(wt_init['assembly']['turbine_class'])
+            iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
+            iec_del = {}
+            iec_extr = {}
+            Udel_str = [] #dummy
+            Uextr_str = [] #dummy
+            for dlc in iec_settings:
+                if iec_dlc_for_del == dlc["DLC"]:
+                    iec_del = dlc
+                    Udel_str = iec_del["U"]
+                if iec_dlc_for_extr == dlc["DLC"]:
+                    iec_extr = dlc
+                    Uextr_str = iec_extr["U"]
+
+            pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
+            pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
+            #--
+            # pj = np.ones(Nj) / Nj   #uniform probability instead
+
+            pj_extr = pp.prob_WindDist([float(u) for u in Uextr_str], disttype='pdf')
+            pj_extr = pj_extr / np.sum(pj_extr) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
+
+            # ----------------------------------------------------------------------------------------------
+            #   reading DEL data and setting up indices
             
-            if not jDEL:
-                print("Warning: I did not find required data among time series to compute DEL! They will end up being 0.")
-            else:
-                print(f"Time series {jDEL} are being processed for DEL...")
+            # Init our lifetime DEL
+            DEL_life_B1 = np.zeros([nx,5])    
 
-
-            print("Weight of the series (probability):")
-            print(pj)
+            #  -- Retreive the DELstar --
+            # (after removing "elapsed" from the del post_processing routine in weis)
+            npDelstar = DELs.to_numpy()
             
+            #duration of  time series
+            Tj = modeling_options["Level3"]["simulation"]["TMax"] - modeling_options["Level3"]["simulation"]["TStart"]
 
-            # a. Obtain the equivalent number of cycles
-            fj = Tlife / Tj * pj
-            n_life_eq = np.sum(fj * Tj * f_eq)
-            
-            # b. Aggregate DEL
-            k=0
-            for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
-                #loop over the DELs from all time series and sum
-                for j in jDEL:
-                    jloc = j - jDEL[0]
-                    DEL_life_B1[:,k] += fj[jloc] * npDelstar[jloc][ids] 
-                k+=1
-            DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
-
-            # summary_stats = la._summary_stats
-            # for ch in ['BldPitch1','GenSpeed',"RtAeroFxh","RotThrust","RtAeroCt","GenPwr","RotTorq","RtAeroCp"]:
-            #     print(ch)
-            #     print(summary_stats[ch])  #['mean']
-
-                        
-            # c. More processing:
-            # -> switch from IEC local blade frame to "PRECOMP frame" with x positive towards TE
-            #    Notes: 
-            #    - ELASTODYN output is in "local coordinate system similar to the standard blade system", 
-            #       So we have x upwards and y chordwise positive towards LE. This is
-            #       confirmed by the results that give positive M in x AND y, with moment in y (flapwise) larger.
-            #       Note: this is NOT in principal elastic axes, just airfoil-aligned axes.
-            #    - WISDEM strain computation needs the moments in principal axes coordinates: 1st principal 
-            #       direction is chordwise positive towards TE, and 2 is positive upwards. This is confirmed by 
-            #       the stifness properties: EI11 is lower than EI22 (lower stifness edgewise than flapwise). 
-            #       However, the strain module processes the input by swapping x and y and by rotating to the 
-            #       principal axes. So out input should be in PRECOMP axes: x positive towards suction side, y positive towards TE.
-            #    CONCLUSION: switch from ED frame to PRECOMP frame by changing sign of My
-            # DEL_life_B1[:,2] = DEL_life_B1[:,2]
-            DEL_life_B1[:,3] = -DEL_life_B1[:,3] 
-            # DEL_life_B1[:,4] = DEL_life_B1[:,4]
-
-            print("Damage eq loads:")
-            print(np.transpose(DEL_life_B1))
+            #number of time series
+            Nj = len(npDelstar)
 
 
-        # ----------------------------------------------------------------------------------------------
-        # -- proceed to extreme load/gust extrapolation if requested
+            if withDEL:
+                print(f"Found {Nj} time series...")
+                DELs.info()
 
-        if withEXTR:
-            # Identify what time series correspond to extreme loads - as per IEC standard, we use ETW -- labeled DLC 1.3
-            jEXTR = []
-            for j in range(Nj):
-                if 1.3 == fast_dlclist[j]:
-                    jEXTR.append(j)  
-            
-            if not jEXTR:
-                print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
-            else:
-                print(f"Time series {jEXTR} are being processed for extreme loads...")
+                if len(pj)+len(pj_extr) != Nj: 
+                    raise Warning("Not the same number of velocities in the input yaml and in the output files.")
+                    #later, treat the case of DLCs other than 1.1 and 1.3
 
-            nbins = 100
-            dt = modeling_options["Level3"]["simulation"]["DT"]
-            nt = int( Tj / dt ) + 1
+                # Indices where to find DELs for the various nodes:
+                colnames = DELs.columns
+                i_AB1Fn = np.zeros(nx,int)
+                i_AB1Ft = np.zeros(nx,int)
+                i_B1MLx = np.zeros(nx,int)
+                i_B1MLy = np.zeros(nx,int)
+                i_B1FLz = np.zeros(nx,int)
+                for i in range(nx):
+                    # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
+                    # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
+                    i_AB1Fn[i] = colnames.get_loc("AB1N%03iFx"%(i+1)) #rotor normal
+                    i_AB1Ft[i] = colnames.get_loc("AB1N%03iFy"%(i+1)) #rotor tangential
+                    i_B1MLx[i] = colnames.get_loc("B1N%03iMLx"%(i+1))
+                    i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
+                    i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
 
-            # Init our extreme loads
-            EXTR_distro_B1 = np.zeros([nx,5,nbins])    
-            if extremeExtrapMeth ==2:
-                EXTR_data_B1 = np.zeros([nx,5,nt])    
-            
-            #must use the same range if we want to be able to simply sum with a weight corresponding to wind probability:
-            #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
-            rng = [ (-2.e3,12.e3),
-                    (-2.e3,6.e3),
-                    (-8.e3,8.e3),
-                    (-5.e3,2.e4),
-                    (-1.e3,4.e3)] 
+                # ----------------------------------------------------------------------------------------------
+                # -- Compute extrapolated lifetime DEL for life --
 
-            for j in jEXTR:
-                jloc = j - jEXTR[0]
-                # Because raw data are not available as such, need to go back look into the output files:
-                fname = simfolder + os.sep + fast_fnames[j]
-                fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
-        
-                # i = 0
-                # print(fulldata["AB1N%03iFx"%(i+1)])
+                # Identify what time series correspond to DEL - as per IEC standard, we use NTW -- labeled DLC 1.1
+                jDEL = []
+                for j in range(Nj):
+                    if 1.1 == fast_dlclist[j]:
+                        jDEL.append(j)        
                 
-                k = 0
-                for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
-                    for i in range(nx):
-                        hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
-                        EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
+                if not jDEL:
+                    print("Warning: I did not find required data among time series to compute DEL! They will end up being 0.")
+                else:
+                    print(f"Time series {jDEL} are being processed for DEL...")
 
-                        if extremeExtrapMeth ==2:
-                            EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
+
+                print("Weight of the series (probability):")
+                print(pj)
+                
+
+                # a. Obtain the equivalent number of cycles
+                fj = Tlife / Tj * pj
+                n_life_eq = np.sum(fj * Tj * f_eq)
+                
+                # b. Aggregate DEL
+                k=0
+                for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
+                    #loop over the DELs from all time series and sum
+                    for j in jDEL:
+                        jloc = j - jDEL[0]
+                        DEL_life_B1[:,k] += fj[jloc] * npDelstar[jloc][ids] 
                     k+=1
+                DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
 
-                del(fulldata)
+                # summary_stats = la._summary_stats
+                # for ch in ['BldPitch1','GenSpeed',"RtAeroFxh","RotThrust","RtAeroCt","GenPwr","RotTorq","RtAeroCp"]:
+                #     print(ch)
+                #     print(summary_stats[ch])  #['mean']
 
-            #normalizing the distributions
-            for k in range(5):
-                dx = (rng[k][1]-rng[k][0])/(nbins)
-                x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
-                normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
-                EXTR_distro_B1[:,k,:] *= normFac 
+                            
+                # c. More processing:
+                # -> switch from IEC local blade frame to "PRECOMP frame" with x positive towards TE
+                #    Notes: 
+                #    - ELASTODYN output is in "local coordinate system similar to the standard blade system", 
+                #       So we have x upwards and y chordwise positive towards LE. This is
+                #       confirmed by the results that give positive M in x AND y, with moment in y (flapwise) larger.
+                #       Note: this is NOT in principal elastic axes, just airfoil-aligned axes.
+                #    - WISDEM strain computation needs the moments in principal axes coordinates: 1st principal 
+                #       direction is chordwise positive towards TE, and 2 is positive upwards. This is confirmed by 
+                #       the stifness properties: EI11 is lower than EI22 (lower stifness edgewise than flapwise). 
+                #       However, the strain module processes the input by swapping x and y and by rotating to the 
+                #       principal axes. So out input should be in PRECOMP axes: x positive towards suction side, y positive towards TE.
+                #    CONCLUSION: switch from ED frame to PRECOMP frame by changing sign of My
+                # DEL_life_B1[:,2] = DEL_life_B1[:,2]
+                DEL_life_B1[:,3] = -DEL_life_B1[:,3] 
+                # DEL_life_B1[:,4] = DEL_life_B1[:,4]
 
-            IEC_50yr_prob = 1. - dt / (50*3600*24*365) #=return period 50yr
-            # Explanation: This is only due to how we fit the probability distro
-            #   - I normalize the histogtam by normFac, i.e. the Y axis is 1/load. The integral of the histogram gives a density of 1.0 (unitless)
-            #   - Thus, instead of computing prob with T/50yr, I do dt/50yr since I normalized already with nt.
-            #   - There is no time in this density function, except implicitely the sampling period. 
-            #   - The max load that cooresponds to a return period of 2dT has a probability of 1-dt/2dt = 0.5, that is the mean of our distribution.
-            #   - So the prob should read: 50yr corresponds to 
-            #   - What's conterintuitive to me: the smaller the dt, the larger the 50yr. load... but this might be ok: if dt increases, you have a better certainty on the distro.
+                print("Damage eq loads:")
+                print(np.transpose(DEL_life_B1))
 
 
-            #-- Assumed distr for each of the channels --
-            # Note: 
-            # - the longer the simulation window, the better (avoid at all cost to include the initial transient)
-            # - the beam residual moments are well approximated by Gaussian
-            # - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
-            # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
-            # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
-            # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
-            distr = ["weibull_min","weibull_min","norm","norm","norm"]
-            distr = ["chi2","chi2","chi2","chi2","chi2"]
-            distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
-            # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
-            # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
-            # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
-            # distr = ["normForced","normForced","normForced","normForced","normForced"]
-            # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
-            truncThr = None #no restriction
-            truncThr = 0.5
+            # ----------------------------------------------------------------------------------------------
+            # -- proceed to extreme load/gust extrapolation if requested
 
-            # new recommended setup:
-            distr = ["norm","norm","twiceMaxForced","norm","norm"] 
-            truncThr = [0.5,1.0,None,0.5,0.5]
-            # # the following works wll too but leads to less smooth spanwise aero distro:
-            # distr = ["weibull_min","weibull_min","twiceMaxForced","norm","norm"] 
-            # truncThr = [0.0,0.0,None,0.5,0.5]
-            # ------------
-            if extremeExtrapMeth ==1:
-                #assumes only normal
-                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
-            elif extremeExtrapMeth ==2:
-                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
-            elif extremeExtrapMeth ==3:
-                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr)
+            if withEXTR:
+                # Identify what time series correspond to extreme loads - as per IEC standard, we use ETW -- labeled DLC 1.3
+                jEXTR = []
+                for j in range(Nj):
+                    if 1.3 == fast_dlclist[j]:
+                        jEXTR.append(j)  
+                
+                if not jEXTR:
+                    print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
+                else:
+                    print(f"Time series {jEXTR} are being processed for extreme loads...")
 
-            if saveExtrNpy:
-                np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)
+                nbins = 100
+                dt = modeling_options["Level3"]["simulation"]["DT"]
+                nt = int( Tj / dt ) + 1
+
+                # Init our extreme loads
+                EXTR_distro_B1 = np.zeros([nx,5,nbins])    
+                if extremeExtrapMeth ==2:
+                    EXTR_data_B1 = np.zeros([nx,5,nt])    
+                
+                #must use the same range if we want to be able to simply sum with a weight corresponding to wind probability:
+                #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
+                rng = [ (-2.e3,12.e3),
+                        (-2.e3,6.e3),
+                        (-8.e3,8.e3),
+                        (-5.e3,2.e4),
+                        (-1.e3,4.e3)] 
+
+                for j in jEXTR:
+                    jloc = j - jEXTR[0]
+                    # Because raw data are not available as such, need to go back look into the output files:
+                    fname = simfolder + os.sep + fast_fnames[j]
+                    fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
+            
+                    # i = 0
+                    # print(fulldata["AB1N%03iFx"%(i+1)])
+                    
+                    k = 0
+                    for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
+                        for i in range(nx):
+                            hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
+                            EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
+
+                            if extremeExtrapMeth ==2:
+                                EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
+                        k+=1
+
+                    del(fulldata)
+
+                #normalizing the distributions
+                for k in range(5):
+                    dx = (rng[k][1]-rng[k][0])/(nbins)
+                    x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
+                    normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
+                    EXTR_distro_B1[:,k,:] *= normFac 
+
+                IEC_50yr_prob = 1. - dt / (50*3600*24*365) #=return period 50yr
+                # Explanation: This is only due to how we fit the probability distro
+                #   - I normalize the histogtam by normFac, i.e. the Y axis is 1/load. The integral of the histogram gives a density of 1.0 (unitless)
+                #   - Thus, instead of computing prob with T/50yr, I do dt/50yr since I normalized already with nt.
+                #   - There is no time in this density function, except implicitely the sampling period. 
+                #   - The max load that cooresponds to a return period of 2dT has a probability of 1-dt/2dt = 0.5, that is the mean of our distribution.
+                #   - So the prob should read: 50yr corresponds to 
+                #   - What's conterintuitive to me: the smaller the dt, the larger the 50yr. load... but this might be ok: if dt increases, you have a better certainty on the distro.
+
+
+                #-- Assumed distr for each of the channels --
+                # Note: 
+                # - the longer the simulation window, the better (avoid at all cost to include the initial transient)
+                # - the beam residual moments are well approximated by Gaussian
+                # - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
+                # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
+                # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
+                # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
+                distr = ["weibull_min","weibull_min","norm","norm","norm"]
+                distr = ["chi2","chi2","chi2","chi2","chi2"]
+                distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
+                # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
+                # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
+                # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
+                # distr = ["normForced","normForced","normForced","normForced","normForced"]
+                # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
+                truncThr = None #no restriction
+                truncThr = 0.5
+
+                # new recommended setup:
+                distr = ["norm","norm","twiceMaxForced","norm","norm"] 
+                truncThr = [0.5,1.0,None,0.5,0.5]
+                # # the following works wll too but leads to less smooth spanwise aero distro:
+                # distr = ["weibull_min","weibull_min","twiceMaxForced","norm","norm"] 
+                # truncThr = [0.0,0.0,None,0.5,0.5]
+                # ------------
+                if extremeExtrapMeth ==1:
+                    #assumes only normal
+                    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
+                elif extremeExtrapMeth ==2:
+                    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
+                elif extremeExtrapMeth ==3:
+                    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr)
+
+                if saveExtrNpy:
+                    np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)
+            
+                for k in range(5):
+                    stp = (rng[k][1]-rng[k][0])/(nbins)
+                    xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
+                    dx = (rng[k][1]-rng[k][0])/(nbins)
+                    
+                    f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    ax1.set_xlabel(labs[k])
+                    
+                    ss1 = ax1.plot(xbn,EXTR_distro_B1[5,k,:] )
+                    ss2 = ax1.plot(xbn,EXTR_distro_B1[15,k,:])
+                    ss3 = ax1.plot(xbn,EXTR_distro_B1[25,k,:])
+                    c1 = ss1[0].get_color()
+                    c2 = ss2[0].get_color()
+                    c3 = ss3[0].get_color()
+                    ax1.plot(EXTR_life_B1[5,k] , 0, 'x' , color=c1)
+                    ax1.plot(EXTR_life_B1[15,k], 0, 'x' , color=c2)
+                    ax1.plot(EXTR_life_B1[25,k], 0, 'x' , color=c3)
+
+                    f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    ax2.set_yscale('log')
+                    ax2.set_xlabel(labs[k])
+                    ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])                
+
+                    dsf1= 1.-np.cumsum(EXTR_distro_B1[5,k,:] )*dx 
+                    dsf2= 1.-np.cumsum(EXTR_distro_B1[15,k,:])*dx 
+                    dsf3= 1.-np.cumsum(EXTR_distro_B1[25,k,:])*dx 
+                    dsf1[(dsf1>=1.-1E-16) | (dsf1<=1E-16)] = np.nan
+                    dsf2[(dsf2>=1.-1E-16) | (dsf2<=1E-16)] = np.nan
+                    dsf3[(dsf3>=1.-1E-16) | (dsf3<=1E-16)] = np.nan
+                    ax2.plot(xbn,dsf1)
+                    ax2.plot(xbn,dsf2)
+                    ax2.plot(xbn,dsf3)
+                    ax2.plot(EXTR_life_B1[5,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
+                    ax2.plot(EXTR_life_B1[15,k], 1.-IEC_50yr_prob, 'x' , color=c2)
+                    ax2.plot(EXTR_life_B1[25,k], 1.-IEC_50yr_prob, 'x' , color=c3)
+                    
+                    
+
+                    xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
+
+                    
+                    print(EXTR_distr_p[5,k,:])
+                    print(EXTR_distr_p[15,k,:])
+                    print(EXTR_distr_p[25,k,:])
+
+                    if "twiceMaxForced" in distr[k]:
+                        pass
+                    elif "normForced" in distr[k]:
+                        ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                        ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                        ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
+
+                        ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                        ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                        ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
+                    elif "norm" in distr[k] or "gumbel" in distr[k]: #2params models
+                        this = getattr(stats,distr[k])
+                        ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                        ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                        ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
+
+                        ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
+                        ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
+                        ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
+                    else: #3params models
+                        this = getattr(stats,distr[k])
+                        ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
+                        ax1.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
+                        ax1.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
+
+                        ax2.plot(xx, this.sf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
+                        ax2.plot(xx, this.sf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
+                        ax2.plot(xx, this.sf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
+                    f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                    f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                if showPlots:
+                    plt.show()
+
+                # More processing:
+                #1) switch from IEC local blade frame to "PRECOMP frame" with y positive towards TE
+                # EXTR_life_B1[:,2] = EXTR_life_B1[:,2]
+                EXTR_life_B1[:,3] = -EXTR_life_B1[:,3]
+                # EXTR_life_B1[:,4] = EXTR_life_B1[:,4]
+
+
+                for k in range(5):
+                    EXTR_life_B1[:,k] *= fac[k]
+
+            # ----------------------------------------------------------------------------------------------
+            # -- Create a descriptor:
+
+            #Just a string written in the DEL export files to describe what's in there
+            if iec_del:
+                del_descr_str = "DEL computed based on DLC %f with %i seeds and the following vels: %s"%(
+                    iec_del['DLC'], len(iec_del['Seeds']), iec_del['U']
+                )
+            else:
+                del_descr_str = "DEL unavailable"
+
+            if iec_extr:
+                extr_descr_str = "extreme loading computed based on DLC %f with %i seeds and the following vels: %s"%(
+                    iec_extr['DLC'], len(iec_extr['Seeds']), iec_extr['U']
+                )
+            else:
+                extr_descr_str = "extreme loading unavailable"
+
+            # ----------------------------------------------------------------------------------------------
+            # -- write the analysis file
+            schema = load_yaml(fname_analysis_options)
+            #could use load_analysis_yaml from weis instead
+
+            locs = np.linspace(0.,1.,nx) #XXX Is this right? Shoule we obtain it from rotorse instead?
+
+            if withDEL:
+                schema["DEL"] = {}
+                schema["DEL"]["description"] = del_descr_str
+                schema["DEL"]["grid_nd"] = locs.tolist() #note: the node gauges are located at np.arange(1./nx/2., 1, 1./nx) but I prefer consider that it spans then entire interval [0,1]
+                schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
+                schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
+                schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
+            if withEXTR:
+                schema["extreme"] = {}
+                schema["extreme"]["description"] = extr_descr_str
+                schema["extreme"]["grid_nd"] = locs.tolist()
+                schema["extreme"]["deMLx"] = EXTR_life_B1[:,2].tolist()
+                schema["extreme"]["deMLy"] = EXTR_life_B1[:,3].tolist()
+                schema["extreme"]["deFLz"] = EXTR_life_B1[:,4].tolist()
+
+            schema["general"]["folder_output"] = "outputs_struct_withFatigue"
+            if withDEL:
+                schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
+                schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
+                schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"] = float(n_life_eq)
+                schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"] = float(n_life_eq)
+                schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] = m_wohler
+                schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["m_wohler"] = m_wohler
+            if withEXTR:
+                schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True
+
+            fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
+            my_write_yaml(schema, fname_analysis_options_struct)
+            #could use write_analysis_yaml from weis instead
+
+            schema_hifi = {}
+            if withDEL:
+                schema_hifi["DEL"] = {}
+                schema_hifi["DEL"]["description"] = del_descr_str
+                schema_hifi["DEL"]["grid_nd"] = locs.tolist()
+                schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
+                schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
+            if withEXTR:
+                schema_hifi["extreme"] = {}
+                schema_hifi["extreme"]["description"] = extr_descr_str
+                schema_hifi["extreme"]["grid_nd"] = locs.tolist()
+                schema_hifi["extreme"]["Fn"] = EXTR_life_B1[:,0].tolist()
+                schema_hifi["extreme"]["Ft"] = EXTR_life_B1[:,1].tolist()
+
+            my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
+
+
             
             for k in range(5):
-                stp = (rng[k][1]-rng[k][0])/(nbins)
-                xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
-                dx = (rng[k][1]-rng[k][0])/(nbins)
-                
-                f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                ax1.set_xlabel(labs[k])
-                
-                ss1 = ax1.plot(xbn,EXTR_distro_B1[5,k,:] )
-                ss2 = ax1.plot(xbn,EXTR_distro_B1[15,k,:])
-                ss3 = ax1.plot(xbn,EXTR_distro_B1[25,k,:])
-                c1 = ss1[0].get_color()
-                c2 = ss2[0].get_color()
-                c3 = ss3[0].get_color()
-                ax1.plot(EXTR_life_B1[5,k] , 0, 'x' , color=c1)
-                ax1.plot(EXTR_life_B1[15,k], 0, 'x' , color=c2)
-                ax1.plot(EXTR_life_B1[25,k], 0, 'x' , color=c3)
-
-                f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                ax2.set_yscale('log')
-                ax2.set_xlabel(labs[k])
-                ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])                
-
-                dsf1= 1.-np.cumsum(EXTR_distro_B1[5,k,:] )*dx 
-                dsf2= 1.-np.cumsum(EXTR_distro_B1[15,k,:])*dx 
-                dsf3= 1.-np.cumsum(EXTR_distro_B1[25,k,:])*dx 
-                dsf1[(dsf1>=1.-1E-16) | (dsf1<=1E-16)] = np.nan
-                dsf2[(dsf2>=1.-1E-16) | (dsf2<=1E-16)] = np.nan
-                dsf3[(dsf3>=1.-1E-16) | (dsf3<=1E-16)] = np.nan
-                ax2.plot(xbn,dsf1)
-                ax2.plot(xbn,dsf2)
-                ax2.plot(xbn,dsf3)
-                ax2.plot(EXTR_life_B1[5,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
-                ax2.plot(EXTR_life_B1[15,k], 1.-IEC_50yr_prob, 'x' , color=c2)
-                ax2.plot(EXTR_life_B1[25,k], 1.-IEC_50yr_prob, 'x' , color=c3)
-                
-                
-
-                xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
-
-                
-                print(EXTR_distr_p[5,k,:])
-                print(EXTR_distr_p[15,k,:])
-                print(EXTR_distr_p[25,k,:])
-
-                if "twiceMaxForced" in distr[k]:
-                    pass
-                elif "normForced" in distr[k]:
-                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
-                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
-                    ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
-
-                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
-                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
-                    ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
-                elif "norm" in distr[k] or "gumbel" in distr[k]: #2params models
-                    this = getattr(stats,distr[k])
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
-                    ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3)                        
-
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[5,k,0], scale = EXTR_distr_p[5,k,1]),'--', alpha=0.6 , color=c1)
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[15,k,0], scale = EXTR_distr_p[15,k,1]),'--', alpha=0.6 , color=c2)
-                    ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[25,k,0], scale = EXTR_distr_p[25,k,1]),'--', alpha=0.6 , color=c3) 
-                else: #3params models
-                    this = getattr(stats,distr[k])
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
-                    ax1.plot(xx, this.pdf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
-
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[5,k,0], loc = EXTR_distr_p[5,k,1], scale = EXTR_distr_p[5,k,2]),'--', alpha=0.6 , color=c1)
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[15,k,0], loc = EXTR_distr_p[15,k,1], scale = EXTR_distr_p[15,k,2]),'--', alpha=0.6 , color=c2)
-                    ax2.plot(xx, this.sf(xx, EXTR_distr_p[25,k,0], loc = EXTR_distr_p[25,k,1], scale = EXTR_distr_p[25,k,2]),'--', alpha=0.6 , color=c3)
-                f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
-                f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
+                plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                if withEXTR:
+                    plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
+                if withDEL:
+                    plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
+                plt.ylabel(labs[k])
+                plt.xlabel("r/R")
+                plt.legend()
+                plt.savefig(f"{labs[k].split(' ')[0]}.png")
             if showPlots:
                 plt.show()
-
-            # More processing:
-            #1) switch from IEC local blade frame to "PRECOMP frame" with y positive towards TE
-            # EXTR_life_B1[:,2] = EXTR_life_B1[:,2]
-            EXTR_life_B1[:,3] = -EXTR_life_B1[:,3]
-            # EXTR_life_B1[:,4] = EXTR_life_B1[:,4]
-
-
-            for k in range(5):
-                EXTR_life_B1[:,k] *= fac[k]
-
-        # ----------------------------------------------------------------------------------------------
-        # -- Create a descriptor:
-
-        #Just a string written in the DEL export files to describe what's in there
-        if iec_del:
-            del_descr_str = "DEL computed based on DLC %f with %i seeds and the following vels: %s"%(
-                iec_del['DLC'], len(iec_del['Seeds']), iec_del['U']
-            )
+        elif fname_analysis_options_FORCED:
+            #if you already postprocessed the data above, and want to do the lofi optimization
+            print(f"Forced use of analysis file: {fname_analysis_options_FORCED}\nI will not check that this file contains DEL or EXTRM info. Please make sure it matches your current request.")
+            fname_analysis_options_struct = fname_analysis_options_FORCED
         else:
-            del_descr_str = "DEL unavailable"
-
-        if iec_extr:
-            extr_descr_str = "extreme loading computed based on DLC %f with %i seeds and the following vels: %s"%(
-                iec_extr['DLC'], len(iec_extr['Seeds']), iec_extr['U']
-            )
-        else:
-            extr_descr_str = "extreme loading unavailable"
-
-        # ----------------------------------------------------------------------------------------------
-        # -- write the analysis file
-
-        schema = load_yaml(fname_analysis_options)
-        #could use load_analysis_yaml from weis instead
-
-        locs = np.linspace(0.,1.,nx) #XXX Is this right? Shoule we obtain it from rotorse instead?
-
-        if withDEL:
-            schema["DEL"] = {}
-            schema["DEL"]["description"] = del_descr_str
-            schema["DEL"]["grid_nd"] = locs.tolist() #note: the node gauges are located at np.arange(1./nx/2., 1, 1./nx) but I prefer consider that it spans then entire interval [0,1]
-            schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
-            schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
-            schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
-        if withEXTR:
-            schema["extreme"] = {}
-            schema["extreme"]["description"] = extr_descr_str
-            schema["extreme"]["grid_nd"] = locs.tolist()
-            schema["extreme"]["deMLx"] = EXTR_life_B1[:,2].tolist()
-            schema["extreme"]["deMLy"] = EXTR_life_B1[:,3].tolist()
-            schema["extreme"]["deFLz"] = EXTR_life_B1[:,4].tolist()
-
-        schema["general"]["folder_output"] = "outputs_struct_withFatigue"
-        if withDEL:
-            schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
-            schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
-            schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"] = float(n_life_eq)
-            schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"] = float(n_life_eq)
-            schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] = m_wohler
-            schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["m_wohler"] = m_wohler
-        if withEXTR:
-            schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True
-
-        fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
-        my_write_yaml(schema, fname_analysis_options_struct)
-        #could use write_analysis_yaml from weis instead
-
-        schema_hifi = {}
-        if withDEL:
-            schema_hifi["DEL"] = {}
-            schema_hifi["DEL"]["description"] = del_descr_str
-            schema_hifi["DEL"]["grid_nd"] = locs.tolist()
-            schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
-            schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
-        if withEXTR:
-            schema_hifi["extreme"] = {}
-            schema_hifi["extreme"]["description"] = extr_descr_str
-            schema_hifi["extreme"]["grid_nd"] = locs.tolist()
-            schema_hifi["extreme"]["Fn"] = EXTR_life_B1[:,0].tolist()
-            schema_hifi["extreme"]["Ft"] = EXTR_life_B1[:,1].tolist()
-
-        my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
+            fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
 
 
-        
-        for k in range(5):
-            plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-            if withEXTR:
-                plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
-            if withDEL:
-                plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
-            plt.ylabel(labs[k])
-            plt.xlabel("r/R")
-            plt.legend()
-            plt.savefig(f"{labs[k].split(' ')[0]}.png")
-        if showPlots:
-            plt.show()
-    elif fname_analysis_options_FORCED:
-        #if you already postprocessed the data above, and want to do the lofi optimization
-        print(f"Forced use of analysis file: {fname_analysis_options_FORCED}\nI will not check that this file contains DEL or EXTRM info. Please make sure it matches your current request.")
-        fname_analysis_options_struct = fname_analysis_options_FORCED
-    else:
-        fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
-
+    MPI.COMM_WORLD.Barrier()
 
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 2 : Optimize
@@ -661,40 +685,50 @@ for IGLOB in range(restartAt,nGlobalIter):
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
     # +++++++++++++++++++++++++++++++++++++++
-    if IGLOB==0:
-        if os.path.isdir(folder_arch):
-            shutil.rmtree(folder_arch,ignore_errors=True)
-        os.makedirs(folder_arch)
-
     currFolder = f"iter_{IGLOB}"
 
-    # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
-    # shutil.copytree
-    
-    if os.path.isfile(fname_aggregatedEqLoads) and IGLOB==0:
-        shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
-    if os.path.isfile(fname_modeling_options):
-        os.system(f"cp {fname_modeling_options} {folder_arch + os.sep}")
-    if os.path.isfile(fname_analysis_options_struct):
-        os.system(f"cp {fname_analysis_options_struct} {folder_arch + os.sep}")
-    if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
-        shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder)  
-    if not readOutputFrom and os.path.isdir(simfolder): #let's not move the file if it is a path provided by the user
-        shutil.move(simfolder, folder_arch + os.sep + "sim" + os.sep + currFolder)
-    if os.path.isdir(mydir + os.sep + "outputs_struct_withFatigue"):
-        shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
-    if os.path.isdir(mydir + os.sep + "outputs_struct"):
-        shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
-    if saveExtrNpy and os.path.isfile(saveExtrNpy):
-        os.system(f"cp {saveExtrNpy} {folder_arch + os.sep}")        
+    if rank == 0:
+        if IGLOB==0:
+            if os.path.isdir(folder_arch):
+                shutil.rmtree(folder_arch,ignore_errors=True)
+            os.makedirs(folder_arch)
 
-    figdir = folder_arch + os.sep + 'figs' 
-    if not os.path.isdir(figdir):
-        os.makedirs(figdir)
-    thisfdir = figdir + os.sep + currFolder
-    if not os.path.isdir(thisfdir):
-        os.makedirs(thisfdir)
-    os.system(f"mv *.png {thisfdir}")
+        # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
+        # shutil.copytree
+        
+        if os.path.isfile(fname_aggregatedEqLoads) and IGLOB==0:
+            # shutil.move(fname_aggregatedEqLoads,folder_arch+os.sep)
+            os.system(f"mv {fname_aggregatedEqLoads} {folder_arch+os.sep}")
+        if os.path.isfile(fname_modeling_options):
+            os.system(f"cp {fname_modeling_options} {folder_arch + os.sep}")
+        if os.path.isfile(fname_analysis_options_struct):
+            os.system(f"cp {fname_analysis_options_struct} {folder_arch + os.sep}")
+        if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
+            os.system(f"mkdir {folder_arch + os.sep + 'outputs_WEIS'}")
+            # shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder + os.sep)  
+            os.system(f"mv {mydir + os.sep + 'outputs_WEIS'} {folder_arch+ os.sep + 'outputs_WEIS' + os.sep + currFolder}")  
+        if not readOutputFrom and os.path.isdir(simfolder): #let's not move the file if it is a path provided by the user
+            os.system(f"mkdir {folder_arch + os.sep + 'sim'}")
+            # shutil.move(simfolder, folder_arch + os.sep + "sim" + os.sep + currFolder + os.sep, copy_function = shutil.copytree)
+            os.system(f"mv {simfolder} {folder_arch + os.sep + 'sim' + os.sep + currFolder}")
+        if os.path.isdir(mydir + os.sep + "outputs_struct_withFatigue"):
+            os.system(f"mkdir {folder_arch + os.sep + 'outputs_optim'}")
+            # shutil.move(mydir + os.sep + "outputs_struct_withFatigue", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+            os.system(f"mv {mydir + os.sep + 'outputs_struct_withFatigue'}  {folder_arch + os.sep + 'outputs_optim' + os.sep + currFolder}")
+        if os.path.isdir(mydir + os.sep + "outputs_struct"):
+            os.system(f"mkdir {folder_arch + os.sep + 'outputs_optim'}")
+            # shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
+            os.system(f"mv {mydir + os.sep + 'outputs_struct'} {folder_arch + os.sep + 'outputs_optim' + os.sep + currFolder}")
+        if saveExtrNpy and os.path.isfile(saveExtrNpy):
+            os.system(f"cp {saveExtrNpy} {folder_arch + os.sep}")        
+
+        figdir = folder_arch + os.sep + 'figs' 
+        if not os.path.isdir(figdir):
+            os.makedirs(figdir)
+        thisfdir = figdir + os.sep + currFolder
+        if not os.path.isdir(thisfdir):
+            os.makedirs(thisfdir)
+        os.system(f"mv *.png {thisfdir}")
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"
