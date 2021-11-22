@@ -106,7 +106,7 @@ def getLiftDistribution(testcase):
 def my_read_yaml(finput):
     # Write yaml with updated values
     with open(finput, "r", encoding="utf-8") as f:
-        dict = yaml.load(f) #, Loader=yaml.FullLoader)
+        dict = yaml.load(f, Loader=yaml.FullLoader)
     return dict
 
 #-----------------------------------------------
@@ -418,7 +418,6 @@ def write_force_file(fname,pos,forces,conn,ncell):
 
 if __name__=='__main__':
 
-    sys.path.insert(1, '/Users/dg/OneDrive - BYU/BYU_ATLANTIS/OpenTurbineCoDe/OpenTurbineTestCases/scripts')
     from OTCDparser import OFparse
 
     FastFile = "inputs/DTU_10MW_V8_TSR781.out"
