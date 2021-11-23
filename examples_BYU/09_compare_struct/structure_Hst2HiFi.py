@@ -113,7 +113,7 @@ for i in range(len(HiFiDVs_mapping)):
 
 #==================== Export to file =====================================
 
-#Read the constitutive component file
+#Write the constitutive component file
 with open(DV_output, 'w') as f:
     for i in range(len(HiFiDVs_idx)):
         pattern = "%i %6.5e %6.5e %6.5e %6.5e "

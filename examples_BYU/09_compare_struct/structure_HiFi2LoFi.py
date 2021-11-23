@@ -1,5 +1,5 @@
 import os
-import yaml
+import yaml, ast
 
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
 from wisdem.inputs import write_geometry_yaml
@@ -70,8 +70,8 @@ R0 = 2.8
 
 trans_len = 0.01 #length of the transition between panels in the lofi model, in %(R-R0)
 
-doPlot = True
 debug = False
+writeDVGroupForColor = False
 
 spars = ["DP07_DP04_uniax","DP13_DP10_uniax"] 
 spars_legend = ["PS","SS"]
@@ -88,6 +88,7 @@ with open(DV_file, 'r') as f:
     nentry = len(lines[0].split(" "))
     ncon = nentry-6
 
+    HiFiDVs_idx = np.zeros(len(lines))
     HiFiDVs_pos = np.zeros((len(lines),3))
     HiFiDVs_thi = np.zeros(len(lines))
     HiFiDVs_con = np.zeros((len(lines), ncon))
@@ -96,6 +97,7 @@ with open(DV_file, 'r') as f:
     i = 0
     for line in lines:
         buff = line.split(" ")
+        HiFiDVs_idx[i]  = float(buff[0])
         HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ]
         HiFiDVs_thi[i] = float(buff[4]) 
         HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] 
@@ -218,8 +220,9 @@ lay_ls = turbine["components"]["blade"]["internal_structure_2d_fem"]["layers"]
 if len(skinLoFi) != ncPanelHiFi:
     raise ValueError("Can't match lofi and hifi representations because they use different number of panels.")
 
-skin_hifi = np.nan*np.empty((nhf_skn,ncPanelHiFi,2))
-skin_hifi[:,0,1] = 0
+skin_hifi = np.nan*np.empty((nhf_skn,ncPanelHiFi,3))
+skin_hifi[:,0,1] = 0 #the thickness
+skin_hifi[:,0,2] = 0 #the index of the component mapped to this specific panel
 
 skin_hifi_con = np.nan*np.empty((nhf_skn,ncPanelHiFi,ncon))
 
@@ -257,6 +260,7 @@ for i in range(nid):
         
         skin_hifi[iz,ic,0] = loc_s
         skin_hifi[iz,ic,1] = HiFiDVs_thi[i]
+        skin_hifi[iz,ic,2] = HiFiDVs_idx[i]
 
         if ncon>0:
             skin_hifi_con[iz,ic,:] = HiFiDVs_con[i,:]
@@ -283,7 +287,7 @@ if len(websLoFi) != len(websHiFi):
 
 nwebs = len(websHiFi)
 
-webs_hifi = -np.ones((nhf_web,nwebs))
+webs_hifi = -np.ones((nhf_web,nwebs,2))
 webs_hifi_con = np.nan*np.empty((nhf_web,nwebs,ncon))
 
 for i in range(nid):
@@ -300,7 +304,8 @@ for i in range(nid):
             #unrecognized component, skip it
             continue
 
-        webs_hifi[iz,iw] = HiFiDVs_thi[i]
+        webs_hifi[iz,iw,0] = HiFiDVs_thi[i]
+        webs_hifi[iz,iw,1] = HiFiDVs_idx[i]
 
         if ncon>0:
             webs_hifi_con[iz,iw,:] = HiFiDVs_con[i,:]
@@ -310,7 +315,7 @@ for i in range(nid):
 
 if debug:
     print("High fidelity webs:")
-    print(webs_hifi[:,:]) #note that if there is still -1 in there, this means that the web is not defined at that location
+    print(webs_hifi[:,:,0]) #note that if there is still -1 in there, this means that the web is not defined at that location
 
 
 
@@ -380,8 +385,8 @@ for layer in lay_ls:
     
     for j in range(nhf_web):
         #the thickness is 0 where the web is not defined.
-        values[2*j] = max(webs_hifi[j,ilay],0.0)
-        values[2*j+1] = max(webs_hifi[j,ilay],0.0)
+        values[2*j] = max(webs_hifi[j,ilay,0],0.0)
+        values[2*j+1] = max(webs_hifi[j,ilay,0],0.0)
 
     layer["thickness"]["grid"] = ylf_web_oR.tolist()
     layer["thickness"]["values"] = values.tolist()
@@ -539,7 +544,7 @@ fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
 for isk in range(len(skinLoFi)):
     
     values = np.zeros(len(ylf_skn_oR))
-    for j in range(nhf_web):
+    for j in range(nhf_skn):
         values[2*j] = skin_hifi[j,isk,1]
         values[2*j+1] = skin_hifi[j,isk,1]
 
@@ -558,8 +563,8 @@ for isk in range(len(websLoFi)):
     values = np.zeros(len(ylf_web_oR))
     for j in range(nhf_web):
         #the thickness is 0 where the web is not defined.
-        values[2*j] = max(webs_hifi[j,isk],0.0)
-        values[2*j+1] = max(webs_hifi[j,isk],0.0)
+        values[2*j] = max(webs_hifi[j,isk,0],0.0)
+        values[2*j+1] = max(webs_hifi[j,isk,0],0.0)
         
     hp = ax.plot(ylf_web_oR,values, '-', label=websLoFi[isk])
         
@@ -622,7 +627,79 @@ if ncon>0:
     ax.legend()
 
 
-
-
-
 plt.show()
+
+
+
+if writeDVGroupForColor:
+    
+    DVGroup_input = "generic_DVGroupCentres.dat"
+    DVGroup_output = "generic_DVGroupCentres_colors.dat"
+
+    #Read the roup component file
+    with open(DVGroup_input, 'r') as f:
+        lines = f.readlines()
+
+
+        HiFiGrp_idx  = np.zeros(len(lines), int)
+        HiFiGrp_pos = np.zeros((len(lines),3))
+        HiFiGrp_thi = np.zeros(len(lines))
+        # HiFiGrp_con = np.zeros((len(lines), ncon))
+        # HiFiGrp_des = [None]*len(lines)
+        HiFiGrp_icmp = [None]*len(lines)
+
+        i = 0
+        for line in lines:
+            buff = line.split(" ")
+            HiFiGrp_idx[i] = buff[0]
+            HiFiGrp_pos[i,:] = [ float(b) for b in buff[1:4] ]
+            # HiFiGrp_thi[i] = float(buff[4]) 
+            # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
+            buff = line.split('"')
+            # HiFiGrp_des[i] = buff[1]
+            HiFiGrp_icmp[i] = buff[3]
+            i+=1
+
+    #Allocate a mapping object: 
+    #  binds each group number to the list of constitutive elements it covers
+    HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
+
+    for i in range(len(HiFiGrp_idx)):
+        tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
+        icmp = ast.literal_eval('['+tmp+']')
+        HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
+
+    print(HiFiDVs_mapping)
+    print(skin_hifi[:,:,2])
+
+    #Write the constitutive component file
+    with open(DVGroup_output, 'w') as f:
+        for i in range(len(HiFiGrp_idx)):
+            pattern = "%i %6.5e %6.5e %6.5e %6.5e "
+            # pattern += "%6.5e "*ncon
+            pattern += "%s\n"
+
+            comp_list = HiFiDVs_mapping[i]
+            
+            #try to find a match for at least 1 component:
+            for comp in comp_list:
+                #look in which zone of the skin the component is:
+                msk = np.where(skin_hifi[:,:,2] == comp)
+                id = msk[1] #index along the 2nd dim (chordwise)
+                if len(id) ==0: #this might be a spar
+                    msk = np.where(webs_hifi[:,:,1] == comp)
+                    id = msk[1] + len(skinLoFi) #web index
+                    if len(id) !=0: 
+                        break
+                else:
+                    break
+            if len(id) ==0: #we did not find anything
+                id = -1
+
+            f.write(pattern%(
+                HiFiGrp_idx[i],
+                HiFiGrp_pos[i,0], HiFiGrp_pos[i,1], HiFiGrp_pos[i,2],
+                id,
+                # tuple(HiFiDVs_con[i,:]),
+                HiFiGrp_icmp[i]
+            ))
