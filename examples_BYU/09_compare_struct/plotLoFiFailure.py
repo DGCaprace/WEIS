@@ -71,6 +71,8 @@ n_life_eq = 1
 
 runWISDEM = True
 
+importHifiCstr = ""
+importHifiCstr = "Madsen2019_10_forWEIS_isotropic_TEST/hifiCstr.npz"
 
 #==================== ======== =====================================
 ## Preprocessing: filling in the loads and relevant parameters
@@ -197,8 +199,8 @@ with np.load(WISDEMout) as a:
     # data = a["rotorse.rs.constr.constr_max_strainU_spar"]
     # data = a["rotorse.rs.constr.constr_max_strainL_spar"]
 
-    ax3.plot(r,-data1,'o-', label=f'SS')  
-    ax3.plot(r, data2,'x-', label=f'PS') #NEGATIVE to make them both positive??? but the strain should be > 0 on the PS!!??
+    hp1 = ax3.plot(r,-data1,'o-', label=f'SS')  
+    hp2 = ax3.plot(r, data2,'x-', label=f'PS') #NEGATIVE to make them both positive??? but the strain should be > 0 on the PS!!??
 
     ax4.plot(r,data3,'-', label=f'F3')
     ax4.plot(r,data4,'-', label=f'M1')
@@ -208,5 +210,43 @@ ax3.legend()
 ax3.set_xlabel("r/R")
 ax4.legend()
 ax4.set_xlabel("r/R")
+
+
+if importHifiCstr:
+    f= np.load(importHifiCstr)
+
+    ylf_skn_oR = f["ylf_skn_oR"]
+    skin_hifi_con = f["skin_hifi_con"]
+    nhf_skn = f["nhf_skn"]
+    ncon = f["ncon"]
+    spars = f["spars"].tolist()
+    spars_legend = f["spars_legend"]
+    skinLoFi = f["skinLoFi"]
+
+    if ncon>0:
+        #------- skin ----------
+        # fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+        
+        for isk in range(len(skinLoFi)):
+            
+            values = np.zeros((len(ylf_skn_oR),ncon))
+            for c in range(ncon):
+                for j in range(nhf_skn):
+                    values[2*j,c] = skin_hifi_con[j,isk,c]
+                    values[2*j+1,c] = skin_hifi_con[j,isk,c]
+
+            # hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
+            # if ncon>1:
+            #     ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
+
+            if len(spars)>0:
+                if any( [ skinLoFi[isk] in sp for sp in spars ]):
+                    isp = spars.index(skinLoFi[isk])
+                    hp = ax3.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color='k') # hp1[0].get_color())
+                    # if ncon>1:
+                    #     ax3.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp1[0].get_color())
+            
+
+
 
 plt.show()

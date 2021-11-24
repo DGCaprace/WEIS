@@ -25,28 +25,43 @@ def my_write_yaml(instance, foutput):
     They are mapped with respect to their order from TE SS to TE PS.
     """
 
+ylab = "failure" #default
+
 ## File management
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 # wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
 wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
-wt_output = "Madsen2019_10_forWEIS_isotropic_TEST.yaml"
+wt_output = "Madsen2019_10_forWEIS_isotropic_TEST"
 
 DV_input = "aeroload_DVCentres.dat"
 DV_input = "aeroload_DVCentresCon.dat" #from a structural analysis under nominal loads
 # DV_input = "Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #(partial) result of an optimization under DEL
-# DV_input = "TMP/aeroload_DVCentresCon.dat" #using IC from the case above, and nominal loads
 # DV_input = "glo_iter1/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #full result of an optimization under DEL
 DV_folder = mydir + os.sep + "HiFi_DVs"
 
-#Original constant thickness model, under DEL
-DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
+
+#Original constant thickness model, under nominal loads
+DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_3/aeroload_DVCentresCon.dat"
 DV_folder = ""
 
-# #Optimized 1st iter model, under DEL
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
+# #Original constant thickness model, under nominal loads, WITH gravity in +y
+DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_4/aeroload_DVCentresCon.dat"
+DV_folder = ""
+
+
+# #Original constant thickness model, under DEL
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
 # DV_folder = ""
-# wt_output = "Madsen2019_10_forWEIS_isotropic_DEL_ITER1.yaml"
+
+# #Optimized 1st iter model, under DEL
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_ITER1_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
+# DV_folder = ""
+# wt_output = "Madsen2019_10_forWEIS_isotropic_DEL_ITER1"
+
+
+# DV_input = "generic_DVCentres.dat"
+# DV_folder = "./"
 
 
 #from TE_SS to TE_PS: list of the structural zones
@@ -531,9 +546,12 @@ if cnt != nwebs:
 
 # ==================== SAVE NEW TURBINE =====================================
 
-fname_wt_output = mydir + os.sep + wt_output
+fname_wt_output = mydir + os.sep + wt_output +'.yaml'
 write_geometry_yaml(turbine, fname_wt_output)
 
+os.system(f'mkdir {mydir + os.sep + wt_output}')
+outfile = mydir + os.sep + wt_output + os.sep + 'hifiCstr.npz'
+np.savez(outfile, skinLoFi = skinLoFi, ylf_skn_oR = ylf_skn_oR, skin_hifi_con = skin_hifi_con, nhf_skn = nhf_skn, ncon = ncon, spars = spars, spars_legend = spars_legend)
 
 
 #==================== Compare DV Plots #====================
@@ -586,7 +604,7 @@ if ncon>0:
         
         values = np.zeros((len(ylf_skn_oR),ncon))
         for c in range(ncon):
-            for j in range(nhf_web):
+            for j in range(nhf_skn):
                 values[2*j,c] = skin_hifi_con[j,isk,c]
                 values[2*j+1,c] = skin_hifi_con[j,isk,c]
 
@@ -597,12 +615,14 @@ if ncon>0:
         if len(spars)>0:
             if any( [ skinLoFi[isk] in sp for sp in spars ]):
                 isp = spars.index(skinLoFi[isk])
-                ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
+                hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
+                if ncon>1:
+                    ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
             
-    ax.set_ylabel("failure")
+    ax.set_ylabel(ylab)
     ax.set_xlabel("r/R")
     ax.legend()
-    ax2.set_ylabel("failure")
+    ax2.set_ylabel(ylab)
     ax2.set_xlabel("r/R")
     ax2.legend()
 
@@ -622,7 +642,7 @@ if ncon>0:
         if ncon>1:
             ax.plot(ylf_web_oR,values[:,1], '--', color=hp[0].get_color())
         
-    ax.set_ylabel("failure")
+    ax.set_ylabel(ylab)
     ax.set_xlabel("r/R")
     ax.legend()
 
@@ -630,6 +650,9 @@ if ncon>0:
 plt.show()
 
 
+# =================================================================
+# =================================================================
+# =================================================================
 
 if writeDVGroupForColor:
     
