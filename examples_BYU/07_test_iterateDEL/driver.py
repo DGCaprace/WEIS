@@ -65,10 +65,14 @@ doLofiOptim = False  #skip lofi optimization, if you are only interested in gett
 nGlobalIter = 1
 restartAt = 0
 
+#-Extreme load extrapolation-:
 extremeExtrapMeth = 3
 #1: statistical moment-based method: just compute avg and std of the data, and rebuild a normal distribution for that
 #2: try the fit function of scipy.stats to the whole data: EXPERIMENTAL, and does not seem to be using it properly
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
+logfit = True #True: fit the log of the survival function. False: fit the pdf
+killUnder = 1E-14 #remove all values in the experimental distribution under this threshold (numerical noise)
+
 
 readOutputFrom = "" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
 #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
@@ -464,8 +468,11 @@ for IGLOB in range(restartAt,nGlobalIter):
                 for k in range(5):
                     dx = (rng[k][1]-rng[k][0])/(nbins)
                     x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
-                    normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
-                    EXTR_distro_B1[:,k,:] *= normFac 
+                    # normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
+                    # EXTR_distro_B1[:,k,:] *= normFac 
+                    #--> there might be missing timesteps or anything... let's just make sure the distro sum to 1.00
+                    for i in range(nx):
+                        EXTR_distro_B1[i,k,:] /= np.sum(EXTR_distro_B1[i,k,:]*dx)
 
                 IEC_50yr_prob = 1. - dt / Textr #=return period 50yr
                 # Explanation: This is only due to how we fit the probability distro
@@ -494,14 +501,10 @@ for IGLOB in range(restartAt,nGlobalIter):
                 # distr = ["normForced","normForced","normForced","normForced","normForced"]
                 # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
                 truncThr = None #no restriction
-                truncThr = 0.5
 
                 # new recommended setup:
                 distr = ["norm","norm","twiceMaxForced","norm","norm"] 
-                truncThr = [0.5,1.0,None,0.5,0.5]
-                # # the following works wll too but leads to less smooth spanwise aero distro:
-                # distr = ["weibull_min","weibull_min","twiceMaxForced","norm","norm"] 
-                # truncThr = [0.0,0.0,None,0.5,0.5]
+                # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
                 # ------------
                 if extremeExtrapMeth ==1:
                     #assumes only normal
@@ -509,7 +512,7 @@ for IGLOB in range(restartAt,nGlobalIter):
                 elif extremeExtrapMeth ==2:
                     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
                 elif extremeExtrapMeth ==3:
-                    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr)
+                    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
 
                 if saveExtrNpy:
                     np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)

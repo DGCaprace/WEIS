@@ -53,7 +53,7 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
     return extr, p
 
 
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5):
+def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5, logfit=False, killUnder=1e-14):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
@@ -96,7 +96,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
                 if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     #don't trash or truncate anything
-                    spn = range(len(mat[i,k,:]))
+                    spn = np.array(range(len(mat[i,k,:])))
                     p0 = [avg,std] #initial search point
                 elif isinstance(truncThr,list):
                     spn = np.where(x>=avg+truncThr[k]*std)[0]
@@ -112,12 +112,21 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                         spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
 
                 try: 
-                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = p0)  #best possible starting point
+                    if logfit:
+                        excData = 1.0 - np.cumsum(mat[i,k,:])*stp
+                        excData = excData[spn] #truncate 
+                        spn2 = np.where(excData>killUnder)[0] #further remove 0.0 and 1e-16 so that we can take the log safely
+                        logExcData = np.log( excData[spn2] ) 
+                        def logExc(x,b,c):
+                            return np.log(distr.sf(x,loc=b,scale=c))
+                        params, covf = curve_fit(logExc, x[spn[spn2]], logExcData, p0 = p0)  #best possible starting point
+                    else:
+                        params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = p0)  #best possible starting point
                     perr = np.sqrt(np.diag(covf))
                     if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
                         failed = True
                     extr[i,k] = distr.ppf(extr_prob, loc = params[0], scale = params[1])
-                except RuntimeError:   
+                except Exception:   
                     failed = True
 
                 if failed:
@@ -138,7 +147,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
                 if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
-                    spn = range(len(mat[i,k,:]))
+                    spn = np.array(range(len(mat[i,k,:])))
                     #initial search point -- black magic
                     # p0=[5,0,1000]  
                     # p0=[50,0,50]    #init conditions: works well but not all the time
@@ -158,7 +167,16 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                         spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
 
                 try:
-                    params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0=p0) 
+                    if logfit:
+                        excData = 1.0 - np.cumsum(mat[i,k,:])*stp
+                        excData = excData[spn] #truncate 
+                        spn2 = np.where(excData>killUnder)[0] #further remove 0.0 and 1e-16 so that we can take the log safely
+                        logExcData = np.log( excData[spn2] ) 
+                        def logExc(x,a,b,c):
+                            return np.log(distr.sf(x,a,loc=b,scale=c))
+                        params, covf = curve_fit(logExc, x[spn[spn2]], logExcData, p0 = p0)  #best possible starting point
+                    else:
+                        params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0=p0) 
                     
                     perr = np.sqrt(np.diag(covf))
                     if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
@@ -166,7 +184,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                     #     raise RuntimeError("")
                     # print(f"{k},{i}: {perr}")
                     extr[i,k] = distr.ppf(extr_prob, params[0], loc=params[1], scale=params[2])
-                except RuntimeError:
+                except Exception:
                     failed = True
                     
                 if failed:
