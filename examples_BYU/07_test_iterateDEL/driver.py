@@ -81,6 +81,7 @@ saveExtrNpy = "extrmDistro.npz"
 # Design choice in fatigue: for how long do you size the turbine + other parameters
 m_wohler = 10 #caution: also hardcoded in the definition of fatigue_channels at the top of runFAST_pywrapper 
     #TODO: could handle this better by not relying on the output of run_weis but instead rereading all the .out files with a new instance of LoadsAnalysis that uses the fatigue channels defined above
+Textr = 3600 * 24 * 365 * 50 # return period of the extreme event, in seconds (e.g. 50yr)
 Tlife = 3600 * 24 * 365 * 20 #the design life of the turbine, in seconds (20 years)
 # f_eq = 1 #rotor rotation freq is around 0.1Hz. -- THIS IS TOTALLY ARBITRARY FOR NOW
 f_eq = 1/Tlife #--> RECOMMENDED SETTING
@@ -229,10 +230,12 @@ for IGLOB in range(restartAt,nGlobalIter):
             for dlc in iec_settings:
                 if iec_dlc_for_del == dlc["DLC"]:
                     for i in dlc["U"]:
-                        fast_dlclist.append(dlc["DLC"])
+                        for j in dlc["Seeds"]:
+                            fast_dlclist.append(dlc["DLC"])
                 if iec_dlc_for_extr == dlc["DLC"]:
                     for i in dlc["U"]:
-                        fast_dlclist.append(dlc["DLC"])
+                        for j in dlc["Seeds"]:
+                            fast_dlclist.append(dlc["DLC"])
             
         # ----------------------------------------------------------------------------------------------
         # ----------------------------------------------------------------------------------------------
@@ -266,13 +269,17 @@ for IGLOB in range(restartAt,nGlobalIter):
             iec_extr = {}
             Udel_str = [] #dummy
             Uextr_str = [] #dummy
+            nSEEDdel  = 0 
+            nSEEDextr = 0 
             for dlc in iec_settings:
                 if iec_dlc_for_del == dlc["DLC"]:
                     iec_del = dlc
                     Udel_str = iec_del["U"]
+                    nSEEDdel += len(iec_del["Seeds"])
                 if iec_dlc_for_extr == dlc["DLC"]:
                     iec_extr = dlc
                     Uextr_str = iec_extr["U"]
+                    nSEEDextr += len(iec_extr["Seeds"])
 
             pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
             pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
@@ -283,7 +290,7 @@ for IGLOB in range(restartAt,nGlobalIter):
             pj_extr = pj_extr / np.sum(pj_extr) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
 
             # ----------------------------------------------------------------------------------------------
-            #   reading DEL data and setting up indices
+            #   reading data and setting up indices
             
             # Init our lifetime DEL
             DEL_life_B1 = np.zeros([nx,5])    
@@ -298,14 +305,19 @@ for IGLOB in range(restartAt,nGlobalIter):
             #number of time series
             Nj = len(npDelstar)
 
+            # DO CHECKS
+            print(f"Found {Nj} time series...")
+            DELs.info()
+
+            if len(pj)*nSEEDdel+len(pj_extr)*nSEEDextr != Nj: 
+                raise Warning("Not the same number of velocities and seeds in the input yaml and in the output files.")
+                #TODO: treat the case of DLCs other than 1.1 and 1.3, with different number of velicities and seeds
+
+
+            # ----------------------------------------------------------------------------------------------
+            # -- proceed to DEL aggregation if requested
 
             if withDEL:
-                print(f"Found {Nj} time series...")
-                DELs.info()
-
-                if len(pj)+len(pj_extr) != Nj: 
-                    raise Warning("Not the same number of velocities in the input yaml and in the output files.")
-                    #later, treat the case of DLCs other than 1.1 and 1.3
 
                 # Indices where to find DELs for the various nodes:
                 colnames = DELs.columns
@@ -350,9 +362,17 @@ for IGLOB in range(restartAt,nGlobalIter):
                 k=0
                 for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
                     #loop over the DELs from all time series and sum
-                    for j in jDEL:
-                        jloc = j - jDEL[0]
-                        DEL_life_B1[:,k] += fj[jloc] * npDelstar[jloc][ids] 
+                    #NOTE: we assume that all simulatons of a given DLC are in a row
+                    #TODO: better handle this for various DLCs with different nvels and nseeds
+                    for ivel in range(len(pj)): #nvels
+                        for iseed in range(nSEEDdel):
+                            jloc = (iseed + ivel * nSEEDdel) + jDEL[0]
+
+                            # print(f"[{k}] v{ivel} s{iseed} loc{jloc} - {fast_fnames[jloc]} {fast_dlclist[jloc]}")
+
+                            #average the DEL over the seeds: just as if we aggregated all the seeds
+                            DEL_life_B1[:,k] += fj[ivel] * npDelstar[jloc][ids] / nSEEDdel
+
                     k+=1
                 DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
 
@@ -415,26 +435,30 @@ for IGLOB in range(restartAt,nGlobalIter):
                         (-5.e3,2.e4),
                         (-1.e3,4.e3)] 
 
-                for j in jEXTR:
-                    jloc = j - jEXTR[0]
-                    # Because raw data are not available as such, need to go back look into the output files:
-                    fname = simfolder + os.sep + fast_fnames[j]
-                    fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
-            
-                    # i = 0
-                    # print(fulldata["AB1N%03iFx"%(i+1)])
+
+                #TODO: better handle this for various DLCs with different nvels and nseeds
+                for ivel in range(len(pj_extr)): #nvels
+                    for iseed in range(nSEEDextr): 
+                        jloc = (iseed + ivel * nSEEDextr) + jEXTR[0]
+
+                        # Because raw data are not available as such, need to go back look into the output files:
+                        fname = simfolder + os.sep + fast_fnames[jloc]
+                        print(fname)
+                        fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
                     
-                    k = 0
-                    for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
-                        for i in range(nx):
-                            hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
-                            EXTR_distro_B1[i,k,:] = EXTR_distro_B1[i,k,:] + hist * pj_extr[jloc]
+                        k = 0
+                        for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
+                            # print(f"[{lab}] v{ivel} s{iseed} loc{jloc} - {fast_fnames[jloc]} {fast_dlclist[jloc]}")
+                            for i in range(nx):
+                                hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
+                                #average the EXTRM over the seeds: just as if we aggregated all the seeds
+                                EXTR_distro_B1[i,k,:] +=  hist * pj_extr[ivel] / nSEEDextr
 
-                            if extremeExtrapMeth ==2:
-                                EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
-                        k+=1
+                                if extremeExtrapMeth ==2:
+                                    EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
+                            k+=1
 
-                    del(fulldata)
+                        del(fulldata)
 
                 #normalizing the distributions
                 for k in range(5):
@@ -443,7 +467,7 @@ for IGLOB in range(restartAt,nGlobalIter):
                     normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
                     EXTR_distro_B1[:,k,:] *= normFac 
 
-                IEC_50yr_prob = 1. - dt / (50*3600*24*365) #=return period 50yr
+                IEC_50yr_prob = 1. - dt / Textr #=return period 50yr
                 # Explanation: This is only due to how we fit the probability distro
                 #   - I normalize the histogtam by normFac, i.e. the Y axis is 1/load. The integral of the histogram gives a density of 1.0 (unitless)
                 #   - Thus, instead of computing prob with T/50yr, I do dt/50yr since I normalized already with nt.
