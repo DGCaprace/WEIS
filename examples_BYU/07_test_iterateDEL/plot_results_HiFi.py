@@ -39,7 +39,7 @@ HST_files = ["1pt_fatigue_ITER1_44949859_L3/Opt_output/SLSQP_hist_L31pt_fatigue_
 ]
 
 plotRelativeDEL = True
-HST_fullHistory = True
+HST_fullHistory = False
 
 FIX_FOR_SIGN = -1
 

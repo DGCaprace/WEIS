@@ -472,7 +472,7 @@ if __name__=='__main__':
                 FtEL = dict[suff]["Ft"]
                 FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
 
-                aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_allwalls_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
+                aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_{loadFolder}_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)
                 for f in fl:
                     if os.path.isfile(f):
                         os.system(f"mv {f} {loadFolder}/{f.split('.')[0]}_{suff}.{f.split('.')[1]}")

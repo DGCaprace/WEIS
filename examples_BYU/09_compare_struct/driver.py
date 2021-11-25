@@ -237,6 +237,8 @@ for ifi in range(len(wt_input)):
 
 plt.legend()
 
+fig.savefig(folder_arch + "/deflections.png")
+
 
 
 #loads
@@ -255,4 +257,7 @@ for ifi in range(len(wt_input)):
     
         axa[k].autoscale_view(tight=True)
 plt.tight_layout()
+
+fig.savefig(folder_arch + "/nominal_loads.png")
+
 plt.show()
