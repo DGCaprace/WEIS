@@ -48,6 +48,7 @@ def myOpenFASTread(fname,addExt=0):
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 # fname_wt_input = mydir + os.sep + "IEA-10-198-RWT.yaml"
 fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS.yaml"
+fname_wt_input = mydir + os.sep + "../09_compare_struct/Madsen2019_10_forWEIS_isotropic_IC.yaml"
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
 fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"

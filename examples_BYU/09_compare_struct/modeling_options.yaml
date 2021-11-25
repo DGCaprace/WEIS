@@ -28,7 +28,7 @@ Level3:
 
     #hard setting of parameters:
     simulation:
-        TMax: 60.
+        TMax: 80.
         DT: 0.01 #BeamDyn requires much smaller timestep!! Recommend DT: 0.0015
         # DT_Out: 0.01
         TStart: 50.0  #allow rapid transient to die at the beginning of the simulation before we actually start recording

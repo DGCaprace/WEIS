@@ -49,6 +49,7 @@ wt_input = [  "Madsen2019_10_forWEIS.yaml",
                     ]
 # wt_input = ["Madsen2019_10_forWEIS_isotropic.yaml"]
 # wt_input = ["Madsen2019_10_forWEIS.yaml"]
+wt_input = ["Madsen2019_10_forWEIS_isotropic_IC.yaml"]
 
 
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
@@ -65,7 +66,7 @@ NacYIner = 7326.3465E3
 # 2.317025E9
 # 9240560
 
-plotOnly = True
+plotOnly = False
 fast_fnames = ["DTU10MW_powercurve_0"]
 
 #==================== RUN THE TURBINE WITH WEIS, FROM YAML INPUTS =====================================
