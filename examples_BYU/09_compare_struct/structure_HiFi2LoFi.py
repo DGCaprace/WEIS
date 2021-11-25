@@ -550,7 +550,7 @@ fname_wt_output = mydir + os.sep + wt_output +'.yaml'
 write_geometry_yaml(turbine, fname_wt_output)
 
 os.system(f'mkdir {mydir + os.sep + wt_output}')
-outfile = mydir + os.sep + wt_output + os.sep + 'hifiCstr.npz'
+outfile = mydir + os.sep + wt_output + os.sep + 'hifiCstr_' + ylab + '.npz'
 np.savez(outfile, skinLoFi = skinLoFi, ylf_skn_oR = ylf_skn_oR, skin_hifi_con = skin_hifi_con, nhf_skn = nhf_skn, ncon = ncon, spars = spars, spars_legend = spars_legend)
 
 
@@ -572,6 +572,7 @@ ax.set_ylabel("thickness [mm]")
 ax.set_xlabel("r/R")
 plt.legend()
 
+fig.savefig(wt_output + "/thickness_skin.png")
 
 #------- webs ----------
 fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
@@ -590,7 +591,7 @@ ax.set_ylabel("thickness [mm]")
 ax.set_xlabel("r/R")
 plt.legend()
 
-
+fig.savefig(wt_output + "/thickness_webs.png")
 
 #==================== Compare CONSTRAINTS Plots #====================
 
@@ -626,6 +627,8 @@ if ncon>0:
     ax2.set_xlabel("r/R")
     ax2.legend()
 
+    fig.savefig(wt_output + "/con_skin.png")
+    fig2.savefig(wt_output + "/con_spars.png")
 
     #------- webs ----------
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
@@ -646,6 +649,7 @@ if ncon>0:
     ax.set_xlabel("r/R")
     ax.legend()
 
+    fig.savefig(wt_output + "/con_webs.png")
 
 plt.show()
 

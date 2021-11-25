@@ -794,7 +794,7 @@ for IGLOB in range(restartAt,nGlobalIter):
         elapsed_tot = wt - wt_tot
 
         with open(folder_arch + os.sep + "timings.txt", "a") as file:
-            file.write('%8.16E, %8.16E, %8.16E, %8.16E, %8.16E\n' % (wt, elapsed_tot, elapsed_sim, elapsed_postpro, elapsed_postpro) )
+            file.write('%8.16E, %8.16E, %8.16E, %8.16E, %8.16E\n' % (wt, elapsed_tot, elapsed_sim, elapsed_postpro, elapsed_optim) )
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"

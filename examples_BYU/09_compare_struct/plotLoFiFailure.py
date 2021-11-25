@@ -33,7 +33,12 @@ withEXTR = False
 withDEL = False  
 withNominal = False #REPLACE the EXTR with the nominal load
 WRONG_CONVENTION = False
+importHifiCstr = ""
 
+m_wohler = 10
+n_life_eq = 1
+
+runWISDEM = True
 #==================== DEFINITIONS  =====================================
 
 ## File management
