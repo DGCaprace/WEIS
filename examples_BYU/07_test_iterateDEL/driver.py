@@ -56,9 +56,6 @@ fname_aggregatedEqLoads = mydir + os.sep + "aggregatedEqLoads.yaml"
 folder_arch = mydir + os.sep + "results"
 
 
-#location of servodyn lib (./local of weis)
-run_dir1            = "/Users/dg/Documents/BYU/devel/Python/WEIS"
-
 withEXTR = True  #compute EXTREME moments 
 withDEL = True  #compute DEL moments - if both are False, the lofi optimization falls back to a default WISDEM run
 doLofiOptim = False  #skip lofi optimization, if you are only interested in getting the DEL and EXTR outputs (e.g. for HiFi)
@@ -160,6 +157,15 @@ for i in range(1,41): #TODO: must read this number from somewhere!!
 MPI.COMM_WORLD.Barrier()
 
 #==================== ======== =====================================
+# Initialize timers
+elapsed_sim = 0.0
+elapsed_postpro = 0.0
+elapsed_optim = 0.0
+
+if rank == 0:
+    print(f"Walltime: {MPI.Wtime()}")
+
+#==================== ======== =====================================
 # Unsteady loading computation from DLCs
 
 for IGLOB in range(restartAt,nGlobalIter):
@@ -167,12 +173,17 @@ for IGLOB in range(restartAt,nGlobalIter):
         print("\n\n\n  ============== ============== ===================\n"
             + f"  ============== GLOBAL ITER {IGLOB} ===================\n"
             + "  ============== ============== ===================\n\n\n\n")
+        wt = MPI.Wtime()
+        wt_tot = wt
+        wt_sim = wt
 
     # preliminary definition:
     if readOutputFrom:
         simfolder = readOutputFrom
     else:
         simfolder = mydir + os.sep + modeling_options["openfast"]["file_management"]["FAST_runDirectory"]
+        if commSize >1:
+            simfolder += os.sep + "rank_0"
 
 
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -241,15 +252,21 @@ for IGLOB in range(restartAt,nGlobalIter):
                         for j in dlc["Seeds"]:
                             fast_dlclist.append(dlc["DLC"])
             
+        if rank == 0:
+            wt = MPI.Wtime()
+            elapsed_sim = wt - wt_sim
+
         # ----------------------------------------------------------------------------------------------
         # ----------------------------------------------------------------------------------------------
         #### POST-PROCESSING
         # ----------------------------------------------------------------------------------------------
         # ----------------------------------------------------------------------------------------------
         
+        MPI.COMM_WORLD.Barrier()
+
         # only by rank 0
         if rank == 0:
-
+            wt_postpro = wt
             print(f"{rank} done with sim")
 
             # ----------------------------------------------------------------------------------------------
@@ -514,9 +531,15 @@ for IGLOB in range(restartAt,nGlobalIter):
                 elif extremeExtrapMeth ==3:
                     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
 
+                # ------------ TIMIMGS ------------    
+                wt = MPI.Wtime()
+                elapsed_postpro = wt - wt_postpro
+
+                # ------------ DUMPING RESULTS ------------    
                 if saveExtrNpy:
                     np.savez(saveExtrNpy, rng=rng, nbins=nbins, EXTR_life_B1=EXTR_life_B1, EXTR_distr_p=EXTR_distr_p, EXTR_distro_B1=EXTR_distro_B1, distr=distr, dt=dt)
             
+                # ------------ PLOTTING ------------    
                 for k in range(5):
                     stp = (rng[k][1]-rng[k][0])/(nbins)
                     xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
@@ -700,6 +723,10 @@ for IGLOB in range(restartAt,nGlobalIter):
 
     MPI.COMM_WORLD.Barrier()
 
+    if rank == 0:
+        wt = MPI.Wtime()
+        wt_optim = wt
+
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 2 : Optimize
     # +++++++++++++++++++++++++++++++++++++++
@@ -709,6 +736,10 @@ for IGLOB in range(restartAt,nGlobalIter):
 
         print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")    
 
+    if rank == 0:
+        wt = MPI.Wtime()
+        elapsed_optim = wt - wt_optim
+        
     # +++++++++++++++++++++++++++++++++++++++
     #           PHASE 3 : book keeping
     # +++++++++++++++++++++++++++++++++++++++
@@ -756,6 +787,13 @@ for IGLOB in range(restartAt,nGlobalIter):
         if not os.path.isdir(thisfdir):
             os.makedirs(thisfdir)
         os.system(f"mv *.png {thisfdir}")
+
+        # --- TIMINGS --
+        wt = MPI.Wtime()
+        elapsed_tot = wt - wt_tot
+
+        with open(folder_arch + os.sep + "timings.txt", "a") as file:
+            file.write('%8.16E, %8.16E, %8.16E, %8.16E, %8.16E\n' % (wt, elapsed_tot, elapsed_sim, elapsed_postpro, elapsed_postpro) )
 
     # update the path to the current optimal turbine
     current_wt_input = folder_arch + os.sep + "outputs_optim" + os.sep + currFolder + os.sep + "blade_out.yaml"
