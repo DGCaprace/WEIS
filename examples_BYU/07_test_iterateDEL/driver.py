@@ -220,6 +220,9 @@ for IGLOB in range(restartAt,nGlobalIter):
                 if ".out" in file:
                     fast_fnames.append(file)
 
+            # Sort the file list, to avoid relying on the order determined by 'ls'
+            fast_fnames.sort()
+
             if not fast_fnames:
                 raise Warning(f"could not find any output files in the directory {readOutputFrom}")
             print(f"Will try to read the following files: {fast_fnames}")
@@ -235,7 +238,15 @@ for IGLOB in range(restartAt,nGlobalIter):
                 trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]),
             )
 
-            la.process_outputs(commSize) 
+            # Determine on how many threads to run the processing:
+            NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')
+            if NUM_THREAD is None:
+                NUM_THREAD = os.environ.get('OMP_NUM_THREAD')
+            if NUM_THREAD is None:
+                NUM_THREAD = 1
+            print(f"pCrunch: will run the analysis on {NUM_THREAD} threads.")
+
+            la.process_outputs(cores=NUM_THREAD) 
             # summary_stats = la._summary_stats
             # extremes = la._extremes
             DELs = la._dels
@@ -439,6 +450,7 @@ for IGLOB in range(restartAt,nGlobalIter):
                     print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
                 else:
                     print(f"Time series {jEXTR} are being processed for extreme loads...")
+                    print(fast_fnames[jEXTR])
 
                 nbins = 100
                 dt = modeling_options["Level3"]["simulation"]["DT"]
