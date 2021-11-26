@@ -104,6 +104,14 @@ if __name__ == '__main__':
         rank = 0
         commSize = 1
 
+    # Determine on how many threads to run the processing:
+    # NUM_THREAD = os.environ.get('OMP_NUM_THREAD')
+    # if NUM_THREAD is None:
+    #     NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')    
+    # if NUM_THREAD is None:
+    #     NUM_THREAD = "1"
+    NUM_THREAD = 0
+
 
     withDorE = withDEL or withEXTR
 
@@ -239,14 +247,7 @@ if __name__ == '__main__':
                     trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]),
                 )
 
-                # Determine on how many threads to run the processing:
-                NUM_THREAD = os.environ.get('OMP_NUM_THREAD')
-                if NUM_THREAD is None:
-                    NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')    
-                if NUM_THREAD is None:
-                    NUM_THREAD = "1"
                 print(f"pCrunch: will run the analysis on {NUM_THREAD} threads.")
-
                 la.process_outputs(cores=int(NUM_THREAD)) 
                 # summary_stats = la._summary_stats
                 # extremes = la._extremes
