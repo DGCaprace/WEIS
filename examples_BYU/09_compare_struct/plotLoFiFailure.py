@@ -34,11 +34,14 @@ withDEL = False
 withNominal = False #REPLACE the EXTR with the nominal load
 WRONG_CONVENTION = False
 importHifiCstr = ""
+HANKY_MLx = False
+HANKY_FLz = False
 
 m_wohler = 10
 n_life_eq = 1
 
 runWISDEM = True
+plotActualDamage = False
 #==================== DEFINITIONS  =====================================
 
 ## File management
@@ -46,38 +49,29 @@ mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
 fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 
+# #Original constant thickness model, under nominal loads
 # fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
 # fname_loads = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_ED/nominalLoads.yaml" #the loading condition you want to use (should have a nominal section)
 # folder_arch = mydir + os.sep + "LoFiEval_isotropic_nominalLoads"
 # withNominal = True
+# # importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominal.npz"
+# importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominalg.npz"
+# HFc = 0 # index of the corresponding constraint in HiFi
 
-# fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS.yaml"
-# fname_loads = mydir + os.sep + "Madsen2019_10_forWEIS/nominalLoads.yaml" #the loading condition you want to use (should have a nominal section)
-# folder_arch = mydir + os.sep + "LoFiEval_composite_nominalLoads"
-# withNominal = True
 
-#Original constant thickness model, under DEL
-fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
-fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
-folder_arch = mydir + os.sep + "LoFiEval_isotropic_DEL"
+# #Original constant thickness model, under DEL
+# fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
+# fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
+# folder_arch = mydir + os.sep + "LoFiEval_isotropic_DEL"
+# withDEL = True
+# importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_damage.npz"
+# HFc = 0 # index of the corresponding constraint in HiFi
+# WRONG_CONVENTION = True # to use old DEL files
+# HANKY_FLz = True
+
 withDEL = True
-WRONG_CONVENTION = True # to use old DEL files
-m_wohler = 10
-n_life_eq = 1
 
-#Optimized 1st iter model, under DEL
-fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_DEL_ITER1.yaml"
-fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
-folder_arch = mydir + os.sep + "LoFiEval_isotropic_ITER1_DEL"
-withDEL = True
-WRONG_CONVENTION = True # to use old DEL files
-m_wohler = 10
-n_life_eq = 1
 
-runWISDEM = True
-
-importHifiCstr = ""
-importHifiCstr = "Madsen2019_10_forWEIS_isotropic_TEST/hifiCstr.npz"
 
 #==================== ======== =====================================
 ## Preprocessing: filling in the loads and relevant parameters
@@ -122,6 +116,10 @@ if withEXTR or withNominal:
     schema["extreme"]["deFLz"] = schema_loads[src_name]["deFLz"]
     schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True #we are using that channel as a way to specify a loading. The we will read the corresponding strain the EXTRM strain  output
 
+    if HANKY_MLx:
+        schema["extreme"]["deMLx"] = ( -np.array(schema_loads[src_name]["deMLy"]) ).tolist()
+    if HANKY_FLz:
+        schema["extreme"]["deFLz"] = ( np.zeros(len(schema_loads[src_name]["deMLx"])) ).tolist()
 
 
 
@@ -138,6 +136,12 @@ if withDEL:
         schema["DEL"]["deMLy"] = schema_loads["DEL"]["deMLy"]
     
     schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLz"]
+
+    if HANKY_MLx:
+        schema["DEL"]["deMLx"] = ( np.array(schema_loads["DEL"]["deMLx"])/2. ).tolist()
+    if HANKY_FLz:
+        schema["DEL"]["deFLz"] = ( np.zeros(len(schema_loads["DEL"]["deMLx"])) ).tolist()
+
 
     schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
     schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
@@ -165,6 +169,10 @@ if runWISDEM:
 #==================== ======== =====================================
 # Read the outputs
 
+exp = 1.0
+if withDEL and plotActualDamage:
+    exp = m_wohler
+
 max_strain = schema["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
 
 WISDEMout = folder_arch + "/blade_out.npz"
@@ -190,8 +198,8 @@ with np.load(WISDEMout) as a:
         data3 = a["rotorse.rs.fatigue_strains.F3_N"]  #should be = to my input
         data4 = a["rotorse.rs.fatigue_strains.M1_N*m"]  #should be = to my input (well, my input but set in principal axes)
         data5 = a["rotorse.rs.fatigue_strains.M2_N*m"]  #should be = to my input (well, my input but set in principal axes)
-        data1 = a["rotorse.rs.fatigue_strains.strainU_spar"] / max_strain #rebuild the failure constraint
-        data2 = a["rotorse.rs.fatigue_strains.strainL_spar"] / max_strain #rebuild the failure constraint
+        data1 = (a["rotorse.rs.fatigue_strains.strainU_spar"] / max_strain)**exp #rebuild the damage constraint
+        data2 = (a["rotorse.rs.fatigue_strains.strainL_spar"] / max_strain)**exp #rebuild the damage constraint
     
     # #original gust stuff:
     # data = a["rotorse.rs.strains.F3_N"]
@@ -204,8 +212,8 @@ with np.load(WISDEMout) as a:
     # data = a["rotorse.rs.constr.constr_max_strainU_spar"]
     # data = a["rotorse.rs.constr.constr_max_strainL_spar"]
 
-    hp1 = ax3.plot(r,-data1,'o-', label=f'SS')  
-    hp2 = ax3.plot(r, data2,'x-', label=f'PS') #NEGATIVE to make them both positive??? but the strain should be > 0 on the PS!!??
+    hp1 = ax3.plot(r, data2,'o-', label=f'PS') #NEGATIVE to make them both positive??? but the strain should be > 0 on the PS!!??
+    hp2 = ax3.plot(r,-data1,'o-', label=f'SS')  
 
     ax4.plot(r,data3,'-', label=f'F3')
     ax4.plot(r,data4,'-', label=f'M1')
@@ -215,6 +223,8 @@ ax3.legend()
 ax3.set_xlabel("r/R")
 ax4.legend()
 ax4.set_xlabel("r/R")
+
+colors = [hp1[0].get_color(), hp2[0].get_color()]
 
 
 if importHifiCstr:
@@ -237,8 +247,8 @@ if importHifiCstr:
             values = np.zeros((len(ylf_skn_oR),ncon))
             for c in range(ncon):
                 for j in range(nhf_skn):
-                    values[2*j,c] = skin_hifi_con[j,isk,c]
-                    values[2*j+1,c] = skin_hifi_con[j,isk,c]
+                    values[2*j,c] = (skin_hifi_con[j,isk,c])**exp
+                    values[2*j+1,c] = (skin_hifi_con[j,isk,c])**exp
 
             # hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
             # if ncon>1:
@@ -246,11 +256,20 @@ if importHifiCstr:
 
             if len(spars)>0:
                 if any( [ skinLoFi[isk] in sp for sp in spars ]):
-                    isp = spars.index(skinLoFi[isk])
-                    hp = ax3.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color='k') # hp1[0].get_color())
-                    # if ncon>1:
-                    #     ax3.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp1[0].get_color())
+                    isp = spars.index(skinLoFi[isk]) 
+                    hp = ax3.plot(ylf_skn_oR,values[:,HFc], 'x--', label=spars_legend[isp], color=colors[isp])
             
+ax3.legend()
+
+if withDEL:
+    fig3.savefig(folder_arch + f"/damage.png")
+    fig4.savefig(folder_arch + f"/load_fatigue.png")
+elif withNominal:
+    fig3.savefig(folder_arch + f"/failure_nominal.png")
+    fig4.savefig(folder_arch + f"/load_nominal.png")
+else:
+    fig3.savefig(folder_arch + f"/failure_extreme.png")
+    fig4.savefig(folder_arch + f"/load_extreme.png")
 
 
 
