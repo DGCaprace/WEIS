@@ -151,9 +151,8 @@ class LoadsAnalysis:
             Path to output or direct output in dict format.
         """
 
-        print(f"pCrunch reading {f}")
-
         if isinstance(f, str):
+            print(f"pCrunch reading {f}")
             output = self.read_file(f)
 
         else:
