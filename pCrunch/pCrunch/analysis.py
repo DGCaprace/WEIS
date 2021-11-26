@@ -60,7 +60,7 @@ class LoadsAnalysis:
         equivalent loads.
         """
 
-        if cores == 0 and MPIPoolExecutor:
+        if cores is None and MPIPoolExecutor:
             stats, extrs, dels = self._process_MPI(**kwargs)
         elif cores > 1:
             stats, extrs, dels = self._process_parallel(cores, **kwargs)

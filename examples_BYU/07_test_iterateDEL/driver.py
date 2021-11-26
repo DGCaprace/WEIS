@@ -110,7 +110,7 @@ if __name__ == '__main__':
     #     NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')    
     # if NUM_THREAD is None:
     #     NUM_THREAD = "1"
-    NUM_THREAD = 0
+    NUM_THREAD = None
 
 
     withDorE = withDEL or withEXTR
