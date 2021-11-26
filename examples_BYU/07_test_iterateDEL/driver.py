@@ -240,9 +240,9 @@ if __name__ == '__main__':
                 )
 
                 # Determine on how many threads to run the processing:
-                NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')
+                NUM_THREAD = os.environ.get('OMP_NUM_THREAD')
                 if NUM_THREAD is None:
-                    NUM_THREAD = os.environ.get('OMP_NUM_THREAD')
+                    NUM_THREAD = os.environ.get('SLURM_CPUS_PER_TASK')    
                 if NUM_THREAD is None:
                     NUM_THREAD = 1
                 print(f"pCrunch: will run the analysis on {NUM_THREAD} threads.")
