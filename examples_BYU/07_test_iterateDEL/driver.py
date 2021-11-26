@@ -452,7 +452,6 @@ if __name__ == '__main__':
                         print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
                     else:
                         print(f"Time series {jEXTR} are being processed for extreme loads...")
-                        print(fast_fnames[jEXTR])
 
                     nbins = 100
                     dt = modeling_options["Level3"]["simulation"]["DT"]
