@@ -6,6 +6,7 @@ __email__ = ["jake.nunemaker@nrel.gov"]
 
 import os
 import multiprocessing as mp
+from mpi4py.futures import MPIPoolExecutor
 from fnmatch import fnmatch
 from functools import partial
 
@@ -59,7 +60,9 @@ class LoadsAnalysis:
         equivalent loads.
         """
 
-        if cores > 1:
+        if cores == 0 and MPIPoolExecutor:
+            stats, extrs, dels = self._process_MPI(**kwargs)
+        elif cores > 1:
             stats, extrs, dels = self._process_parallel(cores, **kwargs)
 
         else:
@@ -91,7 +94,7 @@ class LoadsAnalysis:
 
     def _process_parallel(self, cores, **kwargs):
         """
-        Process outputs in parallel.
+        Process outputs in parallel (threads).
 
         Parameters
         ----------
@@ -116,6 +119,28 @@ class LoadsAnalysis:
 
         return summary_stats, extremes, DELs
 
+    def _process_MPI(self, **kwargs):
+        """
+        Process outputs in parallel (MPI).
+        """
+
+        summary_stats = {}
+        extremes = {}
+        DELs = {}
+
+        pool = MPIPoolExecutor()
+        returned = pool.map(
+            partial(self._process_output, **kwargs), self.outputs
+        )
+        pool.shutdown()
+
+        for filename, stats, extrs, dels in returned:
+            summary_stats[filename] = stats
+            extremes[filename] = extrs
+            DELs[filename] = dels
+
+        return summary_stats, extremes, DELs
+
     def _process_output(self, f, **kwargs):
         """
         Process OpenFAST output `f`.
@@ -125,6 +150,8 @@ class LoadsAnalysis:
         f : str | OpenFASTOutput
             Path to output or direct output in dict format.
         """
+
+        print(f"pCrunch reading {f}")
 
         if isinstance(f, str):
             output = self.read_file(f)
