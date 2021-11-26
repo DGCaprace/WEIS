@@ -36,23 +36,28 @@ wt_output = "Madsen2019_10_forWEIS_isotropic_TEST"
 
 DV_input = "aeroload_DVCentres.dat"
 DV_input = "aeroload_DVCentresCon.dat" #from a structural analysis under nominal loads
-# DV_input = "Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #(partial) result of an optimization under DEL
-# DV_input = "glo_iter1/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat" #full result of an optimization under DEL
 DV_folder = mydir + os.sep + "HiFi_DVs"
 
 
-#Original constant thickness model, under nominal loads
-DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_3/aeroload_DVCentresCon.dat"
-DV_folder = ""
+# #Original constant thickness model, under nominal loads
+# ylab = "nominal" 
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_3/aeroload_DVCentresCon.dat"
+# DV_folder = ""
+# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
 # #Original constant thickness model, under nominal loads, WITH gravity in +y
-DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_4/aeroload_DVCentresCon.dat"
-DV_folder = ""
-
-
-# #Original constant thickness model, under DEL
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
+# ylab = "nominalg" 
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_4/aeroload_DVCentresCon.dat"
 # DV_folder = ""
+# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
+
+#Original constant thickness model, under DEL
+ylab = "damage" 
+DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
+DV_folder = ""
+wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
+
+
 
 # #Optimized 1st iter model, under DEL
 # DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_ITER1_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
@@ -60,6 +65,9 @@ DV_folder = ""
 # wt_output = "Madsen2019_10_forWEIS_isotropic_DEL_ITER1"
 
 
+
+
+# COLORS STUFF
 # DV_input = "generic_DVCentres.dat"
 # DV_folder = "./"
 
@@ -549,7 +557,7 @@ if cnt != nwebs:
 fname_wt_output = mydir + os.sep + wt_output +'.yaml'
 write_geometry_yaml(turbine, fname_wt_output)
 
-os.system(f'mkdir {mydir + os.sep + wt_output}')
+os.system('mkdir %s' % (mydir.replace(" ","\ ") + os.sep + wt_output))
 outfile = mydir + os.sep + wt_output + os.sep + 'hifiCstr_' + ylab + '.npz'
 np.savez(outfile, skinLoFi = skinLoFi, ylf_skn_oR = ylf_skn_oR, skin_hifi_con = skin_hifi_con, nhf_skn = nhf_skn, ncon = ncon, spars = spars, spars_legend = spars_legend)
 
@@ -572,7 +580,7 @@ ax.set_ylabel("thickness [mm]")
 ax.set_xlabel("r/R")
 plt.legend()
 
-fig.savefig(wt_output + "/thickness_skin.png")
+fig.savefig(mydir + os.sep + wt_output + "/thickness_skin.png")
 
 #------- webs ----------
 fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
@@ -591,7 +599,7 @@ ax.set_ylabel("thickness [mm]")
 ax.set_xlabel("r/R")
 plt.legend()
 
-fig.savefig(wt_output + "/thickness_webs.png")
+fig.savefig(mydir + os.sep + wt_output + "/thickness_webs.png")
 
 #==================== Compare CONSTRAINTS Plots #====================
 
@@ -627,8 +635,8 @@ if ncon>0:
     ax2.set_xlabel("r/R")
     ax2.legend()
 
-    fig.savefig(wt_output + "/con_skin.png")
-    fig2.savefig(wt_output + "/con_spars.png")
+    fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_skin.png")
+    fig2.savefig(mydir + os.sep + wt_output + f"/{ylab}_spars.png")
 
     #------- webs ----------
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
@@ -649,7 +657,7 @@ if ncon>0:
     ax.set_xlabel("r/R")
     ax.legend()
 
-    fig.savefig(wt_output + "/con_webs.png")
+    fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_webs.png")
 
 plt.show()
 
