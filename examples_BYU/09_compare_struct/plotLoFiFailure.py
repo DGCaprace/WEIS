@@ -39,9 +39,17 @@ HANKY_FLz = False
 
 m_wohler = 10
 n_life_eq = 1
+eta = 1.35
 
 runWISDEM = True
 plotActualDamage = False
+withLegend = True
+
+#-- plot params--
+figsize=(10, 4)
+fs=15
+plotTight = True
+
 #==================== DEFINITIONS  =====================================
 
 ## File management
@@ -69,7 +77,6 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 # WRONG_CONVENTION = True # to use old DEL files
 # HANKY_FLz = True
 
-withDEL = True
 
 
 
@@ -79,7 +86,7 @@ withDEL = True
 if not os.path.isdir(folder_arch):
     runWISDEM = True
 
-if withEXTR and withDEL and withNominal:
+if withEXTR and withDEL and withNominal or withDEL and withNominal:
     raise ValueError("choose one of EXTRM, DEL or norminal")
 
 if withEXTR and withNominal:
@@ -177,8 +184,8 @@ max_strain = schema["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
 
 WISDEMout = folder_arch + "/blade_out.npz"
 
-fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=figsize)
+fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=figsize)
 
 with np.load(WISDEMout) as a:
 
@@ -190,16 +197,21 @@ with np.load(WISDEMout) as a:
         data3 = a["rotorse.rs.extreme_strains.F3_N"]  #should be = to my input
         data4 = a["rotorse.rs.extreme_strains.M1_N*m"]  #should be = to my input (well, my input but set in principal axes)
         data5 = a["rotorse.rs.extreme_strains.M2_N*m"]  #should be = to my input (well, my input but set in principal axes)
-        data1 = a["rotorse.rs.extreme_strains.strainU_spar"] / max_strain #rebuild the failure constraint
-        data2 = a["rotorse.rs.extreme_strains.strainL_spar"] / max_strain #rebuild the failure constraint
+        data1 = eta * a["rotorse.rs.extreme_strains.strainU_spar"] / max_strain #rebuild the failure constraint
+        data2 = eta * a["rotorse.rs.extreme_strains.strainL_spar"] / max_strain #rebuild the failure constraint
+
+        # data1 = a["rotorse.xu_strain_spar"]
+        # data2 = a["rotorse.yu_strain_spar"]
+        # data1 = a["rotorse.xl_strain_spar"]
+        # data2 = a["rotorse.yl_strain_spar"]
 
     if withDEL:
         #My passed loading stuff:
         data3 = a["rotorse.rs.fatigue_strains.F3_N"]  #should be = to my input
         data4 = a["rotorse.rs.fatigue_strains.M1_N*m"]  #should be = to my input (well, my input but set in principal axes)
         data5 = a["rotorse.rs.fatigue_strains.M2_N*m"]  #should be = to my input (well, my input but set in principal axes)
-        data1 = (a["rotorse.rs.fatigue_strains.strainU_spar"] / max_strain)**exp #rebuild the damage constraint
-        data2 = (a["rotorse.rs.fatigue_strains.strainL_spar"] / max_strain)**exp #rebuild the damage constraint
+        data1 = (eta * a["rotorse.rs.fatigue_strains.strainU_spar"] / max_strain)**exp #rebuild the damage constraint
+        data2 = (eta * a["rotorse.rs.fatigue_strains.strainL_spar"] / max_strain)**exp #rebuild the damage constraint
     
     # #original gust stuff:
     # data = a["rotorse.rs.strains.F3_N"]
@@ -219,16 +231,11 @@ with np.load(WISDEMout) as a:
     ax4.plot(r,data4,'-', label=f'M1')
     ax4.plot(r,data5,'-', label=f'M2')
 
-ax3.legend()
-ax3.set_xlabel("r/R")
-ax4.legend()
-ax4.set_xlabel("r/R")
-
 colors = [hp1[0].get_color(), hp2[0].get_color()]
 
 
 if importHifiCstr:
-    f= np.load(importHifiCstr)
+    f= np.load(mydir + os.sep + importHifiCstr)
 
     ylf_skn_oR = f["ylf_skn_oR"]
     skin_hifi_con = f["skin_hifi_con"]
@@ -247,8 +254,8 @@ if importHifiCstr:
             values = np.zeros((len(ylf_skn_oR),ncon))
             for c in range(ncon):
                 for j in range(nhf_skn):
-                    values[2*j,c] = (skin_hifi_con[j,isk,c])**exp
-                    values[2*j+1,c] = (skin_hifi_con[j,isk,c])**exp
+                    values[2*j,c] = (eta * skin_hifi_con[j,isk,c])**exp
+                    values[2*j+1,c] = (eta * skin_hifi_con[j,isk,c])**exp
 
             # hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
             # if ncon>1:
@@ -258,19 +265,35 @@ if importHifiCstr:
                 if any( [ skinLoFi[isk] in sp for sp in spars ]):
                     isp = spars.index(skinLoFi[isk]) 
                     hp = ax3.plot(ylf_skn_oR,values[:,HFc], 'x--', label=spars_legend[isp], color=colors[isp])
-            
-ax3.legend()
+
+ax3.set_xlabel(r"$r/R$",fontsize=fs)
+ax4.set_xlabel(r"$r/R$",fontsize=fs)
+
+ax4.set_ylabel(r"loads",fontsize=fs)
+
+if withLegend:
+    ax3.legend()
+    ax4.legend()
 
 if withDEL:
-    fig3.savefig(folder_arch + f"/damage.png")
-    fig4.savefig(folder_arch + f"/load_fatigue.png")
+    if plotActualDamage:
+        ax3.set_ylabel(r"$D$",fontsize=fs)
+    else:
+        ax3.set_ylabel(r"$D^{1/m}$",fontsize=fs)
+    fig3.savefig(folder_arch + f"/damage.eps")
+    fig4.savefig(folder_arch + f"/load_fatigue.eps")
 elif withNominal:
-    fig3.savefig(folder_arch + f"/failure_nominal.png")
-    fig4.savefig(folder_arch + f"/load_nominal.png")
+    ax3.set_ylabel(r"$f$",fontsize=fs)
+    fig3.savefig(folder_arch + f"/failure_nominal.eps")
+    fig4.savefig(folder_arch + f"/load_nominal.eps")
 else:
-    fig3.savefig(folder_arch + f"/failure_extreme.png")
-    fig4.savefig(folder_arch + f"/load_extreme.png")
+    ax3.set_ylabel(r"$f$",fontsize=fs)
+    fig3.savefig(folder_arch + f"/failure_extreme.eps")
+    fig4.savefig(folder_arch + f"/load_extreme.eps")
 
+if plotTight:
+    fig3.tight_layout()
+    fig4.tight_layout()
 
 
 plt.show()

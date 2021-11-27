@@ -22,42 +22,71 @@ def load_yaml(filepath):
 #==================== DEFINITIONS  =====================================
 
 ## File management
-mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
+
+# mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
+
+# folder_arch = mydir 
+# DEL_folders = [ "results-IEC1.1_5vels_120s_0Glob_neq1",
+#                 "results-IEC1.1_5vels_120s_1GlobHF_neq1",
+#                 "results-IEC1.1_5vels_120s_2GlobHF_neq1",
+#                 "results-IEC1.1_5vels_120s_3GlobHF_neq1",
+# ]
+# FIX_FOR_SIGN = -1
+
+# folder_hst = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/"
+# HST_files = ["1pt_fatigue_ITER1_44949859_L3/Opt_output/SLSQP_hist_L31pt_fatigue_44949859.hst",
+#             "1pt_fatigue_ITER2_45056517_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45056517.hst",
+#             "1pt_fatigue_ITER3_45066025_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45066025.hst",
+#             "1pt_fatigue_ITER4_45067084_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45067084.hst",
+# ]
+
+# loads = ["DEL"]
+
+##--------------
+
+mydir = mydir = "/Users/dg/OneDrive - BYU/BYU_ATLANTIS/papers/2022_BestFidelity_BYU_UM/results/7_DLCs/"
 
 folder_arch = mydir 
-DEL_folders = [ "results-IEC1.1_5vels_120s_0Glob_neq1",
-                "results-IEC1.1_5vels_120s_1GlobHF_neq1",
-                "results-IEC1.1_5vels_120s_2GlobHF_neq1",
-                "results-IEC1.1_5vels_120s_3GlobHF_neq1",
+DEL_folders = [ "results-IEC1.1-IEC1.3-12vels-6s-IC",
+                "results-IEC1.1-IEC1.3-12vels-6s-ITER1",
+                "results-IEC1.1-IEC1.3-12vels-6s-ITER2",
+                "results-IEC1.1-IEC1.3-12vels-6s-ITER3",
+                "results-IEC1.1-IEC1.3-12vels-6s-ITER4",
+]
+FIX_FOR_SIGN = 1
+
+folder_hst = "/Users/dg/OneDrive - BYU/BYU_ATLANTIS/papers/2022_BestFidelity_BYU_UM/results/MDAO/Aerostructural/"
+HST_files = ["2pt_extreme_fatigue_45285270_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45285270.hst",
+             "2pt_extreme_fatigue_45302283_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45302283.hst",
+             "2pt_extreme_fatigue_45305271_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45305271.hst",
+             "2pt_extreme_fatigue_45308085_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45308085.hst",
 ]
 
-folder_hst = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/"
-HST_files = ["1pt_fatigue_ITER1_44949859_L3/Opt_output/SLSQP_hist_L31pt_fatigue_44949859.hst",
-            "1pt_fatigue_ITER2_45056517_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45056517.hst",
-            "1pt_fatigue_ITER3_45066025_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45066025.hst",
-            "1pt_fatigue_ITER4_45067084_L3/Opt_output/SLSQP_hist_L31pt_fatigue_45067084.hst",
-]
+loads = ["DEL"]
+# loads = ["extreme"]
+
+#--
 
 plotRelativeDEL = True
-HST_fullHistory = False
+HST_fullHistory = True
 
-FIX_FOR_SIGN = -1
+
 
 # sparCapSS_name = "DP13_DP10_uniax"
 # sparCapPS_name = "DP07_DP04_uniax"
 
 # ===================================================================================
-nGlobalIter = len(DEL_folders)
+nGlobalIterDEL = len(DEL_folders)
 
 # --- prepare plots ---
 fig1, ax1 = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
 plt.xlabel("r/R")
 if plotRelativeDEL:
-    ax1[0].set_ylabel("DEFn_i / DEFn_0")
-    ax1[1].set_ylabel("DEFt_i / DEFt_0")
+    ax1[0].set_ylabel(r"$DEF_n (i) \: / \: DEF_n (1)$")
+    ax1[1].set_ylabel(r"$DEF_t (i) \: / \: DEF_t (1)$")
 else:
-    ax1[0].set_ylabel("DEFn [N/m]")
-    ax1[1].set_ylabel("DEFt [N/m]")
+    ax1[0].set_ylabel(r"$DEF_n \, [N/m]$")
+    ax1[1].set_ylabel(r"$DEF_t \, [N/m]$")
 
 fig2, ax2s = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
 plt.xlabel("r/R")
@@ -72,42 +101,44 @@ else:
 
 #==================== LOAD DATA AND PLOT =====================================
 
-for IGLOB in range(nGlobalIter): 
-    #load
-    curr_iter = DEL_folders[IGLOB]
-    aero_loads = load_yaml(folder_arch + os.sep + curr_iter + os.sep + "aggregatedEqLoads.yaml")
-    beam_loads = load_yaml(folder_arch + os.sep + curr_iter + os.sep + "analysis_options_struct_withDEL.yaml")
+for load in loads:
+    for IGLOB in range(nGlobalIterDEL): 
+        IGs1 = IGLOB+1
+        #load
+        curr_iter = DEL_folders[IGLOB]
+        aero_loads = load_yaml(folder_arch + os.sep + curr_iter + os.sep + "aggregatedEqLoads.yaml")
+        beam_loads = load_yaml(folder_arch + os.sep + curr_iter + os.sep + "analysis_options_struct_withDEL.yaml")
 
-    roR_d = beam_loads["DEL"]["grid_nd"]
-    deML1 = np.array(beam_loads["DEL"]["deMLx"])
-    deML2 = np.array(beam_loads["DEL"]["deMLy"])
-    deFL3 = np.array(beam_loads["DEL"]["deFLz"])
-    deFn = np.array(aero_loads["DEL"]["Fn"])
-    deFt = np.array(aero_loads["DEL"]["Ft"])
+        roR_d = beam_loads[load]["grid_nd"]
+        deML1 = np.array(beam_loads[load]["deMLx"])
+        deML2 = np.array(beam_loads[load]["deMLy"])
+        deFL3 = np.array(beam_loads[load]["deFLz"])
+        deFn = np.array(aero_loads[load]["Fn"])
+        deFt = np.array(aero_loads[load]["Ft"])
 
-    if IGLOB ==0:
-        deML1 *= FIX_FOR_SIGN
-        deML2 *= FIX_FOR_SIGN
-        deML1_0 = deML1
-        deML2_0 = deML2
-        deFL3_0 = deFL3
-        deFn_0 = deFn
-        deFt_0 = deFt
+        if IGLOB ==0:
+            deML1 *= FIX_FOR_SIGN
+            deML2 *= FIX_FOR_SIGN
+            deML1_0 = deML1
+            deML2_0 = deML2
+            deFL3_0 = deFL3
+            deFn_0 = deFn
+            deFt_0 = deFt
 
-    if plotRelativeDEL:
-        ax2s[0].plot(roR_d,deML1/deML1_0,'x-', label=f'i{IGLOB}') 
-        ax2s[1].plot(roR_d,deML2/deML2_0,'x-', label=f'i{IGLOB}') 
-        ax2s[2].plot(roR_d,deFL3/deFL3_0,'x-', label=f'i{IGLOB}') 
+        if plotRelativeDEL:
+            ax2s[0].plot(roR_d,deML1/deML1_0,'x-', label=f'i{IGs1}') 
+            ax2s[1].plot(roR_d,deML2/deML2_0,'x-', label=f'i{IGs1}') 
+            ax2s[2].plot(roR_d,deFL3/deFL3_0,'x-', label=f'i{IGs1}') 
 
-        ax1[0].plot(roR_d,deFn/deFn_0,'x-', label=f'i{IGLOB}') 
-        ax1[1].plot(roR_d,deFt/deFt_0,'x-', label=f'i{IGLOB}') 
-    else:
-        ax2s[0].plot(roR_d,deML1,'x-', label=f'i{IGLOB}') 
-        ax2s[1].plot(roR_d,deML2,'x-', label=f'i{IGLOB}') 
-        ax2s[2].plot(roR_d,deFL3,'x-', label=f'i{IGLOB}') 
+            ax1[0].plot(roR_d,deFn/deFn_0,'x-', label=rf'$i={IGs1}$') 
+            ax1[1].plot(roR_d,deFt/deFt_0,'x-', label=rf'$i={IGs1}$') 
+        else:
+            ax2s[0].plot(roR_d,deML1,'x-', label=f'i{IGs1}') 
+            ax2s[1].plot(roR_d,deML2,'x-', label=f'i{IGs1}') 
+            ax2s[2].plot(roR_d,deFL3,'x-', label=f'i{IGs1}') 
 
-        ax1[0].plot(roR_d,deFn,'x-', label=f'i{IGLOB}') 
-        ax1[1].plot(roR_d,deFt,'x-', label=f'i{IGLOB}') 
+            ax1[0].plot(roR_d,deFn,'x-', label=rf'$i={IGs1}$') 
+            ax1[1].plot(roR_d,deFt,'x-', label=rf'$i={IGs1}$') 
 
 ax1[1].legend()
 ax2s[2].legend()
@@ -117,13 +148,17 @@ ax2s[2].legend()
 suff = ''
 if plotRelativeDEL:
     suff = '_rel'
-fig1.savefig(mydir +os.sep+ DEL_folders[-1] + f"/aero_DELs{suff}.png")
-fig2.savefig(mydir +os.sep+ DEL_folders[-1] + f"/beam_DELs{suff}.png")
+fig1.savefig(mydir +os.sep+ DEL_folders[-1] + f"/aero_loads{suff}.eps")
+fig2.savefig(mydir +os.sep+ DEL_folders[-1] + f"/beam_loads{suff}.eps")
 
 
 
 #==================== LOAD HHST DATA =====================================
+nGlobalIter= len(HST_files)
 
+if nGlobalIter==0:
+    plt.show()
+    exit()
 
 if HST_fullHistory:
     fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
@@ -140,6 +175,7 @@ for IGLOB in range(nGlobalIter):
 
     #load
     hst = folder_hst+ os.sep + HST_files[IGLOB]
+    print(hst)
     optHist = History(hst)
     histValues = optHist.getValues()
 
@@ -167,7 +203,7 @@ if HST_fullHistory:
     plt.xlabel("func. call")
     plt.ylabel("objective")    
 
-    fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist.png")
+    fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist.eps")
 else:
     rng = range(0,nGlobalIter+1)
     ax3[0].plot(rng,np.array(obj_val) / ref_obj,'-x')
@@ -178,6 +214,6 @@ else:
     ax3[1].set_ylabel("func. calls")    
     ax3[1].set_xlabel("outer iter")
 
-    fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist_2.png")
+    fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist_2.eps")
 
 plt.show()
