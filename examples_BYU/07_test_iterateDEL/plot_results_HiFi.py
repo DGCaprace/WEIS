@@ -51,7 +51,7 @@ DEL_folders = [ "results-IEC1.1-IEC1.3-12vels-6s-IC",
                 "results-IEC1.1-IEC1.3-12vels-6s-ITER1",
                 "results-IEC1.1-IEC1.3-12vels-6s-ITER2",
                 "results-IEC1.1-IEC1.3-12vels-6s-ITER3",
-                "results-IEC1.1-IEC1.3-12vels-6s-ITER4",
+                # "results-IEC1.1-IEC1.3-12vels-6s-ITER4",
 ]
 FIX_FOR_SIGN = 1
 
@@ -60,6 +60,7 @@ HST_files = ["2pt_extreme_fatigue_45285270_L3/Opt_output/SNOPT_hist_L32pt_extrem
              "2pt_extreme_fatigue_45302283_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45302283.hst",
              "2pt_extreme_fatigue_45305271_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45305271.hst",
              "2pt_extreme_fatigue_45308085_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45308085.hst",
+            #  "2pt_extreme_fatigue_45316550_L3/Opt_output/SNOPT_hist_L32pt_extreme_fatigue_45316550.hst", #already converged at previous iteration
 ]
 
 loads = ["DEL"]
@@ -68,9 +69,9 @@ loads = ["DEL"]
 #--
 
 plotRelativeDEL = True
-HST_fullHistory = True
+HST_fullHistory = False
 
-
+fs = 15
 
 # sparCapSS_name = "DP13_DP10_uniax"
 # sparCapPS_name = "DP07_DP04_uniax"
@@ -80,16 +81,19 @@ nGlobalIterDEL = len(DEL_folders)
 
 # --- prepare plots ---
 fig1, ax1 = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
-plt.xlabel("r/R")
+plt.xlabel(r"$r/R$",fontsize=fs)
 if plotRelativeDEL:
-    ax1[0].set_ylabel(r"$DEF_n (i) \: / \: DEF_n (1)$")
-    ax1[1].set_ylabel(r"$DEF_t (i) \: / \: DEF_t (1)$")
+    # ax1[0].set_ylabel(r"$F_n^{life} (i) \: / \: F_n^{life} (1)$",fontsize=fs)
+    # ax1[1].set_ylabel(r"$F_t^{life} (i) \: / \: F_t^{life} (1)$",fontsize=fs)
+    ax1[0].set_ylabel(r"$ \left( F_n^{life} \right)_i \: / \: \left( F_n^{life} \right)_1$",fontsize=fs)
+    ax1[1].set_ylabel(r"$ \left( F_t^{life} \right)_i \: / \: \left( F_t^{life} \right)_1$",fontsize=fs)
+
 else:
-    ax1[0].set_ylabel(r"$DEF_n \, [N/m]$")
-    ax1[1].set_ylabel(r"$DEF_t \, [N/m]$")
+    ax1[0].set_ylabel(r"$F_n^{life} \, [N/m]$",fontsize=fs)
+    ax1[1].set_ylabel(r"$F_t^{life} \, [N/m]$",fontsize=fs)
 
 fig2, ax2s = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
-plt.xlabel("r/R")
+plt.xlabel(r"$r/R$",fontsize=fs)
 if plotRelativeDEL:
     ax2s[0].set_ylabel("DEM1_i / DEM1_0")
     ax2s[1].set_ylabel("DEM2_i / DEM2_0")
@@ -126,12 +130,13 @@ for load in loads:
             deFt_0 = deFt
 
         if plotRelativeDEL:
-            ax2s[0].plot(roR_d,deML1/deML1_0,'x-', label=f'i{IGs1}') 
-            ax2s[1].plot(roR_d,deML2/deML2_0,'x-', label=f'i{IGs1}') 
-            ax2s[2].plot(roR_d,deFL3/deFL3_0,'x-', label=f'i{IGs1}') 
+            if IGLOB>0:
+                ax2s[0].plot(roR_d,deML1/deML1_0,'x-', label=f'i{IGs1}') 
+                ax2s[1].plot(roR_d,deML2/deML2_0,'x-', label=f'i{IGs1}') 
+                ax2s[2].plot(roR_d,deFL3/deFL3_0,'x-', label=f'i{IGs1}') 
 
-            ax1[0].plot(roR_d,deFn/deFn_0,'x-', label=rf'$i={IGs1}$') 
-            ax1[1].plot(roR_d,deFt/deFt_0,'x-', label=rf'$i={IGs1}$') 
+                ax1[0].plot(roR_d,deFn/deFn_0,'x-', label=rf'$i={IGs1}$') 
+                ax1[1].plot(roR_d,deFt/deFt_0,'x-', label=rf'$i={IGs1}$') 
         else:
             ax2s[0].plot(roR_d,deML1,'x-', label=f'i{IGs1}') 
             ax2s[1].plot(roR_d,deML2,'x-', label=f'i{IGs1}') 
@@ -163,7 +168,7 @@ if nGlobalIter==0:
 if HST_fullHistory:
     fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
 else:
-    fig3, ax3 = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+    fig3, ax3 = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
 
 ref_obj = 1.
 lastNIter = 0
@@ -179,7 +184,7 @@ for IGLOB in range(nGlobalIter):
     optHist = History(hst)
     histValues = optHist.getValues()
 
-    # print(histValues.keys())
+    print(histValues.keys())
     # DVs_hst = histValues["struct"]
     obj_hst = histValues["obj"]
 
@@ -200,20 +205,26 @@ print(obj_val)
 
 if HST_fullHistory:
     ax3.legend()
-    plt.xlabel("func. call")
+    plt.xlabel("N major iteration")
     plt.ylabel("objective")    
 
     fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist.eps")
 else:
     rng = range(0,nGlobalIter+1)
     ax3[0].plot(rng,np.array(obj_val) / ref_obj,'-x')
-    ax3[0].set_xlabel("outer iter")
-    ax3[0].set_ylabel("objective")    
+    ax3[0].set_xlabel("outer iter.",fontsize=fs)
+    ax3[0].set_ylabel("objective",fontsize=fs)
+    ax3[0].set_xticks(range(0,5))
     rng = range(1,nGlobalIter+1)
     ax3[1].plot(rng,f_cnt,'-x')
-    ax3[1].set_ylabel("func. calls")    
-    ax3[1].set_xlabel("outer iter")
+    ax3[1].set_ylabel("N major iteration",fontsize=fs)    
+    ax3[1].set_xlabel("outer iter.",fontsize=fs)
+    ax3[1].set_xticks(range(1,5))
+
+    fig3.tight_layout()
 
     fig3.savefig(mydir +os.sep+ DEL_folders[-1] + f"/obj_hist_2.eps")
+
+
 
 plt.show()

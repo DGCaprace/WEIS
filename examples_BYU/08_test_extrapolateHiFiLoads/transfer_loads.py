@@ -6,7 +6,7 @@ from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import yaml
 
-debug = True #mostly plots and outputs an xdmf file to visualize load vector field (original and scaled)
+debug = 2 #mostly plots and outputs an xdmf file to visualize load vector field (original and scaled)
 fakeHiFi = False #use a fake high-fidelity reference loading.
 
 loFiSource = 3
@@ -311,20 +311,7 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
             FT_hifi_nodes_scaled[j] += myRBF(span_b1[i],rnodes[j],rad) * force_b1[i,chordDir]
 
 
-    if debug:
-        # fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-        # plt.plot(rnodes,FN_lofi_nodes)
-        # plt.plot(rnodes,FN_hifi_nodes)
-        # # plt.plot(rnodes,FN_hifi_nodes*scaling_nodes,':') #theoretical 
-        # plt.plot(rnodes,FN_hifi_nodes_scaled,'--')
-        # plt.ylabel("Fn [N]")
-
-        # fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-        # plt.plot(rnodes,FT_lofi_nodes)
-        # plt.plot(rnodes,FT_hifi_nodes)
-        # # plt.plot(rnodes,FT_hifi_nodes*scaling_nodes,':') #theoretical 
-        # plt.plot(rnodes,FT_hifi_nodes_scaled,'--')
-        # plt.ylabel("Ft [N]")
+    if debug==1:
 
         if method == 2:
             fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
@@ -346,17 +333,63 @@ def aero_HiFi_2_Lofi(ref_aero_forces, output_aero_forces, rEL, FnEL, FtEL, R0, R
             plt.ylabel("scaling")
             plt.savefig("scaling.png")
 
+            plt.show()
 
-        # fig = plt.figure()
-        # ax = plt.axes(projection='3d')
+    if debug==2:
+        if method == 2:
+            folder = output_aero_forces.split(os.sep)[1]
+            suff = output_aero_forces.split("_")[-1].split(".")[-2]
 
-        # SCL = .1 * max( np.linalg.norm( pos , axis=1) ) / max( np.linalg.norm( forces , axis=1) ) 
-        # for k in range( np.shape(forces)[0] ):
-        #     ax.plot3D(pos[k,0] + SCL * np.array([0, forces[k,0]]), 
-        #               pos[k,1] + SCL * np.array([0, forces[k,1]]), 
-        #               pos[k,2] + SCL * np.array([0, forces[k,2]]), 'blue')
+            lw = 2.5
+            fs = 20
+            ls = 15
+            pltsize = (6,3)
 
-        plt.show()
+            #FN REF HF
+            fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltsize)
+            ax1.tick_params(labelsize=ls)
+            plt.plot(r_interp,FnHF_interp, linewidth=lw)
+            plt.ylabel(r"$F_n^{ref} \: [N/m]$", fontsize=fs)
+            plt.tight_layout()
+            plt.savefig(f"./{folder}/Fn_ref_{suff}.eps")
+
+            #FN SCALED
+            fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=pltsize)
+            ax2.tick_params(labelsize=ls)
+            plt.plot(r_interp,FnEL_interp, color='orange', linewidth=lw)
+            plt.plot(r_interp,FnEL_interp, '--', color='chocolate', linewidth=lw)
+            plt.ylabel(r"$F_n \: [N/m]$", fontsize=fs)
+            plt.tight_layout()
+            plt.savefig(f"./{folder}/Fn_scaled_{suff}.eps")
+
+            #FT REF HF
+            fig3, ax3 = plt.subplots(nrows=1, ncols=1, figsize=pltsize)
+            ax3.tick_params(labelsize=ls)
+            plt.plot(r_interp,FtHF_interp, linewidth=lw)
+            plt.ylabel(r"$F_t^{ref} \: [N/m]$", fontsize=fs)
+            plt.xlabel(r"$r/R$", fontsize=fs)
+            plt.tight_layout()
+            plt.savefig(f"./{folder}/Ft_ref_{suff}.eps")
+
+            #FN SCALED
+            fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=pltsize)
+            ax4.tick_params(labelsize=ls)
+            plt.plot(r_interp,FtEL_interp, color='orange', linewidth=lw)
+            plt.plot(r_interp,FtHF_interp*scaling,'--', color='chocolate', linewidth=lw)
+            plt.ylabel(r"$F_t \: [N/m]$", fontsize=fs)
+            plt.xlabel(r"$r/R$", fontsize=fs)
+            plt.tight_layout()
+            plt.savefig(f"./{folder}/Ft_scaled_{suff}.eps")
+
+            fig5, ax5 = plt.subplots(nrows=1, ncols=1, figsize=pltsize)
+            ax5.tick_params(labelsize=ls)
+            plt.plot(r_interp,scaling,'-', linewidth=lw)
+            plt.xlabel(r"$r/R$", fontsize=fs)
+            plt.ylabel("scaling", fontsize=fs)
+            plt.tight_layout()
+            plt.savefig(f"./{folder}/scaling_{suff}.eps")
+
+            plt.show()
         
 
     exportToXdmf("scaled.xmf",pos,forces)

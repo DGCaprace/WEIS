@@ -40,6 +40,8 @@ HANKY_FLz = False
 m_wohler = 10
 n_life_eq = 1
 eta = 1.35
+R = 89.166
+R0 = 2.8
 
 runWISDEM = True
 plotActualDamage = False
@@ -266,6 +268,34 @@ if importHifiCstr:
                     isp = spars.index(skinLoFi[isk]) 
                     hp = ax3.plot(ylf_skn_oR,values[:,HFc], 'x--', label=spars_legend[isp], color=colors[isp])
 
+for file in importHifiCstrCsv:
+    # import csv
+    # with open(importHifiCstrCsv, newline='') as csvfile:
+    #     reader = csv.reader(csvfile, delimiter=',', quotechar='#')
+    #     for row in reader:
+    #         print(row)
+
+    data = np.genfromtxt(file, delimiter=',')
+    sortID = np.argsort(data[:,3]) #along y
+
+    mask_ss = np.where( data[sortID,2]>0 ) 
+    mask_ps = np.where( data[sortID,2]<0 ) 
+    
+
+    #  2347 #suction side is where x>0
+        
+    #SS
+    yspar = (data[sortID[mask_ss],3] - R0) / (R-R0) 
+    lamspar = (data[sortID[mask_ss],7] *eta)**exp
+    ax3.plot(yspar,lamspar, '--', label='ss', color=colors[1])
+
+    #PS
+    yspar = (data[sortID[mask_ps],3] - R0) / (R-R0)
+    lamspar = (data[sortID[mask_ps],7] * eta)**exp
+    ax3.plot(yspar,lamspar, '--', label='ss', color=colors[0])
+
+
+
 ax3.set_xlabel(r"$r/R$",fontsize=fs)
 ax4.set_xlabel(r"$r/R$",fontsize=fs)
 
@@ -283,11 +313,11 @@ if withDEL:
     fig3.savefig(folder_arch + f"/damage.eps")
     fig4.savefig(folder_arch + f"/load_fatigue.eps")
 elif withNominal:
-    ax3.set_ylabel(r"$f$",fontsize=fs)
+    ax3.set_ylabel(r"$Y$",fontsize=fs)
     fig3.savefig(folder_arch + f"/failure_nominal.eps")
     fig4.savefig(folder_arch + f"/load_nominal.eps")
 else:
-    ax3.set_ylabel(r"$f$",fontsize=fs)
+    ax3.set_ylabel(r"$Y$",fontsize=fs)
     fig3.savefig(folder_arch + f"/failure_extreme.eps")
     fig4.savefig(folder_arch + f"/load_extreme.eps")
 

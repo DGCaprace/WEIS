@@ -13,19 +13,22 @@ folder = "results-IEC1.1-IEC1.3_12vels_600s"
 saveExtrNpy = "extrmDistro.npz"
 
 labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$","MLx [kNm]","MLy [kNm]","FLz [kN]"]
 
 Textrm = 50 #return period of extreme event [years]
 
-iplt = [5,15,25] #spanwise stations to plot
+iplt = [15] #spanwise stations to plot
 # iplt = [23] #75%
 
 reProcess = True
 reNormalize = True #make sure that all distributions sum to 1.00
 logfit = True   #proceed to fitting the log of the survival function. If false, we fit the pdf. Recommend truncThr=None if logfit=True
-barplots = False
+barplots = True
 pltSize = (10, 5)
-# pltSize = (6, 3)
+pltSize = (6, 3)
 
+fs = 14
+ls = 12
 
 mydistr = ["weibull_min","weibull_min","norm","norm","norm"]
 mydistr = ["chi2","chi2","chi2","chi2","chi2"]
@@ -92,8 +95,11 @@ for k in range(5):
     f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
 
-    ax1.set_ylabel("probability density")
-    ax2.set_ylabel("probability of exceedance")
+    ax1.tick_params(labelsize=ls)
+    ax2.tick_params(labelsize=ls)
+
+    ax1.set_ylabel("probability density",fontsize=fs)
+    ax2.set_ylabel("probability of exceedance",fontsize=fs)
 
     print(EXTR_distr_p[5,k,:])
     print(EXTR_distr_p[15,k,:])
@@ -105,7 +111,7 @@ for k in range(5):
         dx = (rng[k][1]-rng[k][0])/(nbins)
         
         
-        ax1.set_xlabel(labs[k])
+        ax1.set_xlabel(legs[k],fontsize=fs)
         
         if barplots:
             ss1 = ax1.bar(xbn,EXTR_distro_B1[i,k,:] ,width=0.8*dx)
@@ -117,7 +123,7 @@ for k in range(5):
         
         
         ax2.set_yscale('log')
-        ax2.set_xlabel(labs[k])
+        ax2.set_xlabel(legs[k],fontsize=fs)
         ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])                
 
         dsf1= 1.-np.cumsum(EXTR_distro_B1[i,k,:] )*dx 
@@ -151,15 +157,21 @@ for k in range(5):
 
 plt.show()
 
+pltSize = (6, 3)
+fs = 20
+ls = 15
+
 nx=np.size(EXTR_life_B1,axis=0)
 locs = np.linspace(0.,1.,nx)
 
 for k in range(5):
-    plt.subplots(nrows=1, ncols=1, figsize=pltSize)
+    f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
+    ax1.tick_params(labelsize=ls)
+
     plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
     
-    plt.ylabel(labs[k])
-    plt.xlabel("r/R")
+    plt.ylabel(labs[k],fontsize=fs)
+    plt.xlabel(r"$r/R$",fontsize=fs)
     # plt.legend()
 
     plt.tight_layout()
