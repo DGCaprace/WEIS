@@ -198,3 +198,27 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 p[i,k,2] = params[2] #can I do something better than this?
 
     return extr, p
+
+
+
+
+def determine_max(rng, mat):
+    nbins = np.shape(mat)[2]
+    n1 = np.shape(mat)[0]
+    n2 = np.shape(mat)[1]
+
+    thr = 1e-12 #threshold (normalized frequency)
+
+    extr = np.zeros((n1,n2))
+
+    p = np.nan*np.zeros((n1,n2,3)) 
+
+    for k in range(n2):
+        stp = (rng[k][1]-rng[k][0])/(nbins)
+        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
+        
+        for i in range(n1):
+            imax = np.where(mat[i,k,:] >= thr)
+            extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0
+
+    return extr, p

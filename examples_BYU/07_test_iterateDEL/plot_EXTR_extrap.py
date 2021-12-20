@@ -49,13 +49,24 @@ mydistr = ["norm","norm","twiceMaxForced","norm","norm"]
 
 killUnder = 1E-14 #remove all values in the experimental distribution under this threshold (numerical noise)
 
-f= np.load(folder + os.sep + saveExtrNpy)
+f= np.load(folder + os.sep + saveExtrNpy, allow_pickle=True)
 
 rng = f["rng"]
 nbins = f["nbins"]
-EXTR_life_B1 = f["EXTR_life_B1"]
-EXTR_distr_p = f["EXTR_distr_p"]
-EXTR_distro_B1 = f["EXTR_distro_B1"]
+
+#For old files:
+# EXTR_life_B1 = f["EXTR_life_B1"]
+# EXTR_distr_p = f["EXTR_distr_p"]
+# EXTR_distro_B1 = f["EXTR_distro_B1"]
+
+#For new files:
+dlcs = f["iec_extr"]  
+dlc = dlcs[0]#assuming the dlc we want to look at is at index 0
+EXTR_distro_B1 = dlc["binned_loads"]
+EXTR_life_B1 = dlc["extr_loads"]
+EXTR_distr_p = dlc["extr_params"]
+EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0] #assume there is only 1 timeserie, as a result of aggregation
+
 distr = f["distr"]
 dt = f["dt"]
 
