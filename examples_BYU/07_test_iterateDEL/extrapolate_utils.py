@@ -67,11 +67,29 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
     for k in range(n2):
         stp = (rng[k][1]-rng[k][0])/(nbins)
         x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
-        
-        if 'twiceMaxForced'  in distr_list[k]:
+
+        if 'maxForced'  in distr_list[k]:
+            for i in range(n1):
+                #ABSOLUTE MAX: even if it only occurs once (using double precision threshold)
+                imax = np.where(mat[i,k,:] >= 1e-16)
+                extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
+
+                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                p[i,k,0] = avg
+                # p[i,k,1] = std #could do min/max instead
+                p[i,k,1] = extr[i,k]
+                p[i,k,2] = x[imax[0][0]] if len(imax[0])>0 else 0.0 #min
+
+        elif 'twiceMaxForced'  in distr_list[k]:
             for i in range(n1):
                 imax = np.where(mat[i,k,:] >= thr)
-                extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
+                extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
+
+                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                p[i,k,0] = avg
+                p[i,k,1] = std #could do min/max instead
                 
         elif 'normForced' in distr_list[k]:
             for i in range(n1):
@@ -202,23 +220,29 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
 
 
 
-def determine_max(rng, mat):
-    nbins = np.shape(mat)[2]
-    n1 = np.shape(mat)[0]
-    n2 = np.shape(mat)[1]
+# def determine_max(rng, mat):
+#     nbins = np.shape(mat)[2]
+#     n1 = np.shape(mat)[0]
+#     n2 = np.shape(mat)[1]
 
-    thr = 1e-12 #threshold (normalized frequency)
+#     thr = 1e-12 #threshold (normalized frequency)
 
-    extr = np.zeros((n1,n2))
+#     extr = np.zeros((n1,n2))
 
-    p = np.nan*np.zeros((n1,n2,3)) 
+#     p = np.nan*np.zeros((n1,n2,3)) 
 
-    for k in range(n2):
-        stp = (rng[k][1]-rng[k][0])/(nbins)
-        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
+#     for k in range(n2):
+#         stp = (rng[k][1]-rng[k][0])/(nbins)
+#         x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
         
-        for i in range(n1):
-            imax = np.where(mat[i,k,:] >= thr)
-            extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0
+#         for i in range(n1):
+#             imax = np.where(mat[i,k,:] >= thr)
+#             extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0
 
-    return extr, p
+#             #compute average and std of entire dataset
+#             avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
+#             std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+#             p[i,k,0] = avg
+#             p[i,k,1] = std
+
+#     return extr, p

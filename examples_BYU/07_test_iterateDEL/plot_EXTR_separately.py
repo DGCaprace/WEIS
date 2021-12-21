@@ -26,7 +26,12 @@ list_toplot = [
     [6.1,6.3],
 ]
 
-qty = "MLx"
+qty = "MLy"
+fac = -1000
+
+# qty = "MLx"
+# fac = 1000
+
 
 labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
 legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$","MLx [kNm]","MLy [kNm]","FLz [kN]"]
@@ -64,7 +69,7 @@ f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
 
 ax1.tick_params(labelsize=ls)
 
-ax1.set_ylabel("load [Nm]",fontsize=fs)
+ax1.set_ylabel("load [kNm]",fontsize=fs)
 ax1.set_xlabel("U [m/s]",fontsize=fs)
 
 for file,toplot in zip(fname_analysis_options_struct,list_toplot):
@@ -82,12 +87,26 @@ for file,toplot in zip(fname_analysis_options_struct,list_toplot):
         
         L = []
         for j in range(nsu):
-            L.append(schema["extreme"][key][qty][j][0])
-        
+            L.append(schema["extreme"][key][qty][j][0] / fac)
+
         ss1 = ax1.plot(U,L,'x' )
-        # c1 = ss1[0].get_color()
+        c1 = ss1[0].get_color()
         # ax1.plot(EXTR_life_B1[i,k] , 0, 'x' , color=c1)
     
+        if qty+"_avg" in schema["extreme"][key]:
+            Av = []
+            for j in range(nsu):
+                Av.append(schema["extreme"][key][qty+"_avg"][j][0])
+
+            St = []
+            for j in range(nsu):
+                St.append(schema["extreme"][key][qty+"_std"][j][0])
+
+            print(Av)
+
+            # ss1 = ax1.plot(U,Av,'o', color=c1 )
+            ss1 = ax1.errorbar(U,Av,yerr=St, fmt='o', color=c1 )
+        
         
     
 f1.tight_layout()
