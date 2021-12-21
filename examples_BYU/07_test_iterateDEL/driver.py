@@ -40,6 +40,20 @@ def myOpenFASTread(fname,addExt=0):
 
     return output
 
+def fillDLC(dlc):
+    if 1.4 == dlc["DLC"]:
+        dlc["U"] = ["10","12","14"] #3 velocities, 2 yaw angles. Harcoded Vrated
+        dlc["Seeds"] = [1, 2]
+    if 1.5 == dlc["DLC"]:
+        dlc["Seeds"].extend(dlc["Seeds"]) #double the seeds because we evaluate both directions
+    if 6.1 == dlc["DLC"]:
+        dlc["U"] = ["50","50"] #1 velocity, 2 yaw angles
+        dlc["Seeds"] = [1]
+    if 6.3 == dlc["DLC"]:
+        dlc["U"] = ["40","40"] #1 velocity, 2 yaw angles
+        dlc["Seeds"] = [1]
+
+# ---------------------
 
 if __name__ == '__main__':
 
@@ -68,7 +82,7 @@ if __name__ == '__main__':
     # readOutputFrom = "results_/sim/iter_0" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
     #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
-    fname_analysis_options_FORCED = "" #
+    fname_analysis_options_FORCED = "" #if this analysis file is provides (with EXTREME and FATIGUE loads), the whole preprocessing is bypassed and we jump directly to the lofi optimization
 
     showPlots = False
 
@@ -297,16 +311,7 @@ if __name__ == '__main__':
                 fast_dlclist = []
                 iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
                 for dlc in iec_settings:
-                    # reproduce the internal assumptions of the IEC generator
-                    if 1.4 == dlc["DLC"]:
-                        dlc["U"] = ["10"] #XXX should be: ["10","12","14","10","12","14"] #3 velocities, 2 yaw angles. Harcoded Vrated
-                        dlc["Seeds"] = [1]
-                    if 6.1 == dlc["DLC"]:
-                        dlc["U"] = ["50","50"] #1 velocity, 2 yaw angles
-                        dlc["Seeds"] = [1]
-                    if 6.3 == dlc["DLC"]:
-                        dlc["U"] = ["40","40"] #1 velocity, 2 yaw angles
-                        dlc["Seeds"] = [1]
+                    fillDLC(dlc) # XXX: replicate the internal assumptions of the IEC generator - HARDCODED
 
                     # what we will use
                     if iec_dlc_for_del == dlc["DLC"]: 
@@ -379,16 +384,7 @@ if __name__ == '__main__':
                 nTotDELSim = 0
                 nTotExtrSim = 0 
                 for dlc in iec_settings:
-                    # reproduce the internal assumptions of the IEC generator
-                    if 1.4 == dlc["DLC"]:
-                        dlc["U"] = ["10"] #XXX should be: ["10","12","14","10","12","14"] #3 velocities, 2 yaw angles. Harcoded Vrated
-                        dlc["Seeds"] = [1]
-                    if 6.1 == dlc["DLC"]:
-                        dlc["U"] = ["50","50"] #1 velocity, 2 yaw angles
-                        dlc["Seeds"] = [1]
-                    if 6.3 == dlc["DLC"]:
-                        dlc["U"] = ["40","40"] #1 velocity, 2 yaw angles
-                        dlc["Seeds"] = [1]
+                    fillDLC(dlc) # XXX: replicate the internal assumptions of the IEC generator - HARDCODED
 
                     print(dlc)
                     # our treatment

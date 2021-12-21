@@ -48,11 +48,13 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options, overridd
                     dlc_vars = list(dlc.keys())
                     # Number of wind speeds
                     if 'U' not in dlc_vars:
-                        if dlc['DLC'] == 1.4: # assuming 1.4 is run at [V_rated-2, V_rated, V_rated] and +/- direction change
-                            n_U = 6
-                        elif dlc['DLC'] == 5.1: # assuming 1.4 is run at [V_rated-2, V_rated, V_rated]
+                        if dlc['DLC'] == 1.4: 
+                            n_U = 6  # assuming 1.4 is run at 3 different velocities and +/- direction changes
+                        if dlc['DLC'] == 1.5: 
+                            n_U = 2*len(dlc['U'])  # assuming 1.5 is run at all velocities and +/- direction changes
+                        elif dlc['DLC'] == 5.1: # assuming 5.1 is run at [V_rated-2, V_rated, V_rated]
                             n_U = 3
-                        elif dlc['DLC'] in [6.1, 6.3]: # assuming V_50 for [-8, 8] deg yaw error
+                        elif dlc['DLC'] in [6.1, 6.3]: # assuming V_50/V_1 for [-8, 8]/[-20/20] deg yaw error
                             n_U = 2
                         else:
                             print('Warning: for OpenFAST DLC %1.1f specified in the Analysis Options, wind speeds "U" must be provided'%dlc['DLC'])

@@ -2697,7 +2697,7 @@ properties:
                                 U:
                                     type: array
                                     description: Wind speeds for this DLC
-                                    default: [10.]
+                                    # default: [10.] #DONT ASSIGN A DEFAULT VELOCITY, so that we can handle automatically DLC 1.4,1.5
                                     items:
                                         type: number
                                         unit: m/s

@@ -1366,7 +1366,7 @@ class FASTLoadCases(ExplicitComponent):
                 else:
                     iec.dlc_inputs['Yaw'].append([])
 
-        iec.transient_dir_change        = '-'
+        iec.transient_dir_change        = 'both'
         iec.transient_shear_orientation = 'v'
         iec.TMax      = fst_vt['Fst']['TMax']
         T0            = np.max([0. , iec.TMax - 600.])
