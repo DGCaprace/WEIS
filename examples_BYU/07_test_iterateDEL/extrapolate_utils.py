@@ -72,14 +72,16 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
             for i in range(n1):
                 #ABSOLUTE MAX: even if it only occurs once (using double precision threshold)
                 imax = np.where(mat[i,k,:] >= 1e-16)
-                extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
+                mymax = x[imax[0][-1]] if len(imax[0])>0 else 0.0
+                mymin = x[imax[0][0]] if len(imax[0])>0 else 0.0
+                extr[i,k] = mymax if abs(mymax)>abs(mymin) else mymin  #the max of the absolute value, but keep the sign
 
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                # std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 p[i,k,0] = avg
-                # p[i,k,1] = std #could do min/max instead
-                p[i,k,1] = extr[i,k]
-                p[i,k,2] = x[imax[0][0]] if len(imax[0])>0 else 0.0 #min
+                # p[i,k,1] = std
+                p[i,k,1] = mymax
+                p[i,k,2] = mymin
 
         elif 'twiceMaxForced'  in distr_list[k]:
             for i in range(n1):
@@ -89,7 +91,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 p[i,k,0] = avg
-                p[i,k,1] = std #could do min/max instead
+                p[i,k,1] = std #could do min/max instead, as above
                 
         elif 'normForced' in distr_list[k]:
             for i in range(n1):

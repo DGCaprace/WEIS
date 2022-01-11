@@ -634,8 +634,6 @@ if __name__ == '__main__':
 
                         # new recommended setup:
                         distr = ["norm","norm","twiceMaxForced","norm","norm"] 
-                        distr = ["norm","norm","twiceMaxForced","norm","norm"] 
-                        distr = ["norm","norm","twiceMaxForced","norm","norm"] 
                         # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
                         # ------------
 

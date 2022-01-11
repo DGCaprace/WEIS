@@ -8,8 +8,19 @@ import matplotlib.pyplot as plt
 
 from wisdem.inputs import load_yaml
 
-# saveExtrNpy = "extrmDistro.npz"
+""" 
+# ==================== README ==========================
 
+Plot of the loads experienced in various DLC simulations.
+For extrapolated DLCs (1.1,1.3), the extrapolated loads are shown along with the average measured during the time serie, and the 1-sigma interval.
+For discrete events (DLCs 1.4,1.5,6.1,6.3), the average load of the time serie is plotted. The error bar shows the max load measured in the simulation, 
+which is also the load used for design. Note that the error bar is shown/assumed as symmetric even though we do not actually measure the min load in the 
+time series.
+
+# ======================================================
+"""
+
+# Root files of the various DLC analyses
 fname_analysis_options_struct = [
     "results_DLCs_1p1_1p3" + os.sep + "analysis_options_struct_withUnsteadyLoads.yaml",
     "results_DLCs_1p4" + os.sep + "analysis_options_struct_withUnsteadyLoads.yaml",
@@ -17,8 +28,7 @@ fname_analysis_options_struct = [
     "results_DLCs_6p1_6p3" + os.sep + "analysis_options_struct_withUnsteadyLoads.yaml",
 ]
 
-# list_toplot = [[1.1,1.3,1.4,1.5,6.1,6.3]]
-
+# For each DLC analysis, which DLCs were simulated (in order)
 list_toplot = [
     [1.1,1.3],
     [1.4],
@@ -26,20 +36,18 @@ list_toplot = [
     [6.1,6.3],
 ]
 
+# Choose what you want to plot. 'fac' can be used as a multiplier to what gets plotted.
 qty = "MLy"
 fac = -1000
-
 # qty = "MLx"
 # fac = 1000
 
 
-labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
-legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+# labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+# legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$","MLx [kNm]","MLy [kNm]","FLz [kN]"]
 
 
-iplt = [15] #spanwise stations to plot
-
-pltSize = (6, 3)
+pltSize = (10, 5)
 
 fs = 14
 ls = 12
@@ -47,22 +55,6 @@ ls = 12
 
 
 # ========================================
-
-
-
-# f= np.load(folder + os.sep + saveExtrNpy)
-
-# rng = f["rng"]
-# nbins = f["nbins"]
-# EXTR_life_B1 = f["EXTR_life_B1"]
-# EXTR_distr_p = f["EXTR_distr_p"]
-# EXTR_distro_B1 = f["EXTR_distro_B1"]
-# distr = f["distr"]
-# dt = f["dt"]
-
-
-
-
 
 
 f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
