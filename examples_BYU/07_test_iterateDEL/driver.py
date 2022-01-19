@@ -953,7 +953,7 @@ if __name__ == '__main__':
                 # shutil.move(mydir + os.sep + "outputs_struct", folder_arch + os.sep + "outputs_optim" + os.sep + currFolder)
                 os.system(f"mv {mydir + os.sep + 'outputs_struct'} {folder_arch + os.sep + 'outputs_optim' + os.sep + currFolder}")
             if saveExtrNpy and os.path.isfile(saveExtrNpy):
-                os.system(f"cp {saveExtrNpy} {folder_arch + os.sep}")        
+                os.system(f"mv {saveExtrNpy} {folder_arch + os.sep}")        
 
             figdir = folder_arch + os.sep + 'figs' 
             if not os.path.isdir(figdir):
