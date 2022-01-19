@@ -15,6 +15,7 @@ this_directory = os.path.abspath(os.path.dirname(__file__))
 # Eagle environment
 eagle_nodes = ['el'+str(m) for m in range(10)] + ['ed'+str(m) for m in range(10)]
 eagle_flag = platform.node() in eagle_nodes
+byu_flag   = platform.node().find('rc.byu.edu') >= 0
 ci_flag    = platform.node().find('fv-az') >= 0
 if eagle_flag:
     os.environ["FC"] = "ifort"
@@ -62,6 +63,9 @@ class CMakeBuildExt(build_ext):
             mycompiler = self.compiler.compiler[0]
             if ci_flag:
                 tune = '-O0 -g'  #-ffpe-trap=invalid,zero,overflow,underflow
+
+            elif byu_flag:
+                tune = '-O2 -g -march=broadwell' #FOR ml9 NODES
                 
             elif eagle_flag:
                 tune = '-xSKYLAKE-AVX512'
