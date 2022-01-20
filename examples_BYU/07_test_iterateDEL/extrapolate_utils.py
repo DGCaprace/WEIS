@@ -80,8 +80,8 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 # std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 p[i,k,0] = avg
                 # p[i,k,1] = std
-                p[i,k,1] = mymax
-                p[i,k,2] = mymin
+                p[i,k,1] = mymax - avg
+                p[i,k,2] = mymin - avg
 
         elif 'twiceMaxForced'  in distr_list[k]:
             for i in range(n1):

@@ -769,29 +769,20 @@ if __name__ == '__main__':
                             schema["extreme"][dlc["DLC"]]["MLy_std"] = []
                             schema["extreme"][dlc["DLC"]]["FLz_std"] = []
 
+                            #filling: we assume that the param vector has [average, max or std, xxx]
                             for j in range( len(dlc["Seeds"])*len(dlc["U"]) ):
                                 schema["extreme"][dlc["DLC"]]["MLx"].append( dlc["extr_loads"][j][:,2].tolist() )
                                 schema["extreme"][dlc["DLC"]]["MLy"].append( dlc["extr_loads"][j][:,3].tolist() )
                                 schema["extreme"][dlc["DLC"]]["FLz"].append( dlc["extr_loads"][j][:,4].tolist() )
 
-                                #CAUTION: should multiply by fac here!!
+                                #XXX CAUTION: should multiply by fac here!! finally done in the postpro script but still
                                 schema["extreme"][dlc["DLC"]]["MLx_avg"].append( dlc["extr_params"][j][:,2,0].tolist() )
                                 schema["extreme"][dlc["DLC"]]["MLy_avg"].append( dlc["extr_params"][j][:,3,0].tolist() )
                                 schema["extreme"][dlc["DLC"]]["FLz_avg"].append( dlc["extr_params"][j][:,4,0].tolist() )
 
-                                # XXX: horrible hack
-                                if np.isnan(dlc["extr_params"][j][0,2,2]):
-                                    schema["extreme"][dlc["DLC"]]["MLx_std"].append( dlc["extr_params"][j][:,2,1].tolist() )
-                                    schema["extreme"][dlc["DLC"]]["MLy_std"].append( dlc["extr_params"][j][:,3,1].tolist() )
-                                    schema["extreme"][dlc["DLC"]]["FLz_std"].append( dlc["extr_params"][j][:,4,1].tolist() )
-                                else:
-                                    #replcae standard deviation by max-avg
-                                    tmp = np.abs(dlc["extr_loads"][j][:,2]/fac[2]) - np.abs(dlc["extr_params"][j][:,2,0])
-                                    schema["extreme"][dlc["DLC"]]["MLx_std"].append( tmp.tolist() )
-                                    tmp = np.abs(dlc["extr_loads"][j][:,3]/fac[3]) - np.abs(dlc["extr_params"][j][:,3,0])
-                                    schema["extreme"][dlc["DLC"]]["MLy_std"].append( tmp.tolist() )
-                                    tmp = np.abs(dlc["extr_loads"][j][:,4]/fac[4]) - np.abs(dlc["extr_params"][j][:,4,0])
-                                    schema["extreme"][dlc["DLC"]]["FLz_std"].append( tmp.tolist() )
+                                schema["extreme"][dlc["DLC"]]["MLx_std"].append( dlc["extr_params"][j][:,2,1].tolist() )
+                                schema["extreme"][dlc["DLC"]]["MLy_std"].append( dlc["extr_params"][j][:,3,1].tolist() )
+                                schema["extreme"][dlc["DLC"]]["FLz_std"].append( dlc["extr_params"][j][:,4,1].tolist() )
 
                     fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withUnsteadyLoads.yaml"
                     my_write_yaml(schema, fname_analysis_options_struct)
