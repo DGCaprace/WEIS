@@ -44,6 +44,8 @@ See Readme in that file.
 
 - `plot_EXTR_extrap`  can be used to do nicer plots of the load extrapolation procedure from the driver. Works on a `.npz` file output by the driver to bypass the hard load processing.
 
+- `plot_EXTR_separately`  takes the result of various DLC computations (i.e. the analysis_XXX.yaml) and creates a map of the loadings experienced in the corresponding simulations. 
+
 See Readme in that file.  
 
 :warning:  The sign convention for the loads output in the yaml files is:
