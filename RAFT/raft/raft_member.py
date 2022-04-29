@@ -1,7 +1,6 @@
 # RAFT's support structure member class
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from raft.helpers import *
 
@@ -36,21 +35,23 @@ class Member:
 
         shape      = str(mi['shape'])                                # the shape of the cross section of the member as a string (the first letter should be c or r)
 
-        rAB = self.rB-self.rA                                        # The relative coordinates of upper node from lower node [m]
-        self.l = np.linalg.norm(rAB)                                 # member length [m]
-
         self.potMod = getFromDict(mi, 'potMod', dtype=bool, default=False)     # hard coding BEM analysis enabled for now <<<< need to move this to the member YAML input instead <<<
         
 
         # heading feature for rotation members about the z axis (used for rotated patterns)
-        heading = getFromDict(mi, 'heading', default=0.0)            # rotation about z axis to apply to the member [deg]
-        if heading != 0.0:
-            c = np.cos(np.deg2rad(heading))
-            s = np.sin(np.deg2rad(heading))
+        self.headings = getFromDict(mi, 'headings', shape=-1, default=0.0)
+        self.heading = getFromDict(mi, 'heading', default=0.0)            # rotation about z axis to apply to the member [deg]
+        if self.heading != 0.0:
+            c = np.cos(np.deg2rad(self.heading))
+            s = np.sin(np.deg2rad(self.heading))
             rotMat = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
             self.rA = np.matmul(rotMat, self.rA)
             self.rB = np.matmul(rotMat, self.rB)
 
+
+        rAB = self.rB-self.rA                                        # The relative coordinates of upper node from lower node [m]
+        self.l = np.linalg.norm(rAB)                                 # member length [m]
+    
 
         # station positions
         n = len(mi['stations'])                                     # number of stations
@@ -80,10 +81,14 @@ class Member:
 
 
         self.t         = getFromDict(mi, 't', shape=n)               # shell thickness of the nodes [m]
-
+        
         self.l_fill    = getFromDict(mi, 'l_fill'  , shape=-1, default=0.0)   # length of member (from end A to B) filled with ballast [m]
         self.rho_fill  = getFromDict(mi, 'rho_fill', shape=-1, default=0.0)   # density of ballast in member [kg/m^3]
-
+        
+        if isinstance(self.l_fill, np.ndarray):
+            if len(self.l_fill) != n-1 or len(self.rho_fill) != n-1:
+                raise ValueError(f'The number of stations ({n}) should always be 1 greater than the number of ballast sections, l_fill ({len(self.l_fill)}) and rho_fill ({len(self.rho_fill)})')
+            
         self.rho_shell = getFromDict(mi, 'rho_shell', default=8500.) # shell mass density [kg/m^3]
 
 
@@ -109,20 +114,29 @@ class Member:
 
         # Drag coefficients
         self.Cd_q   = getFromDict(mi, 'Cd_q' , shape=n, default=0.0 )     # axial drag coefficient
-        self.Cd_p1  = getFromDict(mi, 'Cd'   , shape=n, default=0.6 )     # transverse1 drag coefficient
-        self.Cd_p2  = getFromDict(mi, 'Cd'   , shape=n, default=0.6 )     # transverse2 drag coefficient
+        if not np.isscalar(mi['Cd']) and len(mi['Cd'])==2:  # special case for rectangular members with directional coefficients
+            self.Cd_p1 = np.tile(float(mi['Cd'][0]), [n])
+            self.Cd_p2 = np.tile(float(mi['Cd'][1]), [n])
+        else:
+            self.Cd_p1  = getFromDict(mi, 'Cd'   , shape=n, default=0.6 )     # transverse1 drag coefficient
+            self.Cd_p2  = getFromDict(mi, 'Cd'   , shape=n, default=0.6 )     # transverse2 drag coefficient
         self.Cd_End = getFromDict(mi, 'CdEnd', shape=n, default=0.6 )     # end drag coefficient
         # Added mass coefficients
         self.Ca_q   = getFromDict(mi, 'Ca_q' , shape=n, default=0.0 )     # axial added mass coefficient
-        self.Ca_p1  = getFromDict(mi, 'Ca'   , shape=n, default=0.97)     # transverse1 added mass coefficient
-        self.Ca_p2  = getFromDict(mi, 'Ca'   , shape=n, default=0.97)     # transverse2 added mass coefficient
+        if not np.isscalar(mi['Ca']) and len(mi['Ca'])==2:  # special case for rectangular members with directional coefficients
+            self.Ca_p1 = np.tile(float(mi['Ca'][0]), [n])
+            self.Ca_p2 = np.tile(float(mi['Ca'][1]), [n])
+        else:
+            self.Ca_p1  = getFromDict(mi, 'Ca'   , shape=n, default=0.97)     # transverse1 added mass coefficient
+            self.Ca_p2  = getFromDict(mi, 'Ca'   , shape=n, default=0.97)     # transverse2 added mass coefficient
         self.Ca_End = getFromDict(mi, 'CaEnd', shape=n, default=0.6 )     # end added mass coefficient
 
 
         # discretize into strips with a node at the midpoint of each strip (flat surfaces have dl=0)
-        dorsl  = list(self.d) if self.shape=='circular' else list(self.sl)   # get a variable that is either diameter of side length pair
+        dorsl  = list(self.d) if self.shape=='circular' else list(self.sl)   # get a variable that is either diameter or side length pair
         dlsMax = mi['dlsMax']
-        #dlsMax = 5.0                  # maximum node spacing <<< this should be an optional input at some point <<<
+        
+        # start things off with the strip for end A
         ls     = [0.0]                 # list of lengths along member axis where a node is located <<< should these be midpoints instead of ends???
         dls    = [0.0]                 # lumped node lengths (end nodes have half the segment length)
         ds     = [0.5*dorsl[0]]       # mean diameter or side length pair of each strip
@@ -133,7 +147,7 @@ class Member:
             lstrip = self.stations[i]-self.stations[i-1]             # the axial length of the strip
 
             if lstrip > 0.0:
-                ns= int(np.ceil( (lstrip) / dlsMax ))
+                ns= int(np.ceil( (lstrip) / dlsMax ))             # number of strips to split this segment into
                 dlstrip = lstrip/ns
                 m   = 0.5*(dorsl[i] - dorsl[i-1])/lstrip          # taper ratio
                 ls  += [self.stations[i-1] + dlstrip*(0.5+j) for j in range(ns)] # add node locations
@@ -141,14 +155,22 @@ class Member:
                 ds  += [dorsl[i-1] + dlstrip*2*m*(0.5+j) for j in range(ns)]
                 drs += [dlstrip*m]*ns
                 
-            elif lstrip == 0.0:                                      # flat plate case (ends, and any flat transitions)
-                ns = 1
+            elif lstrip == 0.0:                                      # flat plate case (ends, and any flat transitions), a single strip for this section
                 dlstrip = 0
                 ls  += [self.stations[i-1]]                          # add node location
                 dls += [dlstrip]
                 ds  += [0.5*(dorsl[i-1] + dorsl[i])]               # set diameter as midpoint diameter
                 drs += [0.5*(dorsl[i] - dorsl[i-1])]
 
+            # finish things off with the strip for end B
+            dlstrip = 0
+            ls  += [self.stations[-1]]         
+            dls += [0.0]
+            ds  += [0.5*dorsl[-1]]
+            drs += [-0.5*dorsl[-1]]
+        
+        # >>> may want to have a way to not have an end strip for members that intersect things <<<
+        
         self.ns  = len(ls)                                           # number of hydrodynamic strip theory nodes per member
         self.ls  = np.array(ls, dtype=float)                          # node locations along member axis
         #self.dl = 0.5*(np.diff([0.]+lh) + np.diff(lh+[lh[-1]]))
@@ -173,6 +195,8 @@ class Member:
         self.ud        = np.zeros([self.ns,3,nw], dtype=complex)            # wave acceleration
         self.pDyn      = np.zeros([self.ns,  nw], dtype=complex)            # dynamic pressure
         self.F_exc_iner= np.zeros([self.ns,3,nw], dtype=complex)            # wave excitation from inertia (Froude-Krylov)
+        self.F_exc_a   = np.zeros([self.ns,3,nw], dtype=complex)            #  component due to wave acceleration
+        self.F_exc_p   = np.zeros([self.ns,3,nw], dtype=complex)            #  component due to dynamic pressure
         self.F_exc_drag= np.zeros([self.ns,3,nw], dtype=complex)            # wave excitation from linearized drag
 
 
@@ -312,6 +336,7 @@ class Member:
         
         mass_center = 0                                 # total sum of mass the center of mass of the member [kg-m]
         mshell = 0                                      # total mass of the shell material only of the member [kg]
+        self.vfill = []                                 # list of ballast volumes in each submember [m^3] - stored in the object for later access
         mfill = []                                      # list of ballast masses in each submember [kg]
         pfill = []                                      # list of ballast densities in each submember [kg]
         self.M_struc = np.zeros([6,6])                  # member mass/inertia matrix [kg, kg-m, kg-m^2]
@@ -326,6 +351,7 @@ class Member:
                 mass = 0
                 center = np.zeros(3)
                 m_shell = 0
+                v_fill = 0
                 m_fill = 0
                 rho_fill = 0
             else:
@@ -435,6 +461,7 @@ class Member:
             # add/append terms
             mass_center += mass*center                  # total sum of mass the center of mass of the member [kg-m]
             mshell += m_shell                           # total mass of the shell material only of the member [kg]
+            self.vfill.append(v_fill)                        # list of ballast volumes in each submember [m^3]
             mfill.append(m_fill)                        # list of ballast masses in each submember [kg]
             pfill.append(rho_fill)                     # list of ballast densities in each submember [kg]
 
@@ -448,12 +475,12 @@ class Member:
             Mmat[3:,3:] = I_rot     # mass and inertia matrix about the submember's CG in unrotated, but translated local frame
 
             # translate this submember's local inertia matrix to the PRP and add it to the total member's M_struc matrix
-            self.M_struc += translateMatrix6to6DOF(center, Mmat) # mass matrix of the member about the PRP
+            self.M_struc += translateMatrix6to6DOF(Mmat, center) # mass matrix of the member about the PRP
 
 
             # end of submember for loop
 
-
+        
         # END CAPS/BULKHEADS
         # --------- Add the inertia properties of any end caps ---------
         self.m_cap_list = []
@@ -606,8 +633,7 @@ class Member:
             Mmat[3:,3:] = I_rot     # mass and inertia matrix about the submember's CG in unrotated, but translated local frame
 
             # translate this submember's local inertia matrix to the PRP and add it to the total member's M_struc matrix
-            self.M_struc += translateMatrix6to6DOF(center_cap, Mmat) # mass matrix of the member about the PRP
-
+            self.M_struc += translateMatrix6to6DOF(Mmat, center_cap) # mass matrix of the member about the PRP
 
 
         mass = self.M_struc[0,0]        # total mass of the entire member [kg]
@@ -619,7 +645,7 @@ class Member:
 
 
 
-    def getHydrostatics(self, env):
+    def getHydrostatics(self, rho, g):
         '''Calculates member hydrostatic properties, namely buoyancy and stiffness matrix'''
 
         pi = np.pi
@@ -705,14 +731,14 @@ class Member:
                 # derivatives from global to local
                 dPhi_dThx  = -sinBeta                     # \frac{d\phi}{d\theta_x} = \sin\beta
                 dPhi_dThy  =  cosBeta
-                dFz_dz   = -env.rho*env.g*AWP /cosPhi
+                dFz_dz   = -rho*g*AWP /cosPhi
 
                 # note: below calculations are based on untapered case, but
                 # temporarily approximated for taper by using dWP (diameter at water plane crossing) <<< this is rough
 
                 # buoyancy force and moment about end A
-                Fz = env.rho*env.g* V_UWi
-                M  = -env.rho*env.g*pi*( dWP**2/32*(2.0 + tanPhi**2) + 0.5*(rA[2]/cosPhi)**2)*sinPhi  # moment about axis of incline
+                Fz = rho*g* V_UWi
+                M  = -rho*g*pi*( dWP**2/32*(2.0 + tanPhi**2) + 0.5*(rA[2]/cosPhi)**2)*sinPhi  # moment about axis of incline
                 Mx = M*dPhi_dThx
                 My = M*dPhi_dThy
 
@@ -723,17 +749,17 @@ class Member:
 
                 # normal approach to hydrostatic stiffness, using this temporarily until above fancier approach is verified
                 Cmat[2,2] += -dFz_dz
-                Cmat[2,3] += env.rho*env.g*(     -AWP*yWP    )
-                Cmat[2,4] += env.rho*env.g*(      AWP*xWP    )
-                Cmat[3,2] += env.rho*env.g*(     -AWP*yWP    )
-                Cmat[3,3] += env.rho*env.g*(IxWP + AWP*yWP**2 )
-                Cmat[3,4] += env.rho*env.g*(      AWP*xWP*yWP)
-                Cmat[4,2] += env.rho*env.g*(      AWP*xWP    )
-                Cmat[4,3] += env.rho*env.g*(      AWP*xWP*yWP)
-                Cmat[4,4] += env.rho*env.g*(IyWP + AWP*xWP**2 )
+                Cmat[2,3] += rho*g*(     -AWP*yWP    )
+                Cmat[2,4] += rho*g*(      AWP*xWP    )
+                Cmat[3,2] += rho*g*(     -AWP*yWP    )
+                Cmat[3,3] += rho*g*(IxWP + AWP*yWP**2 )
+                Cmat[3,4] += rho*g*(      AWP*xWP*yWP)
+                Cmat[4,2] += rho*g*(      AWP*xWP    )
+                Cmat[4,3] += rho*g*(      AWP*xWP*yWP)
+                Cmat[4,4] += rho*g*(IyWP + AWP*xWP**2 )
 
-                Cmat[3,3] += env.rho*env.g*V_UWi * r_center[2]
-                Cmat[4,4] += env.rho*env.g*V_UWi * r_center[2]
+                Cmat[3,3] += rho*g*V_UWi * r_center[2]
+                Cmat[4,4] += rho*g*V_UWi * r_center[2]
 
                 V_UW += V_UWi
                 r_centerV += r_center*V_UWi
@@ -751,11 +777,11 @@ class Member:
                 r_center = rA + self.q*hc             # absolute coordinates of center of volume of this segment[m]
 
                 # buoyancy force (and moment) vector
-                Fvec += translateForce3to6DOF( r_center, np.array([0, 0, env.rho*env.g*V_UWi]) )
+                Fvec += translateForce3to6DOF(np.array([0, 0, rho*g*V_UWi]), r_center)
 
                 # hydrostatic stiffness matrix (about end A)
-                Cmat[3,3] += env.rho*env.g*V_UWi * r_center[2]
-                Cmat[4,4] += env.rho*env.g*V_UWi * r_center[2]
+                Cmat[3,3] += rho*g*V_UWi * r_center[2]
+                Cmat[4,4] += rho*g*V_UWi * r_center[2]
 
                 V_UW += V_UWi
                 r_centerV += r_center*V_UWi
@@ -768,12 +794,12 @@ class Member:
             r_center = r_centerV/V_UW    # calculate overall member center of buoyancy
         else:
             r_center = np.zeros(3)       # temporary fix for out-of-water members
-
+        
         return Fvec, Cmat, V_UW, r_center, AWP, IWP, xWP, yWP
 
 
-    def plot(self, ax):
-        '''Draws the member on the passed axes'''
+    def plot(self, ax, r_ptfm=[0,0,0], R_ptfm=[], color='k', nodes=0):
+        '''Draws the member on the passed axes, and optional platform offset and rotation matrix'''
 
         # --- get coordinates of member edges in member reference frame -------------------
 
@@ -809,14 +835,19 @@ class Member:
             coords = np.vstack([X, Y, Z])
 
 
-        # ----- rotate into global frame ------------------------------
-        newcoords = np.matmul(self.R, coords)
+        # ----- move to global frame ------------------------------
+        newcoords = np.matmul(self.R, coords)          # relative orientation in platform
 
-        # shift to end A location
-        Xs = newcoords[0,:] + self.rA[0]
-        Ys = newcoords[1,:] + self.rA[1]
-        Zs = newcoords[2,:] + self.rA[2]
+        newcoords = newcoords + self.rA[:,None]        # shift to end A location, still relative to platform
+        
+        if len(R_ptfm) > 0:
+            newcoords = np.matmul(R_ptfm, newcoords)   # account for offset platform orientation
 
+        # apply platform translational offset
+        Xs = newcoords[0,:] + r_ptfm[0]
+        Ys = newcoords[1,:] + r_ptfm[1]
+        Zs = newcoords[2,:] + r_ptfm[2]
+        
         # plot on the provided axes
         linebit = []  # make empty list to hold plotted lines, however many there are
         for i in range(n):  #range(int(len(Xs)/2-1)):
@@ -824,10 +855,15 @@ class Member:
             #linebit.append(ax.plot(Xs[[2*i,2*i+2]],Ys[[2*i,2*i+2]],Zs[[2*i,2*i+2]]      , color='k'))  # end A edges
             #linebit.append(ax.plot(Xs[[2*i+1,2*i+3]],Ys[[2*i+1,2*i+3]],Zs[[2*i+1,2*i+3]], color='k'))  # end B edges
 
-            linebit.append(ax.plot(Xs[m*i:m*i+m],Ys[m*i:m*i+m],Zs[m*i:m*i+m]            , color='k'))  # side edges
+            linebit.append(ax.plot(Xs[m*i:m*i+m],Ys[m*i:m*i+m],Zs[m*i:m*i+m]            , color=color, lw=0.5, zorder=2))  # side edges
 
         for j in range(m):
-            linebit.append(ax.plot(Xs[j::m], Ys[j::m], Zs[j::m]            , color='k'))  # station rings
+            linebit.append(ax.plot(Xs[j::m], Ys[j::m], Zs[j::m]            , color=color, lw=0.5, zorder=2))  # station rings
+
+
+        # plot nodes if asked
+        if nodes > 0:
+            ax.scatter(self.r[:,0], self.r[:,1], self.r[:,2])
 
         return linebit
 

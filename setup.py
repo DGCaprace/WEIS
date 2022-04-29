@@ -7,6 +7,7 @@ from setuptools import find_packages
 from numpy.distutils.command.build_ext import build_ext
 from numpy.distutils.core import setup, Extension
 from io import open
+import subprocess
 
 # Global constants
 ncpus = multiprocessing.cpu_count()
@@ -52,7 +53,7 @@ class CMakeBuildExt(build_ext):
 
             # CMAKE profiles default for all
             buildtype = 'RelWithDebInfo' # Hydrodyn has issues with Debug
-            cmake_args = ['-DBUILD_SHARED_LIBS=OFF',
+            cmake_args = ['-DBUILD_SHARED_LIBS=ON',
                           '-DDOUBLE_PRECISION:BOOL=OFF',
                           '-DCMAKE_POSITION_INDEPENDENT_CODE=ON',
                           '-DCMAKE_INSTALL_PREFIX='+localdir,
@@ -62,7 +63,7 @@ class CMakeBuildExt(build_ext):
             # Custom tuning
             mycompiler = self.compiler.compiler[0]
             if ci_flag:
-                tune = '-O0 -g'  #-ffpe-trap=invalid,zero,overflow,underflow
+                tune = '-g'  #-O0  -ffpe-trap=invalid,zero,overflow,underflow
 
             elif byu_flag:
                 tune = '-O2 -g -march=broadwell' #FOR ml9 NODES
@@ -108,7 +109,7 @@ class CMakeBuildExt(build_ext):
 
 # All of the extensions
 fastExt    = CMakeExtension('openfast','OpenFAST')
-roscoExt   = CMakeExtension('rosco','ROSCO')
+roscoExt   = CMakeExtension('rosco','ROSCO/ROSCO')
 extList = [roscoExt] if platform.system() == "Windows" else  [roscoExt, fastExt]
 
 # Setup content
@@ -132,13 +133,9 @@ weis_pkgs       = find_packages()
 
 # Install the python sub-packages
 print(sys.argv)
-for pkg in ['WISDEM','ROSCO_toolbox','pCrunch','pyHAMS','MoorPy','RAFT','pyoptsparse']:
+for pkg in ['WISDEM','ROSCO','pCrunch','pyHAMS','MoorPy','RAFT','dtqpy']:
     os.chdir(pkg)
-    if pkg == 'pyoptsparse':
-        # Build pyOptSparse specially
-        run_setup('setup.py', script_args=['install'])
-    else:
-        run_setup('setup.py', script_args=sys.argv[1:], stop_after='run')
+    run_setup('setup.py', script_args=sys.argv[1:], stop_after='run')
     # subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", "."])  # This option runs `pip install -e .` on each package
     os.chdir('..')
 

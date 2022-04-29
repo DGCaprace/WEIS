@@ -3,7 +3,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/WISDEM/WEIS/badge.svg?branch=develop)](https://coveralls.io/github/WISDEM/WEIS?branch=develop)
 [![Actions Status](https://github.com/WISDEM/WEIS/workflows/CI_WEIS/badge.svg?branch=develop)](https://github.com/WISDEM/WEIS/actions)
 [![Documentation Status](https://readthedocs.org/projects/weis/badge/?version=develop)](https://weis.readthedocs.io/en/develop/?badge=develop)
-
+[![DOI](https://zenodo.org/badge/289320573.svg)](https://zenodo.org/badge/latestdoi/289320573)
 
 # BYU note
 
@@ -65,10 +65,11 @@ The installation instructions below use the environment name, "weis-env," but an
     
 2.  Use conda to install the build dependencies.  Note the differences between Windows and Mac/Linux build systems. Skip to point #3 if you are on the DOE HPC system Eagle
 
-        conda install -y cmake cython geopy git jsonschema make matplotlib-base numpy numpydoc openmdao openpyxl pandas pip pytest pyyaml ruamel_yaml scipy setuptools shapely six sympy swig xlrd
-        conda install -y petsc4py mpi4py compilers       # (Mac / Linux only)   
+        conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy openmdao openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
+        conda install -y petsc4py mpi4py                 # (Mac / Linux only)   
+        conda install -y compilers                       # (Mac only)   
         conda install -y m2w64-toolchain libpython       # (Windows only)
-        pip install simpy marmot-agents jsonmerge
+        pip install marmot-agents jsonmerge fatpack
         git clone https://github.com/WISDEM/WEIS.git
         cd WEIS
         git checkout branch_name # (Only if you want to switch git branch, say develop)
@@ -76,9 +77,9 @@ The installation instructions below use the environment name, "weis-env," but an
 
 3. Instructions specific for DOE HPC system Eagle
 
-        conda install -y cmake cython geopy git jsonschema make matplotlib-base numpy numpydoc openmdao openpyxl pandas pip pytest pyyaml ruamel_yaml scipy setuptools shapely six sympy swig xlrd
-        conda install -y petsc4py mpi4py  
-        pip install simpy marmot-agents jsonmerge
+        conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy openmdao openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
+        conda install -y petsc4py mpi4py
+        pip install marmot-agents jsonmerge fatpack
         git clone https://github.com/WISDEM/WEIS.git
         cd WEIS
         git checkout branch_name # (Only if you want to switch git branch, say develop)

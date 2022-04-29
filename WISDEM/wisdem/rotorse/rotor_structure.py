@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 import wisdem.ccblade._bem as _bem
 import wisdem.commonse.utilities as util
 import wisdem.pyframe3dd.pyframe3dd as pyframe3dd
@@ -7,6 +8,9 @@ from wisdem.rotorse import RPM2RS, RS2RPM
 from wisdem.commonse import gravity
 from wisdem.commonse.csystem import DirectionVector
 from wisdem.ccblade.ccblade_component import CCBladeLoads, CCBladeEvaluate
+from wisdem.rotorse.geometry_tools.geometry import remap2grid
+import logging
+logger = logging.getLogger("wisdem/weis")
 
 
 class BladeCurvature(ExplicitComponent):
@@ -306,6 +310,12 @@ class RunFrame3DD(ExplicitComponent):
             desc="distribution along blade span of bending moment w.r.t principal axis 2",
         )
         self.add_output(
+            "F2",
+            val=np.zeros(n_span),
+            units="N",
+            desc="distribution along blade span of force w.r.t principal axis 2",
+        )
+        self.add_output(
             "F3",
             val=np.zeros(n_span),
             units="N",
@@ -482,6 +492,7 @@ class RunFrame3DD(ExplicitComponent):
         mshapes_y = mshapes_y[:n_freq2, :]
 
         # shear and bending w.r.t. principal axes
+        F2 = np.r_[-forces.Vz[iCase, 0], forces.Vz[iCase, 1::2]]  # TODO verify if this is correct
         F3 = np.r_[-forces.Nx[iCase, 0], forces.Nx[iCase, 1::2]] #root + end of every subsequent elements
         M1 = np.r_[-forces.Myy[iCase, 0], forces.Myy[iCase, 1::2]]
         M2 = np.r_[-forces.Mzz[iCase, 0], forces.Mzz[iCase, 1::2]]
@@ -505,6 +516,7 @@ class RunFrame3DD(ExplicitComponent):
         outputs["EI22"] = EI22
         outputs["M1"] = M1
         outputs["M2"] = M2
+        outputs["F2"] = F2
         outputs["F3"] = F3
         outputs["alpha"] = alpha
 
@@ -659,7 +671,9 @@ class ComputeStrains(ExplicitComponent):
         rotorse_options = self.options["modeling_options"]["WISDEM"]["RotorSE"]
         self.n_span = n_span = rotorse_options["n_span"]
 
+        self.add_input("chord", val=np.zeros(n_span), units="m", desc="chord length at each section")
         self.add_input("EA", val=np.zeros(n_span), units="N", desc="axial stiffness")
+        self.add_input("A", val=np.zeros(n_span), units="m**2", desc="airfoil cross section material area")
 
         self.add_input(
             "EI11",
@@ -698,42 +712,42 @@ class ComputeStrains(ExplicitComponent):
             desc="axial resultant along blade span",
         )
         self.add_input(
-            "xu_strain_spar",
+            "xu_spar",
             val=np.zeros(n_span),
             desc="x-position of midpoint of spar cap on upper surface for strain calculation",
         )
         self.add_input(
-            "xl_strain_spar",
+            "xl_spar",
             val=np.zeros(n_span),
             desc="x-position of midpoint of spar cap on lower surface for strain calculation",
         )
         self.add_input(
-            "yu_strain_spar",
+            "yu_spar",
             val=np.zeros(n_span),
             desc="y-position of midpoint of spar cap on upper surface for strain calculation",
         )
         self.add_input(
-            "yl_strain_spar",
+            "yl_spar",
             val=np.zeros(n_span),
             desc="y-position of midpoint of spar cap on lower surface for strain calculation",
         )
         self.add_input(
-            "xu_strain_te",
+            "xu_te",
             val=np.zeros(n_span),
             desc="x-position of midpoint of trailing-edge panel on upper surface for strain calculation",
         )
         self.add_input(
-            "xl_strain_te",
+            "xl_te",
             val=np.zeros(n_span),
             desc="x-position of midpoint of trailing-edge panel on lower surface for strain calculation",
         )
         self.add_input(
-            "yu_strain_te",
+            "yu_te",
             val=np.zeros(n_span),
             desc="y-position of midpoint of trailing-edge panel on upper surface for strain calculation",
         )
         self.add_input(
-            "yl_strain_te",
+            "yl_te",
             val=np.zeros(n_span),
             desc="y-position of midpoint of trailing-edge panel on lower surface for strain calculation",
         )
@@ -759,25 +773,52 @@ class ComputeStrains(ExplicitComponent):
             val=np.zeros(n_span),
             desc="strain in trailing-edge panels on lower surface at location xl,yl_te with loads P_te",
         )
+        self.add_output(
+            "axial_root_sparU_load2stress",
+            val=np.zeros(6),
+            units="m**2",
+            desc="Linear conversion factors between loads [Fx-z; Mx-z] and axial stress in the upper spar cap at blade root",
+        )
+        self.add_output(
+            "axial_root_sparL_load2stress",
+            val=np.zeros(6),
+            units="m**2",
+            desc="Linear conversion factors between loads [Fx-z; Mx-z] and axial stress in the lower spar cap at blade root",
+        )
+        self.add_output(
+            "axial_maxc_teU_load2stress",
+            val=np.zeros(6),
+            units="m**2",
+            desc="Linear conversion factors between loads [Fx-z; Mx-z] and axial stress in the upper trailing edge at blade max chord",
+        )
+        self.add_output(
+            "axial_maxc_teL_load2stress",
+            val=np.zeros(6),
+            units="m**2",
+            desc="Linear conversion factors between loads [Fx-z; Mx-z] and axial stress in the lower trailing edge at blade max chord",
+        )
 
     def compute(self, inputs, outputs):
 
         EA = inputs["EA"]
+        A = inputs["A"]
+        E = EA / A
         EI11 = inputs["EI11"]
         EI22 = inputs["EI22"]
-        xu_strain_spar = inputs["xu_strain_spar"]
-        xl_strain_spar = inputs["xl_strain_spar"]
-        yu_strain_spar = inputs["yu_strain_spar"]
-        yl_strain_spar = inputs["yl_strain_spar"]
-        xu_strain_te = inputs["xu_strain_te"]
-        xl_strain_te = inputs["xl_strain_te"]
-        yu_strain_te = inputs["yu_strain_te"]
-        yl_strain_te = inputs["yl_strain_te"]
-        F3 = inputs["F3"]
-        M1in = inputs["M1"]
-        M2in = inputs["M2"]
+        xu_spar = inputs["xu_spar"]
+        xl_spar = inputs["xl_spar"]
+        yu_spar = inputs["yu_spar"]
+        yl_spar = inputs["yl_spar"]
+        xu_te = inputs["xu_te"]
+        xl_te = inputs["xl_te"]
+        yu_te = inputs["yu_te"]
+        yl_te = inputs["yl_te"]
+        F3_principle = inputs["F3"]
+        M1_principle = inputs["M1"]
+        M2_principle = inputs["M2"]
         alpha = inputs["alpha"]
-        # np.savez('nrel5mw_test2.npz',EA=EA,EI11=EI11,EI22=EI22,xu_strain_spar=xu_strain_spar,xl_strain_spar=xl_strain_spar,yu_strain_spar=yu_strain_spar,yl_strain_spar=yl_strain_spar,xu_strain_te=xu_strain_te,xl_strain_te=xl_strain_te,yu_strain_te=yu_strain_te,yl_strain_te=yl_strain_te, F3=F3, M1=M1, M2=M2, alpha=alpha)
+        n_sec = EA.size
+        # np.savez('nrel5mw_test2.npz',EA=EA,EI11=EI11,EI22=EI22,xu_spar=xu_spar,xl_spar=xl_spar,yu_spar=yu_spar,yl_spar=yl_spar,xu_te=xu_te,xl_te=xl_te,yu_te=yu_te,yl_te=yl_te, F3=F3, M1=M1, M2=M2, alpha=alpha)
 
         ca = np.cos(np.deg2rad(alpha))
         sa = np.sin(np.deg2rad(alpha))
@@ -792,7 +833,7 @@ class ComputeStrains(ExplicitComponent):
             y2 = -x * sa + y * ca
             return x2, y2
 
-        def strain(xu, yu, xl, yl):
+        def strain(xu, yu, xl, yl, M1in=M1_principle, M2in=M2_principle, F3in=F3_principle):
             # use profile c.s. to use Hansen's notation
             xuu, yuu = yu, xu
             xll, yll = yl, xl
@@ -805,21 +846,70 @@ class ComputeStrains(ExplicitComponent):
 
             # compute strain
             x, y = rotate(xuu, yuu)
-            strainU = M1 / EI11 * y - M2 / EI22 * x + F3 / EA  # Hansen, wind energy handbook, Eq.11.10
+            strainU = M1 / EI11 * y - M2 / EI22 * x + F3in / EA  # Hansen, wind energy handbook, Eq.11.10
 
             x, y = rotate(xll, yll)
-            strainL = M1 / EI11 * y - M2 / EI22 * x + F3 / EA
+            strainL = M1 / EI11 * y - M2 / EI22 * x + F3in / EA
 
             return strainU, strainL
 
         # ----- strains along the mid-line of the spar caps and at the center of the two trailing edge reinforcement thickness (not the trailing edge) -----
-        strainU_spar, strainL_spar = strain(xu_strain_spar, yu_strain_spar, xl_strain_spar, yl_strain_spar)
-        strainU_te, strainL_te = strain(xu_strain_te, yu_strain_te, xl_strain_te, yl_strain_te)
+        strainU_spar, strainL_spar = strain(xu_spar, yu_spar, xl_spar, yl_spar)
+        strainU_te, strainL_te = strain(xu_te, yu_te, xl_te, yl_te)
 
         outputs["strainU_spar"] = strainU_spar
         outputs["strainL_spar"] = strainL_spar
         outputs["strainU_te"] = strainU_te
         outputs["strainL_te"] = strainL_te
+
+        # Sensitivities for fatigue calculation
+        Espar = E  # Can update with rotor_elasticity later TODO
+        Ete = E  # Can update with rotor_elasticity later TODO
+        ax_sparU_load2stress = np.zeros((n_sec, 6))
+        ax_sparL_load2stress = np.zeros((n_sec, 6))
+        ax_teU_load2stress = np.zeros((n_sec, 6))
+        ax_teL_load2stress = np.zeros((n_sec, 6))
+
+        # Unit load response for Mxx
+        Fz = np.zeros(M1_principle.shape)  # axial
+        Mxx = np.ones(M1_principle.shape)  # edgewise
+        Myy = np.zeros(M1_principle.shape)  # flapwise
+        M1p, M2p = rotate(Myy, Mxx)
+        strainU_spar_p, strainL_spar_p = strain(xu_spar, yu_spar, xl_spar, yl_spar, M1in=M1p, M2in=M2p, F3in=Fz)
+        strainU_te_p, strainL_te_p = strain(xu_te, yu_te, xl_te, yl_te, M1in=M1p, M2in=M2p, F3in=Fz)
+        ax_sparU_load2stress[:, 3] = Espar * strainU_spar_p
+        ax_sparL_load2stress[:, 3] = Espar * strainL_spar_p
+        ax_teU_load2stress[:, 3] = Ete * strainU_te_p
+        ax_teL_load2stress[:, 3] = Ete * strainL_te_p
+
+        # Unit load response for Myy
+        Mxx = np.zeros(M1_principle.shape)  # edgewise
+        Myy = np.ones(M1_principle.shape)  # flapwise
+        M1p, M2p = rotate(Myy, Mxx)
+        strainU_spar_p, strainL_spar_p = strain(xu_spar, yu_spar, xl_spar, yl_spar, M1in=M1p, M2in=M2p, F3in=Fz)
+        strainU_te_p, strainL_te_p = strain(xu_te, yu_te, xl_te, yl_te, M1in=M1p, M2in=M2p, F3in=Fz)
+        ax_sparU_load2stress[:, 4] = Espar * strainU_spar_p
+        ax_sparL_load2stress[:, 4] = Espar * strainL_spar_p
+        ax_teU_load2stress[:, 4] = Ete * strainU_te_p
+        ax_teL_load2stress[:, 4] = Ete * strainL_te_p
+
+        # Unit load response for Fzz
+        Fz = np.ones(M1_principle.shape)  # axial
+        Mxx = np.zeros(M1_principle.shape)  # edgewise
+        Myy = np.zeros(M1_principle.shape)  # flapwise
+        M1p, M2p = rotate(Myy, Mxx)
+        strainU_spar_p, strainL_spar_p = strain(xu_spar, yu_spar, xl_spar, yl_spar, M1in=M1p, M2in=M2p, F3in=Fz)
+        strainU_te_p, strainL_te_p = strain(xu_te, yu_te, xl_te, yl_te, M1in=M1p, M2in=M2p, F3in=Fz)
+        ax_sparU_load2stress[:, 2] = Espar * strainU_spar_p
+        ax_sparL_load2stress[:, 2] = Espar * strainL_spar_p
+        ax_teU_load2stress[:, 2] = Ete * strainU_te_p
+        ax_teL_load2stress[:, 2] = Ete * strainL_te_p
+
+        imaxc = np.argmax(inputs["chord"])
+        outputs["axial_root_sparU_load2stress"] = ax_sparU_load2stress[0, :]
+        outputs["axial_root_sparL_load2stress"] = ax_sparL_load2stress[0, :]
+        outputs["axial_maxc_teU_load2stress"] = ax_teU_load2stress[imaxc, :]
+        outputs["axial_maxc_teL_load2stress"] = ax_teL_load2stress[imaxc, :]
 
 
 class TipDeflection(ExplicitComponent):
@@ -865,16 +955,17 @@ class DesignConstraints(ExplicitComponent):
 
     def setup(self):
         rotorse_options = self.options["modeling_options"]["WISDEM"]["RotorSE"]
-        self.n_span = n_span = rotorse_options["n_span"]
-        self.n_freq = n_freq = rotorse_options["n_freq"]
+        n_span = rotorse_options["n_span"]
+        n_freq = rotorse_options["n_freq"]
         n_freq2 = int(n_freq / 2)
-        self.opt_options = opt_options = self.options["opt_options"]
-        self.n_opt_spar_cap_ss = n_opt_spar_cap_ss = opt_options["design_variables"]["blade"]["structure"][
-            "spar_cap_ss"
-        ]["n_opt"]
-        self.n_opt_spar_cap_ps = n_opt_spar_cap_ps = opt_options["design_variables"]["blade"]["structure"][
-            "spar_cap_ps"
-        ]["n_opt"]
+        self.opt_options = opt_options = self.options["opt_options"] #DG: only need to be an attribute because of n and eta below. Change that!
+        # self.m = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["m_wohler"] #Wohler exponent
+        # self.eta = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eta"]
+        
+        n_opt_spar_cap_ss = opt_options["design_variables"]["blade"]["structure"]["spar_cap_ss"]["n_opt"]
+        n_opt_spar_cap_ps = opt_options["design_variables"]["blade"]["structure"]["spar_cap_ps"]["n_opt"]
+        n_opt_te_ss = opt_options["design_variables"]["blade"]["structure"]["te_ss"]["n_opt"]
+        n_opt_te_ps = opt_options["design_variables"]["blade"]["structure"]["te_ps"]["n_opt"]
 
         self.eq_NcycleU_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["eq_Ncycle"]
         self.eq_NcycleL_spar = opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["eq_Ncycle"]
@@ -914,11 +1005,23 @@ class DesignConstraints(ExplicitComponent):
             val=np.zeros(n_span),
             desc="strain in spar cap on lower surface at location xl,yl_strain with user extreme loads",
         )
+        self.add_input(
+            "strainU_te",
+            val=np.zeros(n_span),
+            desc="strain in trailing edge on upper surface at location xu,yu_strain with loads P_strain",
+        )
+        self.add_input(
+            "strainL_te",
+            val=np.zeros(n_span),
+            desc="strain in trailing edge on lower surface at location xl,yl_strain with loads P_strain",
+        )
 
-        self.add_input("min_strainU_spar", val=0.0, desc="minimum strain in spar cap suction side")
-        self.add_input("max_strainU_spar", val=0.0, desc="minimum strain in spar cap pressure side")
-        self.add_input("min_strainL_spar", val=0.0, desc="maximum strain in spar cap suction side")
-        self.add_input("max_strainL_spar", val=0.0, desc="maximum strain in spar cap pressure side")
+        # self.add_input("min_strainU_spar", val=0.0, desc="minimum strain in spar cap suction side")
+        # self.add_input("min_strainL_spar", val=0.0, desc="minimum strain in spar cap pressure side")
+        self.add_input("max_strainU_spar", val=1.0, desc="maximum strain in spar cap suction side")
+        self.add_input("max_strainL_spar", val=1.0, desc="maximum strain in spar cap pressure side")
+        self.add_input("max_strainU_te", val=1.0, desc="maximum strain in spar cap suction side")
+        self.add_input("max_strainL_te", val=1.0, desc="maximum strain in spar cap pressure side")
 
         self.add_input(
             "s",
@@ -932,8 +1035,18 @@ class DesignConstraints(ExplicitComponent):
         )
         self.add_input(
             "s_opt_spar_cap_ps",
-            val=np.zeros(n_opt_spar_cap_ss),
-            desc="1D array of the non-dimensional spanwise grid defined along blade axis to optimize the blade spar cap suction side",
+            val=np.zeros(n_opt_spar_cap_ps),
+            desc="1D array of the non-dimensional spanwise grid defined along blade axis to optimize the blade spar cap pressure side",
+        )
+        self.add_input(
+            "s_opt_te_ss",
+            val=np.zeros(n_opt_te_ss),
+            desc="1D array of the non-dimensional spanwise grid defined along blade axis to optimize the blade trailing edge suction side",
+        )
+        self.add_input(
+            "s_opt_te_ps",
+            val=np.zeros(n_opt_te_ps),
+            desc="1D array of the non-dimensional spanwise grid defined along blade axis to optimize the blade trailing edge pressure side",
         )
 
         # Input frequencies
@@ -955,12 +1068,12 @@ class DesignConstraints(ExplicitComponent):
 
         # Outputs
         # self.add_output('constr_min_strainU_spar',     val=np.zeros(n_opt_spar_cap_ss), desc='constraint for minimum strain in spar cap suction side')
+        # self.add_output('constr_min_strainL_spar',     val=np.zeros(n_opt_spar_cap_ps), desc='constraint for minimum strain in spar cap pressure side')
         self.add_output(
             "constr_max_strainU_spar",
             val=np.zeros(n_opt_spar_cap_ss),
             desc="constraint for maximum strain in spar cap suction side",
         )
-        # self.add_output('constr_min_strainL_spar',     val=np.zeros(n_opt_spar_cap_ps), desc='constraint for minimum strain in spar cap pressure side')
         self.add_output(
             "constr_max_strainL_spar",
             val=np.zeros(n_opt_spar_cap_ps),
@@ -986,6 +1099,16 @@ class DesignConstraints(ExplicitComponent):
             val=np.zeros(n_opt_spar_cap_ps),
             desc="constraint for extreme strain in spar cap pressure side",
         )
+        self.add_output(    
+            "constr_max_strainU_te",
+            val=np.zeros(n_opt_te_ss),
+            desc="constraint for maximum strain in trailing edge suction side",
+        )
+        self.add_output(
+            "constr_max_strainL_te",
+            val=np.zeros(n_opt_te_ps),
+            desc="constraint for maximum strain in trailing edge pressure side",
+        )
         self.add_output(
             "constr_flap_f_margin",
             val=np.zeros(n_freq2),
@@ -1003,24 +1126,25 @@ class DesignConstraints(ExplicitComponent):
         s = inputs["s"]
         s_opt_spar_cap_ss = inputs["s_opt_spar_cap_ss"]
         s_opt_spar_cap_ps = inputs["s_opt_spar_cap_ps"]
+        s_opt_te_ss = inputs["s_opt_te_ss"]
+        s_opt_te_ps = inputs["s_opt_te_ps"]
 
         strainU_spar = inputs["strainU_spar"]
         strainL_spar = inputs["strainL_spar"]
-        # min_strainU_spar = inputs['min_strainU_spar']
-        if inputs["max_strainU_spar"] == np.zeros_like(inputs["max_strainU_spar"]):
-            max_strainU_spar = np.ones_like(inputs["max_strainU_spar"])
-        else:
-            max_strainU_spar = inputs["max_strainU_spar"]
-        # min_strainL_spar = inputs['min_strainL_spar']
-        if inputs["max_strainL_spar"] == np.zeros_like(inputs["max_strainL_spar"]):
-            max_strainL_spar = np.ones_like(inputs["max_strainL_spar"])
-        else:
-            max_strainL_spar = inputs["max_strainL_spar"]
+        strainU_te = inputs["strainU_te"]
+        strainL_te = inputs["strainL_te"]
+
+        max_strainU_spar = inputs["max_strainU_spar"]
+        max_strainL_spar = inputs["max_strainL_spar"]
+        max_strainU_te = inputs["max_strainU_te"]
+        max_strainL_te = inputs["max_strainL_te"]
 
         # outputs['constr_min_strainU_spar'] = abs(np.interp(s_opt_spar_cap_ss, s, strainU_spar)) / abs(min_strainU_spar)
-        outputs["constr_max_strainU_spar"] = abs(np.interp(s_opt_spar_cap_ss, s, strainU_spar)) / max_strainU_spar
         # outputs['constr_min_strainL_spar'] = abs(np.interp(s_opt_spar_cap_ps, s, strainL_spar)) / abs(min_strainL_spar)
+        outputs["constr_max_strainU_spar"] = abs(np.interp(s_opt_spar_cap_ss, s, strainU_spar)) / max_strainU_spar
         outputs["constr_max_strainL_spar"] = abs(np.interp(s_opt_spar_cap_ps, s, strainL_spar)) / max_strainL_spar
+        outputs["constr_max_strainU_te"] = abs(np.interp(s_opt_te_ss, s, strainU_te)) / max_strainU_te
+        outputs["constr_max_strainL_te"] = abs(np.interp(s_opt_te_ps, s, strainL_te)) / max_strainL_te
 
 
         # strain based on dels -> done outside and input here
@@ -1173,243 +1297,521 @@ class BladeRootSizing(ExplicitComponent):
         outputs["ratio"] = ratio
 
 
-# class BladeFatigue(ExplicitComponent):
-#     # OpenMDAO component that calculates the Miner's Rule cummulative fatigue damage, given precalculated rainflow counting of bending moments
+class BladeJointSizing(ExplicitComponent):
+    """
+    Compute the minimum joint size given the blade loading.
 
-#     def initialize(self):
-#         self.options.declare('modeling_options')
-#         self.options.declare('opt_options')
+    Parameters
+    ----------
+    load_factor : float
+        Factor to multiply input loads by
+    nprf : float
+        Proof load safety factor for bolts. If this is too high, it seriously constrains the design. Keep it low, <= 1.2
+    ny : float
+        Yield safety factor for inserts.
+    nf : float
+        Fatigue safety factor for bolts/inserts.
+    n0 : float
+        Separation safety factor for joint. If this is too high, it seriously constrains the design. Keep it low, <= 1.2
+    ns : float
+        Shear safety factor for joint.
+    nDLC61 : float
+        Safety factor for extreme loads from IEC 61400 design load case 6.1. =1.35
 
-
-#     def setup(self):
-#         rotorse_options   = self.options['modeling_options']['RotorSE']
-#         mat_init_options     = self.options['modeling_options']['materials']
-
-#         self.n_span          = n_span   = rotorse_options['n_span']
-#         self.n_mat           = n_mat    = mat_init_options['n_mat']
-#         self.n_layers        = n_layers = rotorse_options['n_layers']
-#         self.FatigueFile     = self.options['modeling_options']['rotorse']['FatigueFile']
-
-#         self.te_ss_var       = self.options['opt_options']['blade_struct']['te_ss_var']
-#         self.te_ps_var       = self.options['opt_options']['blade_struct']['te_ps_var']
-#         self.spar_cap_ss_var = self.options['opt_options']['blade_struct']['spar_cap_ss_var']
-#         self.spar_cap_ps_var = self.options['opt_options']['blade_struct']['spar_cap_ps_var']
-
-#         self.add_input('r',            val=np.zeros(n_span), units='m',      desc='radial locations where blade is defined (should be increasing and not go all the way to hub or tip)')
-#         self.add_input('chord',        val=np.zeros(n_span), units='m',      desc='chord length at each section')
-#         self.add_input('pitch_axis',   val=np.zeros(n_span),                 desc='1D array of the chordwise position of the pitch axis (0-LE, 1-TE), defined along blade span.')
-#         self.add_input('rthick',       val=np.zeros(n_span),                 desc='relative thickness of airfoil distribution')
-
-#         self.add_input('gamma_f',      val=1.35,                             desc='safety factor on loads')
-#         self.add_input('gamma_m',      val=1.1,                              desc='safety factor on materials')
-#         self.add_input('E',            val=np.zeros([n_mat, 3]), units='Pa', desc='2D array of the Youngs moduli of the materials. Each row represents a material, the three columns represent E11, E22 and E33.')
-#         self.add_input('Xt',           val=np.zeros([n_mat, 3]),             desc='2D array of the Ultimate Tensile Strength (UTS) of the materials. Each row represents a material, the three columns represent Xt12, Xt13 and Xt23.')
-#         self.add_input('Xc',           val=np.zeros([n_mat, 3]),             desc='2D array of the Ultimate Compressive Strength (UCS) of the materials. Each row represents a material, the three columns represent Xc12, Xc13 and Xc23.')
-#         self.add_input('m',            val=np.zeros([n_mat]),                desc='2D array of the S-N fatigue slope exponent for the materials')
-
-#         self.add_input('x_tc',         val=np.zeros(n_span), units='m',      desc='x-distance to the neutral axis (torsion center)')
-#         self.add_input('y_tc',         val=np.zeros(n_span), units='m',      desc='y-distance to the neutral axis (torsion center)')
-#         self.add_input('EIxx',         val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
-#         self.add_input('EIyy',         val=np.zeros(n_span), units='N*m**2', desc='flapwise stiffness (bending about y-direction of airfoil aligned coordinate system)')
-
-#         self.add_input('sc_ss_mats',   val=np.zeros((n_span, n_mat)),        desc="spar cap, suction side,  boolean of materials in each composite layer spanwise, passed as floats for differentiablity, used for Fatigue Analysis")
-#         self.add_input('sc_ps_mats',   val=np.zeros((n_span, n_mat)),        desc="spar cap, pressure side, boolean of materials in each composite layer spanwise, passed as floats for differentiablity, used for Fatigue Analysis")
-#         self.add_input('te_ss_mats',   val=np.zeros((n_span, n_mat)),        desc="trailing edge reinforcement, suction side,  boolean of materials in each composite layer spanwise, passed as floats for differentiablity, used for Fatigue Analysis")
-#         self.add_input('te_ps_mats',   val=np.zeros((n_span, n_mat)),        desc="trailing edge reinforcement, pressure side, boolean of materials in each composite layer spanwise, passed as floats for differentiablity, used for Fatigue Analysis")
-
-#         self.add_discrete_input('layer_web',        val=n_layers * [''],     desc='1D array of the names of the webs the layer is associated to. If the layer is on the outer profile this entry can simply stay empty.')
-#         self.add_discrete_input('layer_name',       val=n_layers * [''],     desc='1D array of the names of the layers modeled in the blade structure.')
-#         self.add_discrete_input('layer_mat',        val=n_layers * [''],     desc='1D array of the names of the materials of each layer modeled in the blade structure.')
-#         self.add_discrete_input('definition_layer', val=np.zeros(n_layers),  desc='1D array of flags identifying how layers are specified in the yaml. 1) all around (skin, paint, ) 2) offset+rotation twist+width (spar caps) 3) offset+user defined rotation+width 4) midpoint TE+width (TE reinf) 5) midpoint LE+width (LE reinf) 6) layer position fixed to other layer (core fillers) 7) start and width 8) end and width 9) start and end nd 10) web layer')
-
-#         self.add_output('C_miners_SC_SS',           val=np.zeros((n_span, n_mat, 2)),    desc="Miner's rule cummulative damage to Spar Cap, suction side")
-#         self.add_output('C_miners_SC_PS',           val=np.zeros((n_span, n_mat, 2)),    desc="Miner's rule cummulative damage to Spar Cap, pressure side")
-#         self.add_output('C_miners_TE_SS',           val=np.zeros((n_span, n_mat, 2)),    desc="Miner's rule cummulative damage to Trailing-Edge reinforcement, suction side")
-#         self.add_output('C_miners_TE_PS',           val=np.zeros((n_span, n_mat, 2)),    desc="Miner's rule cummulative damage to Trailing-Edge reinforcement, pressure side")
-
-#     def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
-
-#         rainflow = load_yaml(self.FatigueFile, package=1)
-
-#         U       = list(rainflow['cases'].keys())
-#         Seeds   = list(rainflow['cases'][U[0]].keys())
-#         chans   = list(rainflow['cases'][U[0]][Seeds[0]].keys())
-#         r_gage  = np.r_[0., rainflow['r_gage']]
-#         simtime = rainflow['simtime']
-#         n_seeds = float(len(Seeds))
-#         n_gage  = len(r_gage)
-
-#         r       = (inputs['r']-inputs['r'][0])/(inputs['r'][-1]-inputs['r'][0])
-#         m_default = 10. # assume default m=10  (8 or 12 also reasonable)
-#         m       = [mi if mi > 0. else m_default for mi in inputs['m']]  # Assumption: if no S-N slope is given for a material, use default value TODO: input['m'] is not connected, only using the default currently
-
-#         eps_uts = inputs['Xt'][:,0]/inputs['E'][:,0]
-#         eps_ucs = inputs['Xc'][:,0]/inputs['E'][:,0]
-#         gamma_m = inputs['gamma_m']
-#         gamma_f = inputs['gamma_f']
-#         yrs     = 20.  # TODO
-#         t_life  = 60.*60.*24*365.24*yrs
-#         U_bar   = 10.  # TODO
-
-#         # pdf of wind speeds
-#         binwidth = np.diff(U)
-#         U_bins   = np.r_[[U[0] - binwidth[0]/2.], [np.mean([U[i-1], U[i]]) for i in range(1,len(U))], [U[-1] + binwidth[-1]/2.]]
-#         pdf = np.diff(RayleighCDF(U_bins, xbar=U_bar))
-#         if sum(pdf) < 0.9:
-#             print('Warning: Cummulative probability of wind speeds in rotor_loads_defl_strains.BladeFatigue is low, sum of weights: %f' % sum(pdf))
-#             print('Mean winds speed: %f' % U_bar)
-#             print('Simulated wind speeds: ', U)
-
-#         # Materials of analysis layers
-#         te_ss_var_ok       = False
-#         te_ps_var_ok       = False
-#         spar_cap_ss_var_ok = False
-#         spar_cap_ps_var_ok = False
-#         for i_layer in range(self.n_layers):
-#             if self.te_ss_var in discrete_inputs['layer_name']:
-#                 te_ss_var_ok        = True
-#             if self.te_ps_var in discrete_inputs['layer_name']:
-#                 te_ps_var_ok        = True
-#             if self.spar_cap_ss_var in discrete_inputs['layer_name']:
-#                 spar_cap_ss_var_ok  = True
-#             if self.spar_cap_ps_var in discrete_inputs['layer_name']:
-#                 spar_cap_ps_var_ok  = True
-
-#         if te_ss_var_ok == False:
-#             print('The layer at the trailing edge suction side is set for Fatigue Analysis, but "%s" does not exist in the input yaml. Please check.'%self.te_ss_var)
-#         if te_ps_var_ok == False:
-#             print('The layer at the trailing edge pressure side is set for Fatigue Analysis, but "%s" does not exist in the input yaml. Please check.'%self.te_ps_var)
-#         if spar_cap_ss_var_ok == False:
-#             print('The layer at the spar cap suction side is set for Fatigue Analysis, but "%s" does not exist in the input yaml. Please check.'%self.spar_cap_ss_var)
-#         if spar_cap_ps_var_ok == False:
-#             print('The layer at the spar cap pressure side is set for Fatigue Analysis, but "%s" does not exist in the input yaml. Please check.'%self.spar_cap_ps_var)
-
-#         # Get blade properties at gage locations
-#         y_tc       = remap2grid(r, inputs['y_tc'], r_gage)
-#         x_tc       = remap2grid(r, inputs['x_tc'], r_gage)
-#         chord      = remap2grid(r, inputs['x_tc'], r_gage)
-#         rthick     = remap2grid(r, inputs['rthick'], r_gage)
-#         pitch_axis = remap2grid(r, inputs['pitch_axis'], r_gage)
-#         EIyy       = remap2grid(r, inputs['EIyy'], r_gage)
-#         EIxx       = remap2grid(r, inputs['EIxx'], r_gage)
-
-#         te_ss_mats = np.floor(remap2grid(r, inputs['te_ss_mats'], r_gage, axis=0)) # materials is section
-#         te_ps_mats = np.floor(remap2grid(r, inputs['te_ps_mats'], r_gage, axis=0))
-#         sc_ss_mats = np.floor(remap2grid(r, inputs['sc_ss_mats'], r_gage, axis=0))
-#         sc_ps_mats = np.floor(remap2grid(r, inputs['sc_ps_mats'], r_gage, axis=0))
-
-#         c_TE       = chord*(1.-pitch_axis) + y_tc
-#         c_SC       = chord*rthick + x_tc #this is overly simplistic, using maximum thickness point, should use the actual profiles
-
-#         C_miners_SC_SS_gage = np.zeros((n_gage, self.n_mat, 2))
-#         C_miners_SC_PS_gage = np.zeros((n_gage, self.n_mat, 2))
-#         C_miners_TE_SS_gage = np.zeros((n_gage, self.n_mat, 2))
-#         C_miners_TE_PS_gage = np.zeros((n_gage, self.n_mat, 2))
-
-#         # Map channels to output matrix
-#         chan_map   = {}
-#         for i_var, var in enumerate(chans):
-#             # Determine spanwise position
-#             if 'Root' in var:
-#                 i_span = 0
-#             elif 'Spn' in var and 'M' in var:
-#                 i_span = int(var.strip('Spn').split('M')[0])
-#             else:
-#                 # not a spanwise output channel, skip
-#                 print('Fatigue Model: Skipping channel: %s, not a spanwise moment' % var)
-#                 chans.remove(var)
-#                 continue
-#             # Determine if edgewise of flapwise moment
-#             if 'M' in var and 'x' in var:
-#                 # Edgewise
-#                 axis = 0
-#             elif 'M' in var and 'y' in var:
-#                 # Flapwise
-#                 axis = 1
-#             else:
-#                 # not an edgewise / flapwise moment, skip
-#                 print('Fatigue Model: Skipping channel: "%s", not an edgewise/flapwise moment' % var)
-#                 continue
-
-#             chan_map[var] = {}
-#             chan_map[var]['i_gage'] = i_span
-#             chan_map[var]['axis']   = axis
-
-#         # Map composite sections
-#         composite_map = [['TE', 'SS', te_ss_var_ok],
-#                          ['TE', 'PS', te_ps_var_ok],
-#                          ['SC', 'SS', spar_cap_ss_var_ok],
-#                          ['SC', 'PS', spar_cap_ps_var_ok]]
-
-#         ########
-#         # Loop through composite sections, materials, output channels, and simulations (wind speeds * seeds)
-#         for comp_i in composite_map:
-
-#             #skip this composite section?
-#             if not comp_i[2]:
-#                 continue
-
-#             #
-#             C_miners = np.zeros((n_gage, self.n_mat, 2))
-#             if comp_i[0]       == 'TE':
-#                 c = c_TE
-#                 if comp_i[1]   == 'SS':
-#                     mats = te_ss_mats
-#                 elif comp_i[1] == 'PS':
-#                     mats = te_ps_mats
-#             elif comp_i[0]     == 'SC':
-#                 c = c_SC
-#                 if comp_i[1]   == 'SS':
-#                     mats = sc_ss_mats
-#                 elif comp_i[1] == 'PS':
-#                     mats = sc_ps_mats
-
-#             for i_mat in range(self.n_mat):
-
-#                 for i_var, var in enumerate(chans):
-#                     i_gage = chan_map[var]['i_gage']
-#                     axis   = chan_map[var]['axis']
-
-#                     # skip if material at this spanwise location is not included in the composite section
-#                     if mats[i_gage, i_mat] == 0.:
-#                         continue
-
-#                     # Determine if edgewise of flapwise moment
-#                     pitch_axis_i = pitch_axis[i_gage]
-#                     chord_i      = chord[i_gage]
-#                     c_i          = c[i_gage]
-#                     if axis == 0:
-#                         EI_i     = EIyy[i_gage]
-#                     else:
-#                         EI_i     = EIxx[i_gage]
-
-#                     for i_u, u in enumerate(U):
-#                         for i_s, seed in enumerate(Seeds):
-#                             M_mean = np.array(rainflow['cases'][u][seed][var]['rf_mean']) * 1.e3
-#                             M_amp  = np.array(rainflow['cases'][u][seed][var]['rf_amp']) * 1.e3
-
-#                             for M_mean_i, M_amp_i in zip(M_mean, M_amp):
-#                                 n_cycles = 1.
-#                                 eps_mean = M_mean_i*c_i/EI_i
-#                                 eps_amp  = M_amp_i*c_i/EI_i
+    All other parameters described in setup()
 
 
-# Nf = ((eps_uts[i_mat] + np.abs(eps_ucs[i_mat]) - np.abs(2.*eps_mean*gamma_m*gamma_f - eps_uts[i_mat] + np.abs(eps_ucs[i_mat]))) / (2.*eps_amp*gamma_m*gamma_f))**m[i_mat]
+    Returns
+    -------
+    L_transition_joint : float, [m]
+        Required length to accommodate spar cap size increase at segmentation joint
+    m_add_joint : float, [kg]
+        Mass of bolts + inserts minus mass of spar cap cutouts for segmentation joint (spar cap size change will add mass too)
+    n_joint_bolt : int
+        Required number of bolts for segmentation joint
+    t_joint : float, [m]
+        Required thickness of the reinforcement layer at segmentation joint
+    w_joint : float, [m]
+        Required width of the reinforcement layer at segmentation joint
 
-#                                 Nf = ((eps_uts[i_mat] + np.abs(eps_ucs[i_mat]) - np.abs(2.*eps_mean*gamma_m*gamma_f - eps_uts[i_mat] + np.abs(eps_ucs[i_mat]))) / (2.*eps_amp*gamma_m*gamma_f))**m[i_mat]
-#                                 n  = n_cycles * t_life * pdf[i_u] / (simtime * n_seeds)
-#                                 C_miners[i_gage, i_mat, axis]  += n/Nf
+    """
 
-#             # Assign outputs
-#             if comp_i[0] == 'SC' and comp_i[1] == 'SS':
-#                 outputs['C_miners_SC_SS'] = remap2grid(r_gage, C_miners, r, axis=0)
-#             elif comp_i[0] == 'SC' and comp_i[1] == 'PS':
-#                 outputs['C_miners_SC_PS'] = remap2grid(r_gage, C_miners, r, axis=0)
-#             elif comp_i[0] == 'TE' and comp_i[1] == 'SS':
-#                 outputs['C_miners_TE_SS'] = remap2grid(r_gage, C_miners, r, axis=0)
-#             elif comp_i[0] == 'TE' and comp_i[1] == 'PS':
-#                 outputs['C_miners_TE_PS'] = remap2grid(r_gage, C_miners, r, axis=0)
+    def initialize(self):
+        self.options.declare("rotorse_options")
+        self.options.declare("n_mat")
 
+    def setup(self):
+
+        # options
+        n_mat = int(self.options["n_mat"])
+        rotorse_options = self.options["rotorse_options"]
+        self.n_layers = n_layers = rotorse_options["n_layers"]
+        self.nd_span = rotorse_options["nd_span"]
+        self.n_span = n_span = rotorse_options["n_span"]
+        self.n_xy = n_xy = rotorse_options["n_xy"]
+        self.spar_cap_ss = rotorse_options["spar_cap_ss"]
+        self.spar_cap_ps = rotorse_options["spar_cap_ps"]
+        self.layer_name = rotorse_options["layer_name"]
+        self.layer_mat = rotorse_options["layer_mat"]
+
+        # safety factors. These will eventually come from the modeling yaml, but are currently hardcoded.
+        self.add_input('load_factor', val=1.35, desc='input load multiplier. 1.35 recommended for DLC6.1. [float]')  # I find it better to change the load factor than the safety factors. It prevents limit errors (like divide by zero)
+        self.add_input('nprf', val=1.2, desc='bolt proof safety factor. [float]')  # bolt ultimate safety factor (proof) [-]. If this is too high, it seriously constrains the design. Keep it low, <= 1.2
+        self.add_input('ny', val=1.2, desc='bolt yield safety factor. [float]')
+        self.add_input('ns', val=1.2, desc='bolt shear safety factor. [float]')
+        self.add_input('n0', val=1.2, desc='bolt separation safety factor. [float]')
+        self.add_input('nf', val=1.2, desc='bolt fatigue safety factor. [float]')
+
+        # M48 10.9 bolt properties (Shigley p.433) # kf = 3  # metric 10.9, rolled thread. These are hardcoded.
+        self.add_input('Sp_bolt', val=830e6, units='Pa', desc='bolt proof strength. [float]')
+        self.add_input('Sy_bolt', val=940e6, units='Pa', desc='bolt yield strength. [float]')
+        self.add_input('Su_bolt', val=1040e6, units='Pa', desc='bolt ultimate strength. [float]')
+        self.add_input('Se_bolt', val=162e6, units='Pa', desc='bolt endurance strength. [float]')  # (for M1.6-36). Fully corrected so don't need kf
+        self.add_input('E_bolt', val=200e9, units='Pa', desc='bolt elastic modulus. [float]')  # medium carbon steel
+        self.add_input('d_bolt', val=0.048, units='m', desc='bolt diameter. [float]')
+        self.add_input('L_bolt', val=1/2, units='m', desc='bolt length. [float]')
+        self.add_input('At', val=1470 / 1e6, units='m**2', desc='bolt thread area [float]')
+        self.add_input('m_bolt', val=8.03, units='kg', desc='bolt+washer mass. [float]')  # https://www.portlandbolt.com/technical/tools/bolt-weight-calculator
+
+        # stainless steel insert material properties. These mostly come from the geometry yaml.
+        # material: Stainless Steel 440A, tempered @315C. Cold worked 304: 515/860. (http://www.matweb.com/search/datasheet_print.aspx?matguid=4f9c4c71102d4cd9b4c52622588e99a0)
+        self.add_discrete_input('name_mat', val=n_mat * [""], desc='list of material names. [(n_mat) list of str]')
+        self.add_input('rho_mat', val=np.zeros(n_mat), units='kg/m**3', desc='list of material densities. [(n_mat) 1D array of str]')
+        self.add_input('Xt_mat', val=np.zeros((n_mat, 3)), units='Pa', desc='list of material tensile strengths. [(n_mat x 3) 2D array of float]')
+        self.add_input('Xy_mat', val=np.zeros(n_mat), units='Pa', desc='list of material yield strengths. [(n_mat x 3) 1D array of float]')
+        self.add_input('E_mat', val=np.zeros((n_mat, 3)), units='Pa', desc='list of material elastic moduli. [(n_mat x 3) list of float]')
+        self.add_input('S_mat', val=np.zeros((n_mat, 3)), units='Pa')
+        self.add_input("unit_cost", val=np.zeros(n_mat), units="USD/kg", desc="1D array of the unit costs of the materials."
+        )
+        self.add_input('Se_insert', val=316e6, units='Pa', desc='insert material endurance limit. [float]')  # Azom (hardcoded)
+        self.add_input('mu_joint', val=0.5, desc='steel insert friction factor. [float]')  # eng toolbox says 0.5-0.8 for clean, dry steel (hardcoded)
+
+        # geometric properties
+        self.add_input('joint_position', val=0, desc='nondimensionalized joint position along blade')
+        self.add_discrete_input('joint_bolt', val='M48', desc='Type of bolt used in joint')
+        self.add_discrete_input("reinforcement_layer_ss", val="joint_reinf_ss", desc="Layer identifier for the reinforcement layer at the join where bolts are inserted, suction side")
+        self.add_discrete_input("reinforcement_layer_ps", val="joint_reinf_ps", desc="Layer identifier for the reinforcement layer at the join where bolts are inserted, pressure side")
+        self.add_input('bolt_spacing_dia', val=3, desc='joint bolt spacing along sparcap in y. [int]')  # units: bolt diameters (hardcoded)
+        self.add_input('ply_drop_slope', val=1 / 8, desc='required ply drop slope. [float]')  # max for >45 plies dropped (otherwise 1/3) https://www.sciencedirect.com/science/article/pii/S135983680000038X. (hardcoded)
+        self.add_input('t_adhesive', val=0.005, units='m', desc='insert-sparcap adhesive thickness. [float]')  # (hardcoded)
+        self.add_input('t_max', val=1 / 4, desc='maximum spar cap thickness per spar cap height. [float]')  # (hardcoded)
+        self.add_input('chord', val=np.zeros(n_span), units='m', desc='chord length at joint station. [(n_span x 3) 1D array of float]')
+        self.add_input("layer_thickness", val=np.zeros((n_layers, n_span)), units="m", desc="2D array of the thickness of the layers of the blade structure. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        self.add_input("layer_width", val=np.zeros((n_layers, n_span)), units="m", desc="2D array of the width of the layers of the blade structure. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        self.add_input("layer_start_nd", val=np.zeros((n_layers, n_span)), desc="2D array of the non-dimensional start point defined along the outer profile of a layer. The TE suction side is 0, the TE pressure side is 1. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        self.add_input("layer_end_nd", val=np.zeros((n_layers, n_span)), desc="2D array of the non-dimensional end point defined along the outer profile of a layer. The TE suction side is 0, the TE pressure side is 1. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        self.add_input('blade_length', val=np.zeros(n_span), units='m', desc="1D array of cumulative blade length at each station. n_span long")
+        self.add_input("coord_xy_interp", val=np.zeros((n_span, n_xy, 2)), desc="3D array of the non-dimensional x and y airfoil coordinates of the airfoils interpolated along span for n_span stations.")
+        self.add_input("rthick", val=np.zeros(n_span), desc="1D array of the relative thicknesses of the blade defined along span. n_span long")
+        self.add_input("layer_offset_y_pa", val=np.zeros((n_layers, n_span)), units="m", desc="2D array of the offset along the y axis to set the position of a layer. Positive values move the layer towards the trailing edge, negative values towards the leading edge. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        self.add_input("coord_xy_dim", val=np.zeros((n_span, n_xy, 2)), units="m", desc="3D array of the dimensional x and y airfoil coordinates of the airfoils interpolated along span for n_span stations. The origin is placed at the pitch axis.")
+        self.add_discrete_input("layer_side", val=n_layers * [""], desc="1D array setting whether the layer is on the suction or pressure side. This entry is only used if definition_layer is equal to 1 or 2.",)
+        self.add_input("twist", val=np.zeros(n_span), units="rad", desc="1D array of the twist values defined along blade span. The twist is defined positive for negative rotations around the z axis (the same as in BeamDyn).")
+        self.add_input("pitch_axis", val=np.zeros(n_span), desc="1D array of the chordwise position of the pitch axis (0-LE, 1-TE), defined along blade span.")
+        # blade ultimate loads
+        self.add_input("M1", val=np.zeros(n_span), units="N*m", desc="distribution along blade span of ultimate bending moment w.r.t principal axis 1. [(n_mat) 1D array of float]")
+        self.add_input("M2", val=np.zeros(n_span), units="N*m", desc="distribution along blade span of ultimate bending moment w.r.t principal axis 2. [(n_mat) 1D array of float]")
+        self.add_input("F2", val=np.zeros(n_span), units="N", desc="distribution along blade span of ultimate force w.r.t principal axis 2. [(n_mat) 1D array of float]")
+
+        # fatigue load calculating factors from https://iopscience.iop.org/article/10.1088/1742-6596/1618/4/042016
+        self.add_input('a', val=0.1965)  # (hardcoded)
+        self.add_input('b', val=0)  # (hardcoded)
+        self.add_input('c', val=0.6448)  # (hardcoded)
+
+        # other
+        self.add_input('itermax', val=20, desc='max # calculation iterations. [int]')  # (hardcoded)
+        self.add_input('discrete', val=False, desc='whether discrete calculation is allowed. Set to False if in optimization loop. [bool]')  # (hardcoded) TODO could add as user input
+        self.add_input('blade_mass_re', val=0, units='kg', desc='blade mass')
+        self.add_input("joint_nonmaterial_cost", val=0.0, units="USD", desc="Non-material joint cost (mfg, assembly, transportation).")
+
+        self.add_output('t_reinf_joint', val=0, units='m', desc='Required reinforcement layer thickness at joint. [float]')
+        self.add_output('w_reinf_joint', val=0, units='m', desc='Required reinforcement layer width at joint. [float]')
+        self.add_output('w_reinf_ratio_joint', val=0, desc='Ratio of joint-required to nominal reinforcement layer  width')
+        self.add_output('t_reinf_ratio_joint', val=0, desc='Ratio of joint-required to nominal reinforcement layer  thickness')
+        self.add_output('L_transition_joint', val=0, units='m', desc='Required length to accommodate reinforcement layer  size increase at joint. [float]')
+        self.add_output('n_joint_bolt', val=0, desc='Required number of bolts for joint. [float]')
+        self.add_output('joint_mass', val=0, units='kg', desc='Mass of bolts + inserts minus mass of reinforcement layer  cutouts at joint. [float]')
+        # self.add_output("layer_end_nd_bjs", val=np.zeros((n_layers, n_span)),
+        #                desc="2D array of the non-dimensional end point defined along the outer profile of a layer. The TE suction side is 0, the TE pressure side is 1. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        # self.add_output("layer_start_nd_bjs", val=np.zeros((n_layers, n_span)),
+        #                desc="2D array of the non-dimensional start point defined along the outer profile of a layer. The TE suction side is 0, the TE pressure side is 1. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        # self.add_output("layer_width_bjs", val=np.zeros((n_layers, n_span)), units="m",
+        #                desc="2D array of the width of the layers of the blade structure. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+        # self.add_output("layer_offset_y_bjs", val=np.zeros((n_layers, n_span)), units="m",
+        #            desc="2D array of the offset along the y axis to set the position of a layer. Positive values move the layer towards the trailing edge, negative values towards the leading edge. The first dimension represents each layer, the second dimension represents each entry along blade span.")
+
+        self.add_output('blade_mass', val=0, units='kg', desc='blade mass')
+        self.add_output("joint_material_cost", val=0, units='USD', desc='cost of joint metallic parts (bolts, washers, and inserts)')
+        self.add_output("joint_total_cost", val=0, units='USD', desc='Total cost of the bolted joint (metallic parts and nonmaterial costs)')
+
+    def compute(self, inputs, outputs, discrete_inputs, discrete_outputs):
+
+        # safety factors
+        load_factor = inputs['load_factor']
+        nprf = inputs['nprf']
+        ny = inputs['ny']
+        nf = inputs['nf']
+        n0 = inputs['n0']
+        ns = inputs['ns']
+
+        #bolt parameters
+        Sp_bolt = inputs['Sp_bolt']
+        Su_bolt = inputs['Su_bolt']
+        Se_bolt = inputs['Se_bolt']
+        E_bolt = inputs['E_bolt']
+        d_bolt = inputs['d_bolt']
+        L_bolt = inputs['L_bolt']
+        At = inputs['At']
+        m_bolt = inputs['m_bolt']
+        bolt = discrete_inputs['joint_bolt']
+
+        # material parameters
+        name_mat = discrete_inputs["name_mat"]
+        rho_mat = inputs["rho_mat"]
+        Xt_mat = inputs["Xt_mat"]
+        Xy_mat = inputs["Xy_mat"]
+        E_mat = inputs["E_mat"]
+        S_mat = inputs["S_mat"]
+        unit_cost_mat = inputs["unit_cost"]
+        reinf_mat_ss = discrete_inputs["reinforcement_layer_ss"]
+        reinf_mat_ps = discrete_inputs["reinforcement_layer_ps"]
+        if 'joint_insert' in name_mat:
+            insert_i = name_mat.index('joint_insert')
+        else:
+            raise Exception('Please add a material named joint_insert to the geometry yaml')
+        rho_insert = rho_mat[insert_i]
+        pu_cost_insert = unit_cost_mat[insert_i]
+        adhesive_i = name_mat.index('Adhesive')
+        rho_adhesive = rho_mat[adhesive_i]
+        pu_cost_adhesive = unit_cost_mat[adhesive_i]
+        Sy_insert = Xy_mat[insert_i]
+        Su_insert = Xt_mat[insert_i, 0]
+        Se_insert = inputs['Se_insert']
+        E_insert = E_mat[insert_i, 0]
+        mu = inputs['mu_joint']
+        rho_ss = 0.
+        for i_lay in range(self.n_layers):
+            if self.layer_name[i_lay] == reinf_mat_ss:
+                mat_name_joint_ss = self.layer_mat[i_lay]
+                ss_mat_i = name_mat.index(mat_name_joint_ss)
+                S_ss = S_mat[ss_mat_i, 0]
+                rho_ss = rho_mat[ss_mat_i]
+                break
+        
+        if rho_ss == 0.:
+            raise Exception('The joint reinforcement material ', reinf_mat_ss, ' was not found! Check the entry geometry yaml.')
+
+        # bolt properties
+        Ld = L_bolt * 0.75
+        Lt = L_bolt - Ld
+        n_bolt = -2  # initialized
+        n_bolt_prev = -1  # initialized
+        if bolt == 'M52':
+            At = 1758 / 1e6
+            d_bolt = 0.052
+            m_bolt = 9.53
+        elif bolt == 'M48':
+            At = 1473 / 1e6
+            d_bolt = 0.048
+            m_bolt = 8.03
+        if bolt == 'M42':
+            At = 1120 / 1e6
+            d_bolt = 0.042
+            m_bolt = 6.08
+        if bolt == 'M36':
+            At = 817 / 1e6
+            d_bolt = 0.036
+            m_bolt = 4.4
+        elif bolt == 'M30':
+            At = 561 / 1e6
+            d_bolt = 0.03
+            m_bolt = 2.95
+        elif bolt == 'M24':
+            At = 353 / 1e6
+            d_bolt = 0.024
+            m_bolt = 1.91
+        elif bolt == 'M18':
+            At = 192 / 1e6
+            d_bolt = 0.018
+            m_bolt = 1.04
+        cost_bolt = m_bolt * 10
+        Ad = np.pi * d_bolt ** 2 / 4
+
+        #insert properties
+        d_insert = d_bolt * 2  # keeping the insert much larger than the bolt reduces bolt loads, which drive the design.
+        A_insert = np.pi * (d_insert ** 2 - d_bolt ** 2) / 4
+        L_insert = L_bolt
+        V_insert = A_insert * L_insert
+        m_insert = V_insert * rho_insert
+
+        # geometric properties and calculations
+        ratio_SCmax = 0.8  # max sparcap/chord ratio
+        joint_position = inputs['joint_position']
+        i_span = util.find_nearest(self.nd_span, joint_position)
+        p_le_i = inputs["pitch_axis"][i_span]
+        t_layer = inputs['layer_thickness']
+        w_layer = inputs['layer_width']
+        layer_start_nd = inputs['layer_start_nd']
+        layer_end_nd = inputs['layer_end_nd']
+        bolt_spacing_dia = inputs['bolt_spacing_dia']
+        ply_drop_slope = inputs['ply_drop_slope']
+        t_adhesive = inputs['t_adhesive']
+        t_max = inputs['t_max']
+        L_blade = inputs['blade_length']
+        eta = self.nd_span[i_span]  # joint location
+        chord = inputs['chord'][i_span]
+        L_segment = L_blade[-1] / self.n_span  # m
+
+        # Only checking on suction side for now
+        ss_layer_i = self.layer_name.index(reinf_mat_ss)
+        ps_layer_i = self.layer_name.index(reinf_mat_ps)
+        t_reinf = t_layer[ss_layer_i][i_span]
+        if t_reinf == 0.:
+            raise Exception('The joint reinforcement layer thickness is 0 mm. Please check the input geometry yaml.')
+        bolt_spacing = bolt_spacing_dia * d_bolt
+        n_bolt_max = chord * ratio_SCmax // bolt_spacing  # max # bolts that can fit in 0.8 chord
+        w_hole_bolthead = d_bolt * 2#7 / 3
+        h_bolthead_hole_i = d_bolt * 2
+        xy_coord = inputs["coord_xy_interp"][i_span, :, :]
+        t_airfoil = inputs["rthick"][i_span]*chord
+        d_b2b = t_airfoil - t_reinf  # ss bolt to ps bolt distance
+        t_max = d_b2b * t_max
+
+        # Compute arc length at joint station
+        xy_arc = util.arc_length(xy_coord)
+        arc_L = xy_arc[-1]
+        w_reinf = w_layer[ss_layer_i, i_span]
+
+        # Loads
+        Mflap_ultimate = abs(inputs['M1'][i_span]) * load_factor
+        Medge_ultimate = abs(inputs['M2'][i_span]) * load_factor
+        Fflap_ultimate = abs(inputs['F2'][i_span]) * load_factor
+
+        # Fatigue factors
+        a = inputs['a']
+        b = inputs['b']
+        c = inputs['c']
+
+        # Fatigue loads. Remember DLC 6.1 ultimate load safety factor = 1.35. Old loads: # Mflap_ultimate = 1.64e6, Fflap_ultimate = 1.5e5, Medge_ultimate = 3.1e5
+        kp = a * (1 - eta) ** 2 + b * (1 - eta) + c
+        Mflap_fatigue = Mflap_ultimate * kp
+        Fflap_fatigue = Fflap_ultimate * kp
+        Medge_fatigue = Medge_ultimate * kp
+
+        # Other
+        itermax = int(inputs['itermax'])
+        discrete = inputs['discrete']
+
+        """ Loading calculations begin"""
+        # 1- Calculate joint stiffness constant
+        k_bolt = Ad * At * E_bolt / (Ad * Lt + At * Ld)  # bolt stiffness
+        k_insert = A_insert * E_insert / L_bolt  # material stiffness.
+        C = k_bolt / (k_bolt + k_insert)  # joint stiffness constant
+
+        # 2- Calculate preload (initialize to 70% proof)
+        Fi70p = 0.7 * Sp_bolt * At  # N, per bolt. Need a high preload like this to resist separation. This means that the ultimate bolt safety factor (nprf) needs to be low
+        Fi = Fi70p
+
+        # 3- Calculate # bolts such that axial flap bolt forces > edge bolt forces
+        # Loop through number of possible bolts per spar cap, and calculate the following. When the flap ultimate and fatigue loads both
+        # dominate, that is the minimum # bolts. Units are force per bolt ONLY HERE.
+        for n_bolt_min in range(3, int(np.ceil(n_bolt_max) // 2 * 2 + 1), 2):
+            N = int(np.floor(n_bolt_min / 2))
+            N_array = np.linspace(1, N, N)
+            Fax_flap_ultimate_per_bolt = Mflap_ultimate / (d_b2b * n_bolt_min)
+            Fax_edge_ultimate_per_bolt = N * Medge_ultimate / (2 * bolt_spacing * np.sum(np.square(N_array)))
+            Fax_flap_fatigue_per_bolt = Mflap_fatigue / (d_b2b * n_bolt_min)
+            Fax_edge_fatigue_per_bolt = N * Medge_fatigue / (2 * bolt_spacing * np.sum(np.square(N_array)))
+            if Fax_flap_fatigue_per_bolt > Fax_edge_fatigue_per_bolt and Fax_flap_ultimate_per_bolt > Fax_edge_ultimate_per_bolt:
+                break
+
+        # 4- Calculate # fasteners needed to resist extreme and fatigue flap loads, and LATER: satisfy adhesive mean stress limit.
+
+        # a- joint ultimate, fatigue loads per spar cap side
+        Fax_flap_ultimate = Mflap_ultimate / d_b2b
+        Fax_flap_fatigue = Mflap_fatigue / d_b2b
+        Fsh_flap_ultimate = Fflap_ultimate / 2
+        Fsh_flap_fatigue = Fflap_fatigue / 2
+
+        i = 0  # while loop counter
+        n_bolt_list = []
+        while abs(n_bolt - n_bolt_prev) > 0.1:  # loop until converging on a number of bolts
+            i += 1
+            n_bolt_prev = n_bolt
+            # print('n_bolt = ', n_bolt)
+
+            # b- calc # bolts & inserts to resist flap axial ultimate loads
+            # bolts. Tensile stress only.
+            n_bolt_flap_ultimate = C * Fax_flap_ultimate / (Sp_bolt * At / nprf - Fi)
+            # inserts. Von-mises stress. Could consider torsion here. Equation derived with MATLAB symbolic toolbox
+            x3 = (
+                             ny * C ** 2 * Fax_flap_ultimate ** 2 - 2 * ny * C * Fax_flap_ultimate ** 2 + ny * Fax_flap_ultimate ** 2 + 3 * ny * Fsh_flap_ultimate ** 2) / (
+                             np.sqrt(
+                                 A_insert ** 2 * C ** 2 * Fax_flap_ultimate ** 2 * Sy_insert ** 2 - 2 * A_insert ** 2 * C * Fax_flap_ultimate ** 2 * Sy_insert ** 2 + A_insert ** 2 * Fax_flap_ultimate ** 2 * Sy_insert ** 2 + 3 * A_insert ** 2 * Fsh_flap_ultimate ** 2 * Sy_insert ** 2 - 3 * Fi ** 2 * Fsh_flap_ultimate ** 2 * ny ** 2) + (
+                                         -Fax_flap_ultimate * Fi * ny + C * Fax_flap_ultimate * Fi * ny))
+            x4 = (
+                             ny * C ** 2 * Fax_flap_ultimate ** 2 - 2 * ny * C * Fax_flap_ultimate ** 2 + ny * Fax_flap_ultimate ** 2 + 3 * ny * Fsh_flap_ultimate ** 2) / (
+                             np.sqrt(
+                                 A_insert ** 2 * C ** 2 * Fax_flap_ultimate ** 2 * Sy_insert ** 2 - 2 * A_insert ** 2 * C * Fax_flap_ultimate ** 2 * Sy_insert ** 2 + A_insert ** 2 * Fax_flap_ultimate ** 2 * Sy_insert ** 2 + 3 * A_insert ** 2 * Fsh_flap_ultimate ** 2 * Sy_insert ** 2 - 3 * Fi ** 2 * Fsh_flap_ultimate ** 2 * ny ** 2) - (
+                                         -Fax_flap_ultimate * Fi * ny + C * Fax_flap_ultimate * Fi * ny))
+            n_insert_flap_ultimate = max([x3, x4])
+
+            # c- calc # bolts & inserts needed to resist flap axial fatigue loads
+            # bolts. Tensile only.
+            sig_i_bolt = Fi / At
+            sig_a_bolt = Fax_flap_fatigue * C / At
+            Sa_bolt = Se_bolt - Se_bolt / Su_bolt * sig_i_bolt
+            n_bolt_flap_fatigue = nf * sig_a_bolt / Sa_bolt
+            # inserts. Von mises. Could consider torsion here. Removing because insert forces are far lower in ultimate, add this back in if
+            # that changes.
+            sig_i_insert = Fi / A_insert
+            Sa_insert = Se_insert - Se_insert / Su_insert * sig_i_insert
+            n_insert_flap_fatigue = (nf / Sa_insert) ** (1 / 2) * (
+                        (Fax_flap_fatigue * (1 - C) / A_insert)   ** 2 + 3 * (Fsh_flap_fatigue / A_insert) ** 2) ** (
+                                                1 / 4)
+
+            # d - calc #bolts/inserts needed for spar cap to resist insert pull-out
+            n_bolt_pullout = 2 * ns * Fax_flap_ultimate / (S_ss * np.pi * (d_insert + 2 * t_adhesive))
+
+            # e - take max bolts needed as # bolt-insert pairs
+            n_bolt = np.max([n_bolt_flap_fatigue, n_bolt_flap_ultimate, n_insert_flap_ultimate, n_insert_flap_fatigue,
+                 n_bolt_pullout, n_bolt_min])
+            # if discrete:
+            #     n_bolt = np.ceil(n_bolt)
+            # else:
+            #     precision = 2  # round up to two decimal places
+            #     n_bolt = np.true_divide(np.ceil(n_bolt * 10**precision), 10**precision)  # round up to nearest 0.01
+            n_bolt_list.append(n_bolt)
+
+            # check for negatives. This implies that the loads magnitudes are imbalanced and out of range for the calculation
+            if n_bolt_flap_ultimate < 0 or n_bolt_flap_fatigue < 0 or n_bolt_pullout < 0:
+                logger.debug('Warning: negative bolt number found. This implies that the preload exceeds the ultimate load'
+                      ' requirements. Please check inputs (separation and ultimate safety factors)')
+
+            # 5- calculate preload to prevent separation and bolt shear. Make sure it's not requiring a preload that's too close
+            # to proof load....this could constrain the load the joint can handle.
+            Fi_sep = n0 * Fax_flap_ultimate * (1 - C) / n_bolt  # because separation is calculated based on extreme ultimate loading, the bolt ultimate safety factor (nprf) needs to be low.
+            Fi_sh = Fsh_flap_ultimate / (mu * n_bolt)
+            if Fi_sep > Fi70p:
+                logger.debug('Warning, separation preload requirement (', Fi_sep,
+                      'N) > 70% bolt proof load and will be limited to prevent overloading.')
+            if Fi_sh > Fi70p:
+                logger.debug('Warning, shear preload requirement (', Fi_sh,
+                      'N) > 70% bolt proof load and will be limited to prevent overloading.')
+            Fi = np.min([np.max([Fi_sh, Fi_sep]), Fi70p])
+
+            # if iteration is stuck in an Fi-driven loop, then take the max # bolts required by loop
+            if i > itermax:
+                if discrete:
+                    logger.debug('Solution oscillating between bolt numbers. Choosing the maximum of these.')
+                    seq = itermax
+                    for x in range(2, itermax // 2):
+                        if n_bolt_list[-x:] == n_bolt_list[-2*x:-x]:
+                            seq = x
+                    n_bolt = max(n_bolt_list[-seq:])
+                else:
+                    logger.debug('Solution has not converged to 0.01 bolt. Choosing the maximum of the last three bolt numbers')
+                    n_bolt = max(n_bolt_list[-3:])
+            if n_bolt >= n_bolt_max:
+                n_bolt_req = n_bolt
+                n_bolt = n_bolt_max
+
+            # print('n_bolt_flap_fatigue', n_bolt_flap_fatigue)
+            # print('n_bolt_flap_ultimate', n_bolt_flap_ultimate)
+            # print('n_insert_flap_ultimate', n_insert_flap_ultimate)
+            # print('n_insert_flap_fatigue', n_insert_flap_fatigue)
+            # print('n_bolt_pullout', n_bolt_pullout)
+            # print('n_bolt_min', n_bolt_min)
+            # print('n_bolt', n_bolt)
+            #
+            # print('Fi_sep', Fi_sep)
+            # print('Fi_sh', Fi_sh)
+            # print('Fi70p', Fi70p)
+            # print('Fi', Fi)
+            # print('################################################')
+
+        # 6- loop through steps 4b-5 until n_bolt converges. Result is n_bolt
+        if n_bolt >= n_bolt_max:
+            logger.debug('Warning. Unable to accommodate # bolts required (', n_bolt_req,
+                      '). Limiting to max # bolts that can fit in '
+                      'the cross section (', n_bolt_max, ').')
+
+        # 7- calc spar cap dimensions needed to resist loads. Neglect fatigue because composites handle it better than
+        # metal, generally. Shear will drive the design due to carbon fiber's isotropicity. Consider shearing due to
+        # shear out on a z-line on the outside of the adhesive, in the middle of the bolt. Also consider shear at bolt
+        # head hole. ***OR, the spar cap could be sized with WISDEM as usual.***
+
+        # a- insert shear out.
+        t1 = 2 * Fsh_flap_ultimate * ns / (L_insert * n_bolt * S_ss)
+
+        # b- shear at bolt head hole.
+        t2 = Fsh_flap_ultimate * ns / (bolt_spacing * S_ss * n_bolt) + w_hole_bolthead * h_bolthead_hole_i / bolt_spacing
+
+        # c- spar cap dimensions
+        t_req_reinf = np.max([t1, t2])
+        if t_req_reinf > t_max:
+            t_req_reinf = t_max
+            # print('Warning, required spar cap thickness (', t_req_reinf, ') is greater than max allowed (', t_max, '). Limiting to max allowed')
+        w_req_reinf = n_bolt * bolt_spacing  # required width driven by number of bolts
+        w_layer[ss_layer_i, i_span] = w_req_reinf
+        w_layer[ps_layer_i, i_span] = w_req_reinf
+        # if w_req_reinf > w_reinf:
+            # print('Warning, required spar cap width of ', w_req_reinf, ' is greater than nominal. Update input files')
+
+        # check if spar cap reaches TE or LE. If so, change y offset to prevent this
+        offset = inputs["layer_offset_y_pa"]
+        for i in [ss_layer_i, ps_layer_i]:
+            # print('offset =', offset[i, i_span])
+            if offset[i, i_span] + 0.5 * w_req_reinf > ratio_SCmax * chord * (1.0 - p_le_i):  # hitting TE?
+                offset[i, i_span] = ratio_SCmax * chord * (1.0 - p_le_i) - w_req_reinf - 0.5
+            elif offset[i, i_span] - 0.5 * w_req_reinf < -ratio_SCmax * chord * p_le_i:  # hitting LE?
+                offset[i, i_span] = -ratio_SCmax * chord * p_le_i + (0.50 * w_req_reinf)
+            # calculate layer start, end based on width
+            midpoint = calc_axis_intersection(inputs["coord_xy_dim"][i_span, :, :], inputs["twist"][i_span], offset[i, i_span], [0.0, 0.0], [discrete_inputs["layer_side"][i]])[0]
+            layer_start_nd[i, i_span] = midpoint - w_req_reinf / arc_L / chord / 2.0
+            layer_end_nd[i, i_span] = midpoint + w_req_reinf / arc_L / chord / 2.0
+
+        # 8- once width and thickness are found, the required ply drop length will determine how long the bulge in the spar cap
+        # is, and inform spar cap total mass. ***OR, the spar cap could be sized with WISDEM as usual.***
+        h_bolthead_hole = t_req_reinf / 2 + 7 / 6 * d_bolt
+        dt = t_req_reinf - t_reinf
+        L_transition = dt / ply_drop_slope  #TODO what do I want to do with this?
+        if L_transition > L_segment:
+            logger.debug('Warning. Segments too short to accommodate ply drop requirements')
+
+        # 9- mass calcs: bolt+insert mass - cutout mass
+        n_bolt *= 2  # consider bolts in each spar cap
+        m_bolt_tot = n_bolt * m_bolt
+        m_insert_tot = n_bolt * m_insert
+        V_adhesive = np.pi * ((d_insert + 2 * t_adhesive) ** 2 - d_insert ** 2) / 4 * L_insert * n_bolt  # m3
+        m_adhesive_tot = V_adhesive * rho_adhesive
+        V_bolthead_hole = h_bolthead_hole * np.pi * w_hole_bolthead ** 2 / 4
+        V_bolthead_hole_tot = V_bolthead_hole * n_bolt
+        V_insert_cutout_tot = np.pi * (d_insert + 2 * t_adhesive) ** 2 / 4 * L_insert * n_bolt  # m3
+        V_cutout = V_insert_cutout_tot + V_bolthead_hole_tot  # m3
+        m_cutout = V_cutout * rho_ss
+        m_add = m_bolt_tot + m_insert_tot + m_adhesive_tot - m_cutout
+
+        cost_adhesive = m_adhesive_tot * pu_cost_adhesive
+        m_insert_stock = np.pi * (d_insert ** 2) / 4 * L_insert * n_bolt
+        cost_insert = m_insert_stock * pu_cost_insert
+        cost_bolt_tot = cost_bolt * n_bolt
+        cost_joint_materials = cost_adhesive + cost_bolt_tot + cost_insert
+        t_reinf_ratio = t_req_reinf / t_reinf
+        w_reinf_ratio = w_req_reinf / w_reinf
+
+        outputs['blade_mass'] = inputs['blade_mass_re'] + m_add
+        # outputs['layer_offset_y_bjs'] = offset
+        # outputs['layer_start_nd_bjs'] = layer_start_nd
+        # outputs['layer_end_nd_bjs'] = layer_end_nd
+        # outputs['layer_width_bjs'] = w_layer
+        outputs['L_transition_joint'] = L_transition
+        outputs['t_reinf_ratio_joint'] = t_reinf_ratio
+        outputs['w_reinf_ratio_joint'] = w_reinf_ratio
+        outputs['n_joint_bolt'] = n_bolt
+        outputs['joint_mass'] = m_add
+        outputs['joint_material_cost'] = cost_joint_materials
+        outputs['joint_total_cost'] = cost_joint_materials + inputs["joint_nonmaterial_cost"]
 
 class RotorStructure(Group):
     # OpenMDAO group to compute the blade elastic properties, deflections, and loading
@@ -1495,15 +1897,17 @@ class RotorStructure(Group):
         ]
         self.add_subsystem("frame", RunFrame3DD(modeling_options=modeling_options), promotes=promoteListFrame3DD)
         promoteListStrains = [
+            "chord",
             "EA",
-            "xu_strain_spar",
-            "xl_strain_spar",
-            "yu_strain_spar",
-            "yl_strain_spar",
-            "xu_strain_te",
-            "xl_strain_te",
-            "yu_strain_te",
-            "yl_strain_te",
+            "A",
+            "xu_spar",
+            "xl_spar",
+            "yu_spar",
+            "yl_spar",
+            "xu_te",
+            "xl_te",
+            "yu_te",
+            "yl_te",
         ]
         self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
@@ -1528,8 +1932,11 @@ class RotorStructure(Group):
             "constr", DesignConstraints(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"]
         )
         self.add_subsystem("brs", BladeRootSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"]))
-            
-        # if modeling_options['rotorse']['FatigueMode'] > 0: 
+        if modeling_options["WISDEM"]["RotorSE"]["bjs"]:
+            self.add_subsystem("bjs", BladeJointSizing(rotorse_options=modeling_options["WISDEM"]["RotorSE"],
+                                                   n_mat=self.options["modeling_options"]["materials"]["n_mat"]))
+
+        # if modeling_options['rotorse']['FatigueMode'] > 0:
         #     promoteListFatigue = ['r', 'gamma_f', 'gamma_m', 'E', 'Xt', 'Xc', 'x_tc', 'y_tc', 'EIxx', 'EIyy', 'pitch_axis', 'chord', 'layer_name', 'layer_mat', 'definition_layer', 'sc_ss_mats','sc_ps_mats','te_ss_mats','te_ps_mats','rthick']
         #     self.add_subsystem('fatigue', BladeFatigue(modeling_options = modeling_options, opt_options = opt_options), promotes=promoteListFatigue)
 
@@ -1581,6 +1988,8 @@ class RotorStructure(Group):
         # Strains from frame3dd to constraint
         self.connect("strains.strainU_spar", "constr.strainU_spar")
         self.connect("strains.strainL_spar", "constr.strainL_spar")
+        self.connect("strains.strainU_te", "constr.strainU_te")
+        self.connect("strains.strainL_te", "constr.strainL_te")
         self.connect("frame.flap_mode_freqs", "constr.flap_mode_freqs")
         self.connect("frame.edge_mode_freqs", "constr.edge_mode_freqs")
         # Strains from fatigue DEM to constraint
@@ -1600,3 +2009,70 @@ class RotorStructure(Group):
         
         # Blade root moment to blade root sizing
         self.connect("frame.root_M", "brs.root_M")
+
+        if modeling_options["WISDEM"]["RotorSE"]["bjs"]:
+            # Moments to joint sizing
+            self.connect("frame.F2", "bjs.F2")
+            self.connect("frame.M1", "bjs.M1")
+            self.connect("frame.M2", "bjs.M2")
+
+def calc_axis_intersection(xy_coord, rotation, offset, p_le_d, side, thk=0.0):
+    # dimentional analysis that takes a rotation and offset from the pitch axis and calculates the airfoil intersection
+    # rotation
+    offset_x = offset * np.cos(rotation) + p_le_d[0]
+    offset_y = offset * np.sin(rotation) + p_le_d[1]
+
+    m_rot = np.sin(rotation) / np.cos(rotation)  # slope of rotated axis
+    plane_rot = [m_rot, -1 * m_rot * p_le_d[0] + p_le_d[1]]  # coefficients for rotated axis line: a1*x + a0
+
+    m_intersection = np.sin(rotation + np.pi / 2.0) / np.cos(
+        rotation + np.pi / 2.0
+    )  # slope perpendicular to rotated axis
+    plane_intersection = [
+        m_intersection,
+        -1 * m_intersection * offset_x + offset_y,
+    ]  # coefficients for line perpendicular to rotated axis line at the offset: a1*x + a0
+
+    # intersection between airfoil surface and the line perpendicular to the rotated/offset axis
+    y_intersection = np.polyval(plane_intersection, xy_coord[:, 0])
+
+    idx_le = np.argmin(xy_coord[:, 0])
+    xy_coord_arc = util.arc_length(xy_coord)
+    arc_L = xy_coord_arc[-1]
+    xy_coord_arc /= arc_L
+
+    idx_inter = np.argwhere(
+        np.diff(np.sign(xy_coord[:, 1] - y_intersection))
+    ).flatten()  # find closest airfoil surface points to intersection
+
+    midpoint_arc = []
+    for sidei in side:
+        if sidei.lower() == "suction":
+            tangent_line = np.polyfit(
+                xy_coord[idx_inter[0] : idx_inter[0] + 2, 0], xy_coord[idx_inter[0] : idx_inter[0] + 2, 1], 1
+            )
+        elif sidei.lower() == "pressure":
+            tangent_line = np.polyfit(
+                xy_coord[idx_inter[1] : idx_inter[1] + 2, 0], xy_coord[idx_inter[1] : idx_inter[1] + 2, 1], 1
+            )
+
+        midpoint_x = (tangent_line[1] - plane_intersection[1]) / (plane_intersection[0] - tangent_line[0])
+        midpoint_y = (
+            plane_intersection[0]
+            * (tangent_line[1] - plane_intersection[1])
+            / (plane_intersection[0] - tangent_line[0])
+            + plane_intersection[1]
+        )
+
+        # convert to arc position
+        if sidei.lower() == "suction":
+            x_half = xy_coord[: idx_le + 1, 0]
+            arc_half = xy_coord_arc[: idx_le + 1]
+
+        elif sidei.lower() == "pressure":
+            x_half = xy_coord[idx_le:, 0]
+            arc_half = xy_coord_arc[idx_le:]
+
+        midpoint_arc.append(remap2grid(x_half, arc_half, midpoint_x, spline=interp1d))
+
+    return midpoint_arc

@@ -3,8 +3,10 @@ SRCS = WavDynMods.f90 PatclVelct.f90 BodyIntgr.f90 BodyIntgr_irr.f90 AssbMatx.f9
 SingularIntgr.f90 InfGreen_Appr.f90 FinGrnExtSubs.f90 FinGreen3D.f90 CalGreenFunc.f90 NormalProcess.f90 ReadPanelMesh.f90 \
 HydroStatic.f90 ImplementSubs.f90 InputFiles.f90 PotentWavForce.f90 \
 PressureElevation.f90 PrintOutput.f90 SolveMotion.f90 WavDynSubs.f90 HAMS_Prog.f90 
+
 # Find all source files, create a list of corresponding object files
 #SRCS=$(wildcard *.f90)
+
 OBJS=$(patsubst %.f90,%.o,$(SRCS))
 
 # Ditto for mods (They will be in both lists)
@@ -12,9 +14,20 @@ MODS=$(wildcard mod*.f90)
 MOD_OBJS=$(patsubst %.f90,%.o,$(MODS))
 
 # Compiler/Linker settings
-FC = gfortran
-FLFLAGS = -g -m64 -fopenmp -fbacktrace
-FCFLAGS = -g -m64 -c -O3 -fno-align-commons -fPIC -fdec-math -fbacktrace -fcheck=all -Wall
+FC ?= gfortran
+ifeq ($(FC), f77)
+    FC = gfortran 
+endif
+
+ifeq ($(FC), ifort)
+	FLFLAGS = -g -xHost -fopenmp -mkl
+	FCFLAGS = -g -xHost -c -O3 -fPIC -check bounds,pointers -warn all -fopenmp -mkl
+	LDCOMP  = -lmkl_rt
+else
+	FLFLAGS = -g -march=native -mtune=native -fopenmp
+	FCFLAGS = -g -march=native -mtune=native -c -O3 -fPIC -fopenmp -fdec-math -fcheck=bounds,mem,pointer -Wall
+	LDCOMP  = -llapack
+endif
 PROGRAM = hams
 PRG_OBJ = $(PROGRAM).o
 
@@ -42,14 +55,15 @@ $(OBJS) : %.o : %.f90
 
 # Linker
 $(PROGRAM) : $(OBJS)
-	$(FC) $(FLFLAGS) -o $@ $^ -llapack
+	$(FC) $(FLFLAGS) -o $@ $^ $(LDCOMP)
 
 shared : $(OBJS)
-	$(FC) $(FLFLAGS) $(LDFLAGS) -o $(LIB) $^ -llapack
+	$(FC) $(FLFLAGS) $(LDFLAGS) -o $(LIB) $^ $(LDCOMP)
 
 # If something doesn't work right, have a 'make debug' to 
 # show what each variable contains.
 debug:
+	@echo "FC = $(FC)"
 	@echo "SRCS = $(SRCS)"
 	@echo "OBJS = $(OBJS)"
 	@echo "MODS = $(MODS)"
