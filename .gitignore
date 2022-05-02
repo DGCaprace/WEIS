@@ -116,6 +116,7 @@ Thumbs.db
 *temp*
 outputs/
 results/
+openfast_runs/
 
 # Turbsim
 wind/
@@ -136,3 +137,18 @@ optim_*
 DBG*
 sim*
 old*
+
+5MW_*
+*.pvsm
+*.npz
+DEPREC*
+*DVCentres.dat
+*DVGroupCentres.dat
+*DVCentresCon.dat
+*DVGroupCentresCon.dat
+force*.txt
+
+
+#sepcific folders:
+Madsen2019_10_forWEIS_isotropic_*
+LoFiEval*
