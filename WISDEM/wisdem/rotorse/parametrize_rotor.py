@@ -206,7 +206,7 @@ class ParametrizeBladeStruct(om.ExplicitComponent):
             else:
                 opt_m_interp = inputs["layer_thickness_original"][i, :]
 
-            #DG: TEMP. I used to do:
+            #BYU: this is deprec
             # elif layer_name[i] == spar_cap_ps_name and opt_ss and opt_ps:
             #     if (
             #         self.opt_options["design_variables"]["blade"]["structure"]["spar_cap_ps"]["equal_to_suction"]

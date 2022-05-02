@@ -229,13 +229,15 @@ class TurbineConstraints(om.Group):
     def setup(self):
         modeling_options = self.options["modeling_options"]
 
-#DG: let's just not do this... should be a check here to determine if tower is present or not.
-        # self.add_subsystem(
-        #     "modes", TowerModes(gamma=modeling_options["WISDEM"]["TowerSE"]["gamma_freq"]), promotes=["*"]
-        # )
-        self.add_subsystem(
-            "modes", EmptyTowerModes(), promotes=["*"]
-        )
+        if self.options["modeling_options"]["WISDEM"]["TowerSE"]["flag"] :
+            self.add_subsystem(
+                "modes", TowerModes(gamma=modeling_options["WISDEM"]["TowerSE"]["gamma_freq"]), promotes=["*"]
+            )
+        else:
+            self.add_subsystem(
+                "modes", EmptyTowerModes(), promotes=["*"]
+            )
+            print("WARNING: no tower. I am not constraining tower modes. Tip deflcetion is constrained but probably meaningless.")
         
         self.add_subsystem("tipd", TipDeflectionConstraint(modeling_options=modeling_options), promotes=["*"])
 

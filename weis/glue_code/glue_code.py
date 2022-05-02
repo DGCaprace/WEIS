@@ -275,7 +275,7 @@ class WindPark(om.Group):
                 self.connect("airfoils.cl", "raft.airfoils_cl")
                 self.connect("airfoils.cd", "raft.airfoils_cd")
                 self.connect("airfoils.cm", "raft.airfoils_cm")
-                self.connect("high_level_tower_props.hub_height", "raft.wind_reference_height") #DG: URGENT: can you do that if there is no tower?
+                self.connect("high_level_tower_props.hub_height", "raft.wind_reference_height")
                 self.connect("rotorse.rp.powercurve.V", "raft.rotor_powercurve_v")
                 self.connect("rotorse.rp.powercurve.Omega", "raft.rotor_powercurve_omega_rpm")
                 self.connect("rotorse.rp.powercurve.pitch", "raft.rotor_powercurve_pitch")
@@ -404,23 +404,23 @@ class WindPark(om.Group):
                 self.connect('hub.radius',                      'aeroelastic.Rhub')
                 self.connect('hub.cone',                        'aeroelastic.cone')
 
-                #DG: URGENT: WILL THIS STILL WORK OR NOT??
-                # if modeling_options["flags"]["nacelle"]:
-                self.connect('drivese.hub_system_mass',         'aeroelastic.hub_system_mass')
-                self.connect('drivese.hub_system_I',            'aeroelastic.hub_system_I')
-                # TODO: Create these outputs in DriveSE: hub_system_cm needs 3-dim, not s-coord.  Need adder for rna-yaw_mass?
-                #self.connect('drivese_post.hub_system_cm',                    'aeroelastic.hub_system_cm')
-                self.connect('drivese.above_yaw_mass',          'aeroelastic.above_yaw_mass')
-                self.connect('drivese.yaw_mass',                'aeroelastic.yaw_mass')
-                self.connect('drivese.rna_I_TT',                'aeroelastic.rna_I_TT')
-                self.connect('drivese.above_yaw_I_TT',          'aeroelastic.nacelle_I_TT')
-                self.connect('drivese.above_yaw_cm',            'aeroelastic.nacelle_cm')
-                self.connect('drivese.generator_rotor_I',       'aeroelastic.GenIner', src_indices=[0])
-                self.connect('drivese.constr_height',           'aeroelastic.twr2shaft')
-                self.connect('drivese.drivetrain_spring_constant', 'aeroelastic.drivetrain_spring_constant')
-                self.connect('drivese.drivetrain_damping_coefficient', 'aeroelastic.drivetrain_damping_coefficient')
-                # else:
-                #     print("Warning: Running without driveSE. Will assume defaults for a bunch of driver parameters in AeroelasticSE.")
+
+                if modeling_options["flags"]["nacelle"]:
+                    self.connect('drivese.hub_system_mass',         'aeroelastic.hub_system_mass')
+                    self.connect('drivese.hub_system_I',            'aeroelastic.hub_system_I')
+                    # TODO: Create these outputs in DriveSE: hub_system_cm needs 3-dim, not s-coord.  Need adder for rna-yaw_mass?
+                    #self.connect('drivese_post.hub_system_cm',                    'aeroelastic.hub_system_cm')
+                    self.connect('drivese.above_yaw_mass',          'aeroelastic.above_yaw_mass')
+                    self.connect('drivese.yaw_mass',                'aeroelastic.yaw_mass')
+                    self.connect('drivese.rna_I_TT',                'aeroelastic.rna_I_TT')
+                    self.connect('drivese.above_yaw_I_TT',          'aeroelastic.nacelle_I_TT')
+                    self.connect('drivese.above_yaw_cm',            'aeroelastic.nacelle_cm')
+                    self.connect('drivese.generator_rotor_I',       'aeroelastic.GenIner', src_indices=[0])
+                    self.connect('drivese.constr_height',           'aeroelastic.twr2shaft')
+                    self.connect('drivese.drivetrain_spring_constant', 'aeroelastic.drivetrain_spring_constant')
+                    self.connect('drivese.drivetrain_damping_coefficient', 'aeroelastic.drivetrain_damping_coefficient')
+                else:
+                    print("Warning: Running without driveSE. Will assume defaults for a bunch of driver parameters in AeroelasticSE.")
                 
                 self.connect('nacelle.gear_ratio',              'aeroelastic.gearbox_ratio')
                 self.connect('rotorse.rp.powercurve.rated_efficiency',  'aeroelastic.generator_efficiency')
@@ -443,12 +443,6 @@ class WindPark(om.Group):
                     self.connect('tower.cd',                        'aeroelastic.tower_cd')
                     self.connect('tower_grid.height',               'aeroelastic.tower_height')
                     self.connect('tower_grid.foundation_height',    'aeroelastic.tower_base_height')
-
-                    #DG: check this is deprec?
-                    # self.connect('towerse.tower_wall_thickness',    'aeroelastic.tower_wall_thickness')
-                    # self.connect('towerse.E',                       'aeroelastic.tower_E')
-                    # self.connect('towerse.G',                       'aeroelastic.tower_G')
-                    # self.connect('towerse.rho',                     'aeroelastic.tower_rho')
 
                     if modeling_options["flags"]["monopile"] or modeling_options["flags"]["jacket"]:
                         self.connect('fixedse.torsion_freqs',      'aeroelastic.tor_freq', src_indices=[0])
@@ -533,7 +527,7 @@ class WindPark(om.Group):
                 self.connect('rotorse.re.Tw_iner',                 'aeroelastic.beam:Tw_iner')
                 self.connect('rotorse.rs.frame.flap_mode_shapes',       'aeroelastic.flap_mode_shapes')
                 self.connect('rotorse.rs.frame.edge_mode_shapes',       'aeroelastic.edge_mode_shapes')
-                # #DG: is this deprec?
+                #BYU: TODO: use this to connect with BeamDyn.
                 # self.connect('rotorse.re.Tw_iner',              'aeroelastic.beam:Tw_iner')
                 # self.connect('rotorse.re.precomp.flap_iner',    'aeroelastic.beam:flap_iner')
                 # self.connect('rotorse.re.precomp.edge_iner',    'aeroelastic.beam:edge_iner')
@@ -600,12 +594,14 @@ class WindPark(om.Group):
                 self.connect('rotorse.rs.strains.axial_root_sparL_load2stress', 'aeroelastic.blade_root_sparL_load2stress')
                 self.connect('rotorse.rs.strains.axial_maxc_teU_load2stress', 'aeroelastic.blade_maxc_teU_load2stress')
                 self.connect('rotorse.rs.strains.axial_maxc_teL_load2stress', 'aeroelastic.blade_maxc_teL_load2stress')
-                #DG: # if modeling_options["flags"]["nacelle"]: XXX
-                self.connect('drivese.lss_wohler_exp', 'aeroelastic.lss_wohlerexp')
-                self.connect('drivese.lss_wohler_A', 'aeroelastic.lss_wohlerA')
-                self.connect('drivese.lss_Xt', 'aeroelastic.lss_ultstress')
-                self.connect('drivese.lss_axial_load2stress', 'aeroelastic.lss_axial_load2stress')
-                self.connect('drivese.lss_shear_load2stress', 'aeroelastic.lss_shear_load2stress')
+                if modeling_options["flags"]["nacelle"]:
+                    self.connect('drivese.lss_wohler_exp', 'aeroelastic.lss_wohlerexp')
+                    self.connect('drivese.lss_wohler_A', 'aeroelastic.lss_wohlerA')
+                    self.connect('drivese.lss_Xt', 'aeroelastic.lss_ultstress')
+                    self.connect('drivese.lss_axial_load2stress', 'aeroelastic.lss_axial_load2stress')
+                    self.connect('drivese.lss_shear_load2stress', 'aeroelastic.lss_shear_load2stress')
+                else:
+                    print("Warning: Running without driveSE. Will assume defaults for LSS fatigue.")
                 if modeling_options["flags"]["tower"]:
                     self.connect('towerse.member.wohler_exp', 'aeroelastic.tower_wohlerexp')
                     self.connect('towerse.member.wohler_A', 'aeroelastic.tower_wohlerA')
@@ -865,8 +861,13 @@ class WindPark(om.Group):
                 self.connect('hub.cone',                        'tcons_post.precone')
                 self.connect('nacelle.uptilt',                  'tcons_post.tilt')
                 self.connect('nacelle.overhang',                'tcons_post.overhang')
-                self.connect('tower.ref_axis',                  'tcons_post.ref_axis_tower')
-                self.connect('tower.diameter',                  'tcons_post.d_full')
+
+                if modeling_options["flags"]["tower"]:
+                    self.connect('tower.ref_axis',                  'tcons_post.ref_axis_tower')
+                    self.connect('tower.diameter',                  'tcons_post.d_full')
+                else:
+                    print("Warning: NO TOWER - will assume default value for tower top diameter (0m).")
+                    self.connect("high_level_tower_props.tower_ref_axis", "tcons_post.ref_axis_tower")
                 
             else:  # connections from outside WISDEM
                 self.connect('rosco_turbine.v_rated',               'aeroelastic.Vrated')

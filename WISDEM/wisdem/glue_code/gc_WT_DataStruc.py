@@ -3073,7 +3073,7 @@ class ComputeHighLevelBladeProperties(om.ExplicitComponent):
         rotorse_options = self.options["rotorse_options"]
 
         n_span = rotorse_options["n_span"]
-        # if modeling_options["flags"]["blade"]: #DG: check this is deprec?
+        # if modeling_options["flags"]["blade"]:BYU: this is deprec
         #     n_span = rotorse_options["n_span"]
         # else:
         #     n_span = 0
@@ -3167,14 +3167,11 @@ class ComputeHighLevelTowerProperties(om.ExplicitComponent):
         if modeling_options["flags"]["tower"]:
             n_height_tower = modeling_options["WISDEM"]["TowerSE"]["n_height_tower"]
         else:
-            n_height_tower = 0
-        # if modeling_options["flags"]["tower"]:
-        #     n_height_tower = modeling_options["WISDEM"]["TowerSE"]["n_height_tower"]
-        # else:
-        #     n_height_tower = 3 #need non 0 number of nodes                                #DG: check this is deprec? especially, this could not be 0 before.
-        #     # modeling_options["WISDEM"]["TowerSE"] = {} #do not erase what we already have
-        #     modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = n_height_tower
-        #     modeling_options["WISDEM"]["TowerSE"]["n_height"] = n_height_tower
+            n_height_tower = 2 #this needs to be non 0
+            # BYU: must be deprec
+            # # modeling_options["WISDEM"]["TowerSE"] = {} #do not erase what we already have
+            # modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = n_height_tower
+            # modeling_options["WISDEM"]["TowerSE"]["n_height"] = n_height_tower
 
         self.add_input(
             "tower_ref_axis_user",
@@ -3218,7 +3215,6 @@ class ComputeHighLevelTowerProperties(om.ExplicitComponent):
                 outputs["hub_height"] = inputs["tower_ref_axis_user"][-1, 2] + inputs["distance_tt_hub"]
                 outputs["tower_ref_axis"] = inputs["tower_ref_axis_user"]
         else:
-            print(f"DG CHECK THIS: default hub height? {outputs['hub_height']} vs input {inputs['hub_height_user']}") #DG: check this is deprec... especially, v1.0 does not assign a value for hub_height... so it takes the default component one?
             print("WARNING: without TowerSE, I will use hub_height straight from assembly in yaml. SHEAR MAY NOT WORK.")
             outputs["hub_height"] = inputs["hub_height_user"]
 

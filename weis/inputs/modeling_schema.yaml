@@ -3317,7 +3317,7 @@ properties:
                                     maximum: 1.e+3
                                     unit: s
                                     description: Minimum start time for coherent structures in RootName.cts
-                    #DG: URGENT: used to have this, now this is gone. Is there still a way to run a simple non-turbulent power curve?
+                    #DG: used to have this, now this is gone. Is there still a way to run a simple non-turbulent power curve?
                     # Power_Curve:
                     #     type: object
                     #     default: {}

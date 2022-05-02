@@ -61,19 +61,19 @@ fatigue_channels_default = {
 
 for i in range(1,41): #TODO: must read this number from somewhere!!
     tag = "B1N%03iMLx"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "B1N%03iMLy"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "B1N%03iFLz"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "AB1N%03iFn"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "AB1N%03iFt"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "AB1N%03iFx"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
     tag = "AB1N%03iFy"%(i)
-    fatigue_channels[tag] = FatigueParams(slope=10),
+    fatigue_channels_default[tag] = FatigueParams(slope=10)
 
 # channel_extremes_default = [
 #     'RotSpeed',

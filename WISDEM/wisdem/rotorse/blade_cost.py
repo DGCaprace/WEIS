@@ -3435,6 +3435,11 @@ class BladeCost(om.ExplicitComponent):
         mass_shell_ss = 0.0
         mass_shell_ps = 0.0
         tol_LE = 1.0e-5
+
+        #defaults
+        area_root_ss = -1
+        area_root_ps = -1
+
         for i_lay in range(self.n_layers):
             
             if np.max(layer_thickness[i_lay, :]) > 0.:
@@ -3772,6 +3777,15 @@ class BladeCost(om.ExplicitComponent):
         total_labor_hours = sum(labor_hours)
         total_skin_mold_gating_ct = sum(skin_mold_gating_ct)
         total_non_gating_ct = sum(non_gating_ct)
+
+
+        #if all materials are isotropic, then area_root_ss is never set !
+        if area_root_ss < 0:
+            area_root_ss = 0
+            print("Warning: blade joint sizing: bould not find area_root_ss! setting to 0.")
+        if area_root_ps < 0:
+            area_root_ps = 0
+            print("Warning: blade joint sizing: bould not find area_root_ps! setting to 0.")
 
         # Virtual factory
         blade_specs["max_chord"] = np.max(chord)

@@ -250,6 +250,11 @@ class WindTurbineOntologyPython(object):
             self.modeling_options["WISDEM"]["TowerSE"]["n_layers_tower"] = self.modeling_options["WISDEM"]["TowerSE"][
                 "n_layers"
             ]
+        else:
+            self.modeling_options["WISDEM"]["TowerSE"]["n_height"] = 2 #can't use 0 
+            self.modeling_options["WISDEM"]["TowerSE"]["n_layers"] = 0 
+            self.modeling_options["WISDEM"]["TowerSE"]["n_height_tower"] = 2 
+            self.modeling_options["WISDEM"]["TowerSE"]["n_layers_tower"] = 0 
 
         # Monopile
         if self.modeling_options["flags"]["monopile"]:

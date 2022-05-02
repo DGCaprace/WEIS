@@ -250,7 +250,7 @@ class RunXFOIL(ExplicitComponent):
         
         if MPI and self.options['modeling_options']['Level3']['flag']: #and self.options['opt_options']['driver']['optimization']['flag']: #Allow MPI when not optimizing.
             self.mpi_comm_map_down = self.options['modeling_options']['General']['openfast_configuration']['mpi_comm_map_down']
-            # self.mpi_comm_map_down = FASTpref['analysis_settings']['mpi_comm_map_down']  #DG: check this is deprec
+            # self.mpi_comm_map_down = FASTpref['analysis_settings']['mpi_comm_map_down']  #BYU: this is deprec
 
         # Inputs blade outer shape
         self.add_input('s',          val=np.zeros(n_span),                      desc='1D array of the non-dimensional spanwise grid defined along blade axis (0-blade root, 1-blade tip)')

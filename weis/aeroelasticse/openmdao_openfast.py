@@ -135,7 +135,7 @@ class FASTLoadCases(ExplicitComponent):
             self.add_input('beam:rhoA',             val=np.zeros(n_span), units='kg/m', desc='mass per unit length')
             self.add_input('beam:EIyy',             val=np.zeros(n_span), units='N*m**2', desc='flatwise stiffness (bending about y-direction of airfoil aligned coordinate system)')
             self.add_input('beam:EIxx',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
-            #DG: added the following 5
+            #BYU: added the following 5, attempting to connect to BeamDyn
             self.add_input('beam:EIxy',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:GJ',               val=np.zeros(n_span), units='N*m**2', desc='torsional stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:EA',               val=np.zeros(n_span), units='N', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
@@ -524,10 +524,10 @@ class FASTLoadCases(ExplicitComponent):
 
         self.add_discrete_output('fst_vt_out', val={})
 
-        #DG: ADD MORE OUTPUTS for us to post-process
-        #DG: URGENT: apparently now handled in postprocessing with "self.save_iterations(summary_stats,DELs,discrete_outputs)
+        #BYU> ADD DISCRETE OUTPUTS for us to post-process. I'd rather do this than use the "self.save_iterations" so that I can use the objects directly, eliminating the need for read/write to disk
         self.add_discrete_output('summary_stats', val={})
-        self.add_discrete_output('dlc_list', val={})
+        # self.add_discrete_output('dlc_list', val={}) # don't need the informatin in there if we also have dlc_generator
+        self.add_discrete_output('dlc_generator', val={})
         # self.add_discrete_output('extreme_table', val={})
         self.add_discrete_output('DELs', val={})
         #-------------
@@ -563,6 +563,8 @@ class FASTLoadCases(ExplicitComponent):
         #print(impl.world_comm().rank, 'Rotor_fast','start')
         sys.stdout.flush()
 
+        debug_level = 1 #modopt['General']['verbosity']
+        
         if modopt['Level2']['flag']:
             self.sim_idx += 1
             ABCD = {
@@ -593,13 +595,13 @@ class FASTLoadCases(ExplicitComponent):
             with open(self.lin_pkl_file_name, 'wb') as handle:
                 pickle.dump(ABCD_list, handle)
 
-        if(self.debug_level)>0:
+        if(debug_level)>0:
             print("INIT FAST MODEL")
             sys.stdout.flush()
         fst_vt = self.init_FAST_model()
 
         if not modopt['Level3']['from_openfast']:
-            if(self.debug_level)>0:
+            if(debug_level)>0:
                 print("UPDATE FAST MODEL")
                 sys.stdout.flush()
             fst_vt = self.update_FAST_model(fst_vt, inputs, discrete_inputs)
@@ -626,7 +628,7 @@ class FASTLoadCases(ExplicitComponent):
                 fst_vt['DISCON_in'] = modopt['General']['openfast_configuration']['fst_vt']['DISCON_in']
                 
 
-        if(self.debug_level)>0:
+        if(debug_level)>0:
             print("WRITE/RUN FAST MODEL")
             sys.stdout.flush()
                         
@@ -638,9 +640,12 @@ class FASTLoadCases(ExplicitComponent):
             summary_stats, extreme_table, DELs, Damage, case_list, case_name, chan_time, dlc_generator  = self.run_FAST(inputs, discrete_inputs, fst_vt)
 
 
-            #DG: URGENT: apparently now handled in postprocessing with "self.save_iterations(summary_stats,DELs,discrete_outputs)
-            discrete_outputs['dlc_list'] = case_list #DG: URGENT  used to be dlc_list
+            # discrete_outputs['dlc_list'] = case_name #this is just the list of files, not really usefull
+            # discrete_outputs['dlc_list'] = case_list #that would be mode information, although I don't need it.
 
+            discrete_outputs['dlc_generator'] = dlc_generator 
+
+            # Note: if it was only to write a file, we could use self.save_iterations(summary_stats,DELs,discrete_outputs)
             discrete_outputs['summary_stats'] = summary_stats
             # discrete_outputs['extreme_table'] = extreme_table
             discrete_outputs['DELs'] = DELs
@@ -992,45 +997,32 @@ class FASTLoadCases(ExplicitComponent):
         fst_vt['AeroDyn15']['TwrTI']     = np.ones(len(twr_elev[twr_index:])) * fst_vt['AeroDyn15']['TwrTI']
         fst_vt['AeroDyn15']['tau1_const'] = 0.24 * float(inputs['Rtip']) # estimated using a=0.3 and U0=7.5
 
-        # #DG: is this deprec? TOWER STUFF
-        # if modeling_options["flags"]["tower"]:
-        #     z_tow = twr_elev[twr_index:]
-        #     z_sec, _ = util.nodal2sectional(z_tow)
-        #     sec_loc = (z_sec - z_sec[0]) / (z_sec[-1] - z_sec[0])
-        #     fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
-        #     fst_vt['ElastoDynTower']['HtFract']  = sec_loc
-        #     fst_vt['ElastoDynTower']['TMassDen'] = inputs['mass_den'][twr_index:]
-        #     fst_vt['ElastoDynTower']['TwFAStif'] = inputs['foreaft_stff'][twr_index:]
-        #     fst_vt['ElastoDynTower']['TwSSStif'] = inputs['sideside_stff'][twr_index:]
-        #     fst_vt['ElastoDynTower']['TwFAM1Sh'] = inputs['fore_aft_modes'][0, :]  / sum(inputs['fore_aft_modes'][0, :])
-        #     fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
-        #     fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
-        #     fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
-        #     #POSSIBLY: warning from the above lines conflict with other stdout writing, resulting in messages being mixed on the same line
-        # else:
-        #     print("NO TOWER: assuming all inputs are 0 in the EDTower file. MAKE SURE YOU TURNED OFF THE CORRESPONDING DOF.")
-        #     sec_loc = [0,]
-        #     fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
-        #     fst_vt['ElastoDynTower']['HtFract']  = sec_loc
-        #     fst_vt['ElastoDynTower']['TMassDen'] = [1.,]
-        #     fst_vt['ElastoDynTower']['TwFAStif'] = [1.,]
-        #     fst_vt['ElastoDynTower']['TwSSStif'] = [1.,]
-        #     fst_vt['ElastoDynTower']['TwFAM1Sh'] = [1.,0.,0.,0.,0.]
-        #     fst_vt['ElastoDynTower']['TwFAM2Sh'] = [1.,0.,0.,0.,0.]
-        #     fst_vt['ElastoDynTower']['TwSSM1Sh'] = [1.,0.,0.,0.,0.]
-        #     fst_vt['ElastoDynTower']['TwSSM2Sh'] = [1.,0.,0.,0.,0.]
-        z_tow = twr_elev
-        z_sec, _ = util.nodal2sectional(z_tow)
-        sec_loc = (z_sec - z_sec[0]) / (z_sec[-1] - z_sec[0])
-        fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
-        fst_vt['ElastoDynTower']['HtFract']  = sec_loc
-        fst_vt['ElastoDynTower']['TMassDen'] = inputs['mass_den']
-        fst_vt['ElastoDynTower']['TwFAStif'] = inputs['foreaft_stff']
-        fst_vt['ElastoDynTower']['TwSSStif'] = inputs['sideside_stff']
-        fst_vt['ElastoDynTower']['TwFAM1Sh'] = inputs['fore_aft_modes'][0, :]  / sum(inputs['fore_aft_modes'][0, :])
-        fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
-        fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
-        fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
+        if self.options['modeling_options']["flags"]["tower"]:
+            z_tow = twr_elev
+            z_sec, _ = util.nodal2sectional(z_tow)
+            sec_loc = (z_sec - z_sec[0]) / (z_sec[-1] - z_sec[0])
+            fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
+            fst_vt['ElastoDynTower']['HtFract']  = sec_loc
+            fst_vt['ElastoDynTower']['TMassDen'] = inputs['mass_den']
+            fst_vt['ElastoDynTower']['TwFAStif'] = inputs['foreaft_stff']
+            fst_vt['ElastoDynTower']['TwSSStif'] = inputs['sideside_stff']
+            fst_vt['ElastoDynTower']['TwFAM1Sh'] = inputs['fore_aft_modes'][0, :]  / sum(inputs['fore_aft_modes'][0, :])
+            fst_vt['ElastoDynTower']['TwFAM2Sh'] = inputs['fore_aft_modes'][1, :]  / sum(inputs['fore_aft_modes'][1, :])
+            fst_vt['ElastoDynTower']['TwSSM1Sh'] = inputs['side_side_modes'][0, :] / sum(inputs['side_side_modes'][0, :])
+            fst_vt['ElastoDynTower']['TwSSM2Sh'] = inputs['side_side_modes'][1, :] / sum(inputs['side_side_modes'][1, :])
+            #POSSIBLY: warning from the above lines conflict with other stdout writing, resulting in messages being mixed on the same line
+        else:
+            print("NO TOWER: assuming all inputs are 0 in the EDTower file. MAKE SURE YOU TURNED OFF THE CORRESPONDING DOF.")
+            sec_loc = [0,]
+            fst_vt['ElastoDynTower']['NTwInpSt'] = len(sec_loc)
+            fst_vt['ElastoDynTower']['HtFract']  = sec_loc
+            fst_vt['ElastoDynTower']['TMassDen'] = [1.,]
+            fst_vt['ElastoDynTower']['TwFAStif'] = [1.,]
+            fst_vt['ElastoDynTower']['TwSSStif'] = [1.,]
+            fst_vt['ElastoDynTower']['TwFAM1Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwFAM2Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwSSM1Sh'] = [1.,0.,0.,0.,0.]
+            fst_vt['ElastoDynTower']['TwSSM2Sh'] = [1.,0.,0.,0.,0.]
         
         # Calculate yaw stiffness of tower (springs in series) and use in servodyn as yaw spring constant
         k_tow_tor = inputs['tor_stff'] / np.diff(inputs['tower_z'])
@@ -1293,7 +1285,7 @@ class FASTLoadCases(ExplicitComponent):
                 fst_vt['BeamDynBlade']['beam_stiff'][i,4,4] = inputs["beam:EIyy"][i] #flapwise
                 fst_vt['BeamDynBlade']['beam_stiff'][i,3,4] = fst_vt['BeamDynBlade']['beam_stiff'][i,4,3] =  inputs["beam:EIxy"][i]  #e-f
                 fst_vt['BeamDynBlade']['beam_stiff'][i,5,5] = inputs["beam:GJ"][i]
-                # MISSING THE FOLLOWING THAT IS READILY AVAILABLE AS PRECOM OUTPUT.
+                #BYU: MISSING THE FOLLOWING THAT IS READILY AVAILABLE AS PRECOM OUTPUT.
                 # THESE ARE CRUTIAL FOR TWIST-BENDING COUPLING!!
                 # fst_vt['BeamDynBlade']['beam_stiff'][i,3,5] = fst_vt['BeamDynBlade']['beam_stiff'][i,5,3] = inputs["beam:EIxz"][i] #edge-torsion
                 # fst_vt['BeamDynBlade']['beam_stiff'][i,4,5] = fst_vt['BeamDynBlade']['beam_stiff'][i,5,4] = inputs["beam:EIyz"][i] #flap-torsion
