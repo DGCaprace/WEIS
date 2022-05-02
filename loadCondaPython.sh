@@ -21,4 +21,5 @@ unset __conda_setup
 # <<< conda initialize <<<
 
 
-conda activate weis-env
+#conda activate weis-env
+conda activate weis-env-v1
