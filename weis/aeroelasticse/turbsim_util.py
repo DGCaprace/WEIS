@@ -262,6 +262,9 @@ def generate_wind_files(dlc_generator, FAST_namingOut, wind_directory, rotorD, h
         wind_file_type = 3
 
     else:
+        if 'steady' in dlc_generator.cases[i_case].IEC_WindType:
+            return 1, ''
+
         gusts = IEC_CoherentGusts()
         gusts.D = rotorD
         gusts.HH = hub_height

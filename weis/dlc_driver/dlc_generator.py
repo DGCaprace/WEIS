@@ -200,7 +200,7 @@ class DLCGenerator(object):
         return wind_speeds, wind_seeds, wave_seeds, wind_heading, wave_Hs, wave_Tp, wave_gamma, wave_heading, probabilities
 
     def generate(self, label, options):
-        known_dlcs = [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 6.1, 6.2, 6.3, 6.4, 12.1]
+        known_dlcs = [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 6.1, 6.2, 6.3, 6.4, 12.1, 'Custom', 'PowerCurve']
 
         # Get extreme wind speeds
         self.IECwind()
@@ -219,7 +219,7 @@ class DLCGenerator(object):
 
         self.n_cases = len(self.cases)
 
-    def generate_custom(self, options):
+    def generate_Custom(self, options):
         pass
 
     def generate_1p1(self, options):
@@ -273,6 +273,28 @@ class DLCGenerator(object):
                 i_WaH+=1
 
         self.n_ws_dlc11 = len(np.unique(wind_speeds))
+
+    def generate_PowerCurve(self, options):
+        # Power production normal turbulence model - ultimate loads
+        wind_speeds, wind_seeds, wave_seeds, wind_heading, wave_Hs, wave_Tp, wave_gamma, wave_heading, _ = self.get_metocean(options)
+        # Counter for wind seed
+        i_WiSe=0
+        for ws in wind_speeds:
+            idlc = DLCInstance(options=options)
+            idlc.URef = ws
+            idlc.IEC_WindType = 'steady'
+            idlc.turbulent_wind = False
+
+            idlc.label = 'PowerCurve'
+            if options['analysis_time'] > 0:
+                idlc.analysis_time = options['analysis_time']
+            if options['transient_time'] >= 0:
+                idlc.transient_time = options['transient_time']
+            idlc.PSF = 1.2 * 1.25
+            self.cases.append(idlc)
+            if len(wind_seeds)>1:
+                i_WiSe+=1
+        # self.n_ws_dlc11 = len(np.unique(wind_speeds))
 
     def generate_1p2(self, options):
         # Power production normal turbulence model - fatigue loads

@@ -76,15 +76,6 @@ class FASTLoadCases(ExplicitComponent):
         self.n_span        = n_span    = rotorse_options['n_span']
         self.n_pc          = n_pc      = rotorse_options['n_pc']
 
-        #DG: deprec? POWERCURVE stuff
-        # n_OF     = len(openfast_init_options['dlc_settings']['Power_Curve']['U'])
-        # if n_OF == 0 and openfast_init_options['dlc_settings']['run_power_curve']:
-        #     for i in range(len(openfast_init_options['dlc_settings']['IEC'])):
-        #         if openfast_init_options['dlc_settings']['IEC'][i]['DLC'] == 1.1:
-        #             n_OF = len(openfast_init_options['dlc_settings']['IEC'][i]['U'])
-        #     if n_OF == 0:
-        #         raise ValueError('There is a problem with the initialization of the DLCs to compute the powercurve. Please check modeling_options.yaml')
-
         # Environmental Conditions needed regardless of where model comes from
         self.add_input('V_cutin',     val=0.0, units='m/s',      desc='Minimum wind speed where turbine operates (cut-in)')
         self.add_input('V_cutout',    val=0.0, units='m/s',      desc='Maximum wind speed where turbine operates (cut-out)')
@@ -1982,6 +1973,7 @@ class FASTLoadCases(ExplicitComponent):
         case_inputs[("Fst","TMax")] = {'vals':self.TMax, 'group':1}
         case_inputs[("Fst","TStart")] = {'vals':self.TStart, 'group':1}
         # Inflow wind
+        case_inputs[("InflowWind","HWindSpeed")] = {'vals':mean_wind_speed, 'group':1}
         case_inputs[("InflowWind","WindType")] = {'vals':WindFile_type, 'group':1}
         case_inputs[("InflowWind","FileName_BTS")] = {'vals':WindFile_name, 'group':1}
         case_inputs[("InflowWind","Filename_Uni")] = {'vals':WindFile_name, 'group':1}
@@ -2189,73 +2181,6 @@ class FASTLoadCases(ExplicitComponent):
         sys.stdout.flush()
 
         return summary_stats, extreme_table, DELs, Damage, case_list, case_name, chan_time, dlc_generator
-
-        #DG: deprec? 
-        # This used to be part of:
-        # def DLC_creation_IEC(self, inputs, discrete_inputs, fst_vt, powercurve=False):
-        #         if 'DLC' in dlc.keys():
-        #             iec.dlc_inputs['DLC'].append(dlc['DLC'])
-        #         else:
-        #             iec.dlc_inputs['DLC'].append([])
-
-        #         if 'U' in dlc.keys():
-        #             iec.dlc_inputs['U'].append(dlc['U'])
-        #         else:
-        #             if dlc['DLC'] == 1.4:
-        #                 iec.dlc_inputs['U'].append([float(inputs['Vrated'])-2., float(inputs['Vrated']), float(inputs['Vrated'])+2.])
-        #             elif dlc['DLC'] == 5.1:
-        #                 iec.dlc_inputs['U'].append([float(inputs['Vrated'])-2., float(inputs['Vrated'])+2., float(inputs['V_cutout'])])
-        #             elif dlc['DLC'] == 6.1:
-        #                 iec.dlc_inputs['U'].append([float(inputs['V_extreme50'])])
-        #             elif dlc['DLC'] == 6.3:
-        #                 iec.dlc_inputs['U'].append([float(inputs['V_extreme1'])])
-        #             else:
-        #                 iec.dlc_inputs['U'].append([])
-
-        #         if 'Seeds' in dlc.keys():
-        #             iec.dlc_inputs['Seeds'].append(dlc['Seeds'])
-        #         else:
-        #             iec.dlc_inputs['Seeds'].append([])
-
-        #         if 'Yaw' in dlc.keys():
-        #             iec.dlc_inputs['Yaw'].append(dlc['Yaw'])
-        #         else:
-        #             iec.dlc_inputs['Yaw'].append([])
-
-        # iec.transient_dir_change        = 'both'
-        # iec.transient_shear_orientation = 'v'
-        # iec.TMax      = fst_vt['Fst']['TMax']
-        # T0            = np.max([0. , iec.TMax - 600.])
-        # iec.TStart    = (iec.TMax-T0)/2. + T0
-        # self.simtime  = iec.TMax - T0
-        # self.TMax     = iec.TMax
-        # self.T0       = T0
-
-        # # path management
-        # iec.wind_dir        = self.FAST_runDirectory
-        # if self.FASTpref['file_management']['Turbsim_exe'] != 'none':
-        #     iec.Turbsim_exe     = self.Turbsim_exe
-        # iec.debug_level     = self.debug_level
-        # iec.overwrite       = False # TODO: elevate these options to analysis input file
-        # iec.run_dir         = self.FAST_runDirectory
-
-        # if self.mpi_run:
-        #     iec.parallel_windfile_gen = True
-        #     iec.mpi_run               = self.FASTpref['analysis_settings']['mpi_run']
-        #     iec.comm_map_down         = self.FASTpref['analysis_settings']['mpi_comm_map_down']
-        # else:
-        #     iec.parallel_windfile_gen = False
-
-        # if powercurve:
-        #     iec.case_name_base  = self.FAST_namingOut + '_powercurve'
-        # else:
-        #     iec.case_name_base  = self.FAST_namingOut + '_IEC'
-
-        # # Run case setup, generate wind inputs
-        # case_list, case_name_list, dlc_list = iec.execute()
-
-
-        # return case_list, case_name_list, dlc_list
 
     def post_process(self, summary_stats, extreme_table, DELs, damage, case_list, dlc_generator, chan_time, inputs, discrete_inputs, outputs, discrete_outputs):
         modopt = self.options['modeling_options']
