@@ -49,7 +49,7 @@ wt_input = [  "Madsen2019_10_forWEIS.yaml",
                     ]
 # wt_input = ["Madsen2019_10_forWEIS_isotropic.yaml"]
 # wt_input = ["Madsen2019_10_forWEIS.yaml"]
-wt_input = ["Madsen2019_10_forWEIS_isotropic_IC.yaml"]
+wt_input = ["Madsen2019_10_forWEIS_isotropic_IC_NEW.yaml"]
 
 
 fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
@@ -67,7 +67,7 @@ NacYIner = 7326.3465E3
 # 9240560
 
 plotOnly = False
-fast_fnames = ["DTU10MW_powercurve_0"]
+fast_fnames = ["weis_job_0"]
 
 #==================== RUN THE TURBINE WITH WEIS, FROM YAML INPUTS =====================================
 # Loading the wisdem/weis compatible yaml, and propagate information to aeroelasticse
@@ -199,15 +199,14 @@ for ifi in range(len(wt_input)):
 
 #==================== Export the nominal loads ====================
     
-    # XXX Assuming that we run only 1 U on a power curve
-    run_settings = modeling_options["openfast"]["dlc_settings"]["Power_Curve"] 
+    run_settings = modeling_options["DLC_driver"]["DLCs"][0] 
 
     fname_nominalLoads = folder_arch + os.sep + "nominalLoads.yaml"
 
     schema = {}
 
     schema["nominal"] = {}
-    schema["nominal"]["description"] = f"nominal loads obtained for inflow velocity {run_settings['U']}"
+    schema["nominal"]["description"] = f"nominal loads obtained for inflow velocity {run_settings['wind_speed']}"
     schema["nominal"]["grid_nd"] = locs.tolist()
     schema["nominal"]["Fn"] = data_a_avg[0,:,ifi].tolist()
     schema["nominal"]["Ft"] = data_a_avg[1,:,ifi].tolist()

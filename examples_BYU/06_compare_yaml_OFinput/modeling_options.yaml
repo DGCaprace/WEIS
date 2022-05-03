@@ -98,9 +98,6 @@ openfast:
         mpi_run: False
     # 'analysis_settings': {'Analysis_Level': 2, 'generate_af_coords': False, 'debug_level': 2, 'mpi_run': False, 'cores': 1}, 
 
-
-    # fastBatch.keep_time         = True  #DG  ???   #TODO: or code my aggregation in their weighing routine directly
-
     clean_FAST_directory: False
 
     file_management:

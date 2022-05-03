@@ -4,16 +4,19 @@ import yaml
 from wisdem import run_wisdem
 from weis.glue_code.runWEIS import run_weis
 from wisdem.inputs import load_yaml, write_yaml #, validate_without_defaults, validate_with_defaults, simple_types
-from pCrunch import PowerProduction, LoadsAnalysis
+from pCrunch import PowerProduction, LoadsAnalysis, FatigueParams
 from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
+from weis.dlc_driver.dlc_generator    import DLCGenerator
+from weis.inputs import load_modeling_yaml
 
 import sys, shutil
 import numpy as np
 from scipy import stats
+from time import time
 import extrapolate_utils as exut
 import matplotlib.pyplot as plt
 
-from mpi4py import MPI
+from wisdem.commonse.mpi_tools import MPI
 
 # ---------------------
 def my_write_yaml(instance, foutput):
@@ -40,19 +43,59 @@ def myOpenFASTread(fname,addExt=0):
 
     return output
 
-def fillDLC(dlc):
-    if 1.4 == dlc["DLC"]:
-        dlc["U"] = ["10","12","14"] #3 velocities, 2 yaw angles. Harcoded Vrated
-        dlc["Seeds"] = [1, 2]
-    if 1.5 == dlc["DLC"]:
-        dlc["Seeds"].extend(dlc["Seeds"]) #double the seeds because we evaluate both directions
-    if 6.1 == dlc["DLC"]:
-        dlc["U"] = ["50","50"] #1 velocity, 2 yaw angles
-        dlc["Seeds"] = [1]
-    if 6.3 == dlc["DLC"]:
-        dlc["U"] = ["40","40"] #1 velocity, 2 yaw angles
-        dlc["Seeds"] = [1]
 
+# This is mostly a copy-paste from aeroelasticse/openmdao_openfast>run_FAST
+def redo_dlc_generator(modopt,wt):
+
+    DLCs = modopt['DLC_driver']['DLCs']
+    # Initialize the DLC generator
+    cut_in  = float(wt['control']['supervisory']['Vin'])
+    cut_out = float(wt['control']['supervisory']['Vout'])
+    rated = 10 #DUMMY: does not matter because not used in DLCGenerator
+    ws_class = wt['assembly']['turbine_class']
+    wt_class = wt['assembly']['turbulence_class']
+    hub_height = float(wt['assembly']['hub_height'])
+    # rotorD = float(wt['assembly']['rotor_diameter'])
+    PLExp = float(wt['environment']['shear_exp'])
+
+    fix_wind_seeds = modopt['DLC_driver']['fix_wind_seeds']
+    fix_wave_seeds = modopt['DLC_driver']['fix_wave_seeds']
+    metocean = modopt['DLC_driver']['metocean_conditions']
+    dlc_generator = DLCGenerator(cut_in, cut_out, rated, ws_class, wt_class, fix_wind_seeds, fix_wave_seeds, metocean)
+    # Generate cases from user inputs
+    for i_DLC in range(len(DLCs)):
+        DLCopt = DLCs[i_DLC]
+        dlc_generator.generate(DLCopt['DLC'], DLCopt)
+
+    for i_case in range(dlc_generator.n_cases):
+        if dlc_generator.cases[i_case].turbulent_wind:
+            # Assign values common to all DLCs
+            # Wind turbulence class
+            dlc_generator.cases[i_case].IECturbc = wt_class
+            # Reference height for wind speed
+            dlc_generator.cases[i_case].RefHt = hub_height
+            # Center of wind grid (TurbSim confusingly calls it HubHt)
+            dlc_generator.cases[i_case].HubHt = hub_height
+            # Height of wind grid, it stops 1 mm above the ground
+            dlc_generator.cases[i_case].GridHeight = 2. * hub_height - 1.e-3
+            # If OLAF is called, make wind grid high and big
+            if modopt['Level3']['AeroDyn']['WakeMod'] == 3:
+                dlc_generator.cases[i_case].HubHt *= 3.
+                dlc_generator.cases[i_case].GridHeight *= 3.
+            # Width of wind grid, same of height
+            dlc_generator.cases[i_case].GridWidth = dlc_generator.cases[i_case].GridHeight
+            # Power law exponent of wind shear
+            dlc_generator.cases[i_case].PLExp = PLExp
+            # Length of wind grids
+            dlc_generator.cases[i_case].AnalysisTime = dlc_generator.cases[i_case].analysis_time + dlc_generator.cases[i_case].transient_time
+
+    return dlc_generator
+
+def mytime():
+    if MPI:
+        return MPI.Wtime()
+    else:
+        return time() 
 # ---------------------
 
 if __name__ == '__main__':
@@ -73,20 +116,19 @@ if __name__ == '__main__':
 
 
     withEXTR = True  #compute EXTREME moments 
-    withDEL = False  #compute DEL moments - if both are False, the lofi optimization falls back to a default WISDEM run
+    withDEL = True  #compute DEL moments - if both are False, the lofi optimization falls back to a default WISDEM run
     doLofiOptim = False  #skip lofi optimization, if you are only interested in getting the DEL and EXTR outputs (e.g. for HiFi)
     nGlobalIter = 1
     restartAt = 0
 
     readOutputFrom = "" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
-    # readOutputFrom = "results_/sim/iter_0" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
     #CAUTION: when specifying a readOutput, you must make sure that the modeling_option.yaml you provide actually correspond to those outputs (mostly the descrition of simulation time and IEC conditions)
 
     fname_analysis_options_FORCED = "" #if this analysis file is provides (with EXTREME and FATIGUE loads), the whole preprocessing is bypassed and we jump directly to the lofi optimization
 
     showPlots = False
 
-    # +++++++++++ Design choice in EXTRELE loads +++++++++++
+    # +++++++++++ Design choice in EXTREME loads +++++++++++
     #-Binning-:
     #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
 
@@ -118,7 +160,7 @@ if __name__ == '__main__':
     #SEE ALSO `distr` and `truncThr` below in the code
 
     saveExtrNpy = "extrmDistro.npz"
-    dontAggregateExtreme = True #EXPERIMENTAL: consider each velocity,seed in each extreme DLC separately. Should have a saveExtrNpy.
+    dontAggregateExtreme = False #EXPERIMENTAL: consider each velocity,seed in each extreme DLC separately. When True, exports average and min/max load for each. Should have a saveExtrNpy.
        #XXX: currently, the aggregation in Extreme is done considering only DLC1.3. TODO: handle aggregation accross several DLCs?
 
     # +++++++++++ Design choice in fatigue: for how long do you size the turbine + other parameters +++++++++++
@@ -151,6 +193,7 @@ if __name__ == '__main__':
     # if NUM_THREAD is None:
     #     NUM_THREAD = 1
     NUM_THREAD = None
+    NUM_THREAD = 1
 
 
     withDorE = withDEL or withEXTR
@@ -158,20 +201,21 @@ if __name__ == '__main__':
     if not withDorE and not doLofiOptim: nGlobalIter = 0
     if not withDorE or not doLofiOptim or fname_analysis_options_FORCED: nGlobalIter = 1
 
-    iec_dlc_for_del = 1.1 #Note that it is actually DLC1.2, but it uses the same wind profile as 1.1
+    iec_dlc_for_fat = [1.2,] #Note that it is actually DLC1.2, but it uses the same wind profile as 1.1
     if dontAggregateExtreme:
         iec_dlc_for_extr = np.array([1.1,1.3,1.4,1.5,6.1,6.3]) #List of all DLCs to be considered for extreme loads
     else:
         iec_dlc_for_extr = np.array([1.3,]) #List of all DLCs to be considered for extreme loads
+        #TODO: handle the aggregation of different DLCs for extreme loads (or just consider them as separate cases and have 1extreme loading for 1DLC)
 
     # Associate a specific extrapolation method per DLC
     iec_dlc_meth = {}
-    iec_dlc_meth[1.1] = extremeExtrapMeth
-    iec_dlc_meth[1.3] = extremeExtrapMeth
-    iec_dlc_meth[1.4] = 0
-    iec_dlc_meth[1.5] = 0
-    iec_dlc_meth[6.1] = 0 #extremeExtrapMeth
-    iec_dlc_meth[6.3] = 0 #extremeExtrapMeth
+    iec_dlc_meth["1.1"] = extremeExtrapMeth
+    iec_dlc_meth["1.3"] = extremeExtrapMeth
+    iec_dlc_meth["1.4"] = 0
+    iec_dlc_meth["1.5"] = 0
+    iec_dlc_meth["6.1"] = 0 #extremeExtrapMeth
+    iec_dlc_meth["6.3"] = 0 #extremeExtrapMeth
 
 
 
@@ -201,24 +245,24 @@ if __name__ == '__main__':
     #  Preparation of the channels passed to the LoadsAnalysis reader
     magnitude_channels = {}
     fatigue_channels = {}
-    fatigue_channels = {}
     for i in range(1,41): #TODO: must read this number from somewhere!!
         tag = "B1N%03iMLx"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "B1N%03iMLy"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "B1N%03iFLz"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "AB1N%03iFn"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "AB1N%03iFt"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "AB1N%03iFx"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
         tag = "AB1N%03iFy"%(i)
-        fatigue_channels[tag] = m_wohler
+        fatigue_channels[tag] = FatigueParams(m_wohler)
 
-    MPI.COMM_WORLD.Barrier()
+    if MPI:
+        MPI.COMM_WORLD.Barrier()
 
     #==================== ======== =====================================
     # Initialize timers
@@ -227,7 +271,7 @@ if __name__ == '__main__':
     elapsed_optim = 0.0
 
     if rank == 0:
-        print(f"Walltime: {MPI.Wtime()}")
+        print(f"Walltime: {mytime()}")
 
     #==================== ======== =====================================
     # Unsteady loading computation from DLCs
@@ -237,7 +281,7 @@ if __name__ == '__main__':
             print("\n\n\n  ============== ============== ===================\n"
                 + f"  ============== GLOBAL ITER {IGLOB} ===================\n"
                 + "  ============== ============== ===================\n\n\n\n")
-            wt = MPI.Wtime()
+            wt = mytime()
             wt_tot = wt
             wt_sim = wt
 
@@ -267,13 +311,17 @@ if __name__ == '__main__':
 
                     fast_fnames = DELs.index #the names in here are the filename prefix
 
-                    fast_dlclist = wt_opt['aeroelastic.dlc_list']
+                    # fast_dlclist = wt_opt['aeroelastic.dlc_list'] # details simulation parameters for all cases run. -> no need for it if we have dlc_generator
+
+                    DLCs = wt_opt['aeroelastic.dlc_generator'].to_dict() # details dlc parameters for all cases run. We need this to link back cases and DLCs.
+
+                # modeling_options['DLC_driver']['n_cases']
 
                 print("\n\n\n  -------------- DONE WITH WEIS ------------------\n\n\n\n")
                 sys.stdout.flush()
 
             else:
-                modeling_options = load_yaml(fname_modeling_options)
+                modeling_options = load_modeling_yaml(fname_modeling_options) #re-read the modopts 
                 # opt_options = load_yaml(fname_analysis_options_WEIS)
 
                 # list all output files in the dir
@@ -298,7 +346,7 @@ if __name__ == '__main__':
                     magnitude_channels=magnitude_channels,
                     fatigue_channels=fatigue_channels,
                     #extreme_channels=channel_extremes,
-                    trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]),
+                    # trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]), #trim of data unnecessary since we only saved meaningful portion
                 )
 
                 print(f"pCrunch: will run the analysis on {NUM_THREAD} threads.")
@@ -307,25 +355,11 @@ if __name__ == '__main__':
                 # extremes = la._extremes
                 DELs = la._dels
 
-                # Re-determine what were the DLCs run in each simulation
-                fast_dlclist = []
-                iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
-                for dlc in iec_settings:
-                    fillDLC(dlc) # XXX: replicate the internal assumptions of the IEC generator - HARDCODED
+                DLCs = redo_dlc_generator(modeling_options, wt_init).to_dict()
+                #Note: the turbine could have changed across global iterations but not the properties that we need in that function
 
-                    # what we will use
-                    if iec_dlc_for_del == dlc["DLC"]: 
-                        for i in dlc["U"]:
-                            for j in dlc["Seeds"]:
-                                fast_dlclist.append(dlc["DLC"])
-                    #elif: don't count stuff twice
-                    elif np.any(iec_dlc_for_extr == dlc["DLC"]):
-                        for i in dlc["U"]:
-                            for j in dlc["Seeds"]:
-                                fast_dlclist.append(dlc["DLC"])
-                
             if rank == 0:
-                wt = MPI.Wtime()
+                wt = mytime()
                 elapsed_sim = wt - wt_sim
 
             # ----------------------------------------------------------------------------------------------
@@ -334,7 +368,8 @@ if __name__ == '__main__':
             # ----------------------------------------------------------------------------------------------
             # ----------------------------------------------------------------------------------------------
             
-            MPI.COMM_WORLD.Barrier()
+            if MPI:
+                MPI.COMM_WORLD.Barrier()
 
             # only by rank 0
             if rank == 0:
@@ -364,46 +399,67 @@ if __name__ == '__main__':
                 npDelstar = DELs.to_numpy()
                 
                 #duration of  time series
-                Tj = modeling_options["Level3"]["simulation"]["TMax"] - modeling_options["Level3"]["simulation"]["TStart"]
-
+                #DG TODO: make this adaptive if different for the avrious sims
+                # Tj = fast_dlclist[0][('Fst', 'TMax')] - fast_dlclist[0][('Fst', 'TStart')]
+                Tj = DLCs[0]["analysis_time"]
+                
                 #number of time series
-                Nj = len(npDelstar)
+                Nj = len(npDelstar) #= len(DLCs)
 
                 print(f"Found {Nj} time series...")
                 DELs.info()
 
                 # ----------------------------------------------------------------------------------------------
-                #    probability of the turbine to operate in specific conditions. 
+                #    Processing all the cases that we get, and determine which are which in terms of DLCs
 
                 pp = PowerProduction(wt_init['assembly']['turbine_class'])
-                iec_settings = modeling_options["openfast"]["dlc_settings"]["IEC"]
-                iec_del = []
-                iec_extr = []
-                Udel_str = [] #dummy
-                Uextr_str = [] #dummy
-                nTotDELSim = 0
-                nTotExtrSim = 0 
-                for dlc in iec_settings:
-                    fillDLC(dlc) # XXX: replicate the internal assumptions of the IEC generator - HARDCODED
 
-                    print(dlc)
-                    # our treatment
-                    if iec_dlc_for_del == dlc["DLC"]:
-                        iec_del.append(dlc)
-                        if np.any(iec_dlc_for_extr == dlc["DLC"]):
-                            iec_extr.append(dlc)
-                        nTotDELSim += len(dlc["U"]) * len(dlc["Seeds"])
-                        dlc["extr_meth"] = iec_dlc_meth[dlc["DLC"]] #the extrapolation method
-                    #elif: don't count stuff twice
-                    elif np.any(iec_dlc_for_extr == dlc["DLC"]):
-                        iec_extr.append(dlc)
-                        nTotExtrSim += len(dlc["U"]) * len(dlc["Seeds"])
-                        dlc["extr_meth"] = iec_dlc_meth[dlc["DLC"]] #the extrapolation method
+                DLCs_fat = {}
+                DLCs_extr = {}
 
-                if nTotDELSim+nTotExtrSim != Nj: 
-                    raise Warning("Not the same number of velocities and seeds in the input yaml and in the output files: %i vs %i." % (nTotDELSim+nTotExtrSim,Nj))
-                    #TODO: treat the case of DLCs other than 1.1 and 1.3, with different number of velicities and seeds
+                nTotFatSim = 0
+                nTotExtrSim = 0
 
+                il = -1
+                for dlc in DLCs:
+                    il += 1
+                    label = dlc["label"]
+
+                    # Match all DLCs that we wish to consider for fatigue, and assign a processing method
+                    if  float( label ) in iec_dlc_for_fat:
+
+                        if not label in DLCs_fat:
+                            DLCs_fat[label] = {}
+                            DLCs_fat[label]['U'] = []
+                            DLCs_fat[label]['idx'] = []
+                            DLCs_fat[label]['nsims'] = 0
+
+                        if not float( dlc["URef"] ) in DLCs_fat[label]['U']:
+                            DLCs_fat[label]['U'].append(float( dlc["URef"] ) )
+
+                        DLCs_fat[label]['idx'].append(il)
+                        DLCs_fat[label]['nsims'] += 1
+                        nTotFatSim += 1
+                        
+                    # Match all DLCs that we wish to consider for extreme, and assign a processing method
+                    if  float( label ) in iec_dlc_for_extr:
+
+                        if not label in DLCs_extr:
+                            DLCs_extr[label] = {}
+                            DLCs_extr[label]['U'] = []
+                            DLCs_extr[label]['idx'] = []
+                            DLCs_extr[label]['nsims'] = 0
+
+                        if not float( dlc["URef"] ) in DLCs_extr[label]['U']:
+                            DLCs_extr[label]['U'].append(float( dlc["URef"] ) )
+
+                        DLCs_extr[label]['idx'].append(il)
+                        DLCs_extr[label]['nsims'] += 1
+                        nTotExtrSim += 1
+
+
+                if nTotFatSim+nTotExtrSim != Nj: 
+                    raise Warning("Not the same number of velocities and seeds in the input yaml and in the output files: %i vs %i." % (nTotFatSim+nTotExtrSim,Nj))
 
                 # ----------------------------------------------------------------------------------------------
                 # -- proceed to DEL aggregation if requested
@@ -426,39 +482,35 @@ if __name__ == '__main__':
                         i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
                         i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
 
-                    for dlc in [iec_del[0]]: #TODO: loop over the dlcs in iec_del
-                        dlc_num = 1.2
-                        Udel_str = dlc["U"]
-                        nSEEDdel = len(dlc["Seeds"])
-                        nVELdel = len(Udel_str)
 
-                        dlc["del_loads"] = []
+                    for dlc_num in DLCs_fat: #TODO: loop over the dlcs in DLCs_fat
+                        dlc = DLCs_fat[dlc_num]
+
+                        nSEEDdel = dlc['nsims'] / len(dlc['U'])
+                        # nVELdel = len(dlc["wind_speed"])
 
                         # ----------------------------------------------------------------------------------------------
                         #    probability of the turbine to operate in specific conditions. 
-                        pj = pp.prob_WindDist([float(u) for u in Udel_str], disttype='pdf')
+                        #XXX THIS IS NOW ALSO AVAILABLE IN DLCs, but maybe only for dlc1.2? Let's just recompute it.
+                        pj = pp.prob_WindDist( dlc['U'], disttype='pdf')
                         pj = pj / np.sum(pj) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
                         #--
                         # pj = np.ones(Nj) / Nj   #uniform probability instead
 
                         print("Weight of the series (probability):")
                         print(pj)
+                        
 
                         # ----------------------------------------------------------------------------------------------
-                        # -- Compute extrapolated lifetime DEL for life --
-
-                        # Identify what time series correspond to DEL - as per IEC standard, we use NTW -- labeled DLC 1.1
-                        jDEL = []
-                        for j in range(Nj):
-                            if 1.1 == fast_dlclist[j]: #TODO
-                                jDEL.append(j)        
+                        # -- Compute extrapolated lifetime DEL for life --  
                         
-                        if not jDEL:
+                        if not dlc['idx']:
                             print("Warning: I did not find required data among time series to compute DEL! They will end up being 0.")
                         else:
-                            print(f"Time series {jDEL} are being processed for DEL...")
+                            print(f"Time series {dlc['idx']} are being processed for DEL...")
 
                         # a. Obtain the equivalent number of cycles
+                        #TODO: better handle this for various DLCs with different nvels and nseeds
                         fj = Tlife / Tj * pj
                         n_life_eq = np.sum(fj * Tj * f_eq)
                         
@@ -466,16 +518,11 @@ if __name__ == '__main__':
                         k=0
                         for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
                             #loop over the DELs from all time series and sum
-                            #NOTE: we assume that all simulatons of a given DLC are in a row
-                            #TODO: better handle this for various DLCs with different nvels and nseeds
-                            for ivel in range(len(pj)): #nvels
-                                for iseed in range(nSEEDdel):
-                                    jloc = (iseed + ivel * nSEEDdel) + jDEL[0]
-
-                                    # print(f"[{k}] v{ivel} s{iseed} loc{jloc} - {fast_fnames[jloc]} {fast_dlclist[jloc]}")
-
-                                    #average the DEL over the seeds: just as if we aggregated all the seeds
-                                    DEL_life_B1[:,k] += fj[ivel] * npDelstar[jloc][ids] / nSEEDdel
+                            for i in dlc['idx']: 
+                                
+                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) )
+                                #average the DEL over the seeds: just as if we aggregated all the seeds
+                                DEL_life_B1[:,k] += fj[ivel] * npDelstar[i][ids] / nSEEDdel
 
                             k+=1
                         DEL_life_B1 = .5 * fac * ( DEL_life_B1 / n_life_eq ) ** (1/m_wohler)
@@ -506,8 +553,6 @@ if __name__ == '__main__':
                         print("Damage eq loads:")
                         print(np.transpose(DEL_life_B1))
 
-                        # dlc["del_loads"] = DEL_life_B1
-
 
                 # ----------------------------------------------------------------------------------------------
                 # -- proceed to extreme load/gust extrapolation if requested
@@ -518,11 +563,14 @@ if __name__ == '__main__':
                     dt = modeling_options["Level3"]["simulation"]["DT"]
                     nt = int( Tj / dt ) + 1
 
-                    for dlc in iec_extr:
-                        dlc_num = float(dlc["DLC"])
-                        Uextr_str = dlc["U"]
-                        nSEEDextr = len(dlc["Seeds"])
-                        nVELextr = len(Uextr_str)
+                    for dlc_num in DLCs_extr: 
+                        dlc = DLCs_extr[dlc_num]
+
+                        nSEEDextr = dlc['nsims'] / len(dlc['U'])
+                        # nVELextr = len(dlc["wind_speed"])
+
+                        print(iec_dlc_meth)
+                        extr_meth = iec_dlc_meth[dlc_num]
 
                         dlc["extr_loads"] = []
                         dlc["extr_params"] = []
@@ -530,24 +578,18 @@ if __name__ == '__main__':
                         
                         # ----------------------------------------------------------------------------------------------
                         #    probability of the turbine to operate in specific conditions. 
-                        pj_extr = pp.prob_WindDist([float(u) for u in Uextr_str], disttype='pdf')
+                        pj_extr = pp.prob_WindDist(dlc['U'], disttype='pdf')
                         pj_extr = pj_extr / np.sum(pj_extr) #renormalizing so that the sum of all the velocity we simulated covers the entire life of the turbine
 
-                        # ----------------------------------------------------------------------------------------------
-                        # Identify what time series correspond to extreme loads - as per IEC standard, we use ETW -- labeled DLC 1.3
-                        jEXTR = []
-                        for j in range(Nj):
-                            if dlc_num == fast_dlclist[j]:
-                                jEXTR.append(j)
                         
-                        if not jEXTR:
+                        if not dlc['idx']:
                             print("Warning: I did not find required data among time series to compute extreme loads! They will end up being 0.")
                         else:
-                            print(f"Time series {jEXTR} are being processed for extreme loads...")
+                            print(f"Time series {dlc['idx']} are being processed for extreme loads...")
 
                         # Init our extreme loads
                         if dontAggregateExtreme:
-                            n_aggr = nSEEDextr*nVELextr
+                            n_aggr = dlc['nsims'] #nSEEDextr*nVELextr
                         else:
                             n_aggr = 1
                         EXTR_distro_B1 = np.zeros([nx,5,nbins,n_aggr])    
@@ -555,19 +597,18 @@ if __name__ == '__main__':
                         #     EXTR_data_B1 = np.zeros([nx,5,nt])    
 
                         # Bin the load distribution of all timeseries, and potentially aggregate them
-                        for ivel in range(nVELextr): #nvels
-                            for iseed in range(nSEEDextr): 
-                                jloc = (iseed + ivel * nSEEDextr)
-                                jglo = jloc + jEXTR[0]
+                        jloc = -1
+                        for i in dlc['idx']:
+                                jloc += 1        
 
                                 # Because raw data are not available as such, need to go back look into the output files:
-                                fname = simfolder + os.sep + fast_fnames[jglo]
+                                fname = simfolder + os.sep + fast_fnames[i]
                                 print(fname)
                                 fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
                             
                                 k = 0
                                 for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
-                                    # print(f"[{lab}] v{ivel} s{iseed} loc{jglo} - {fast_fnames[jglo]} {fast_dlclist[jloc]}")
+                                    # print(f"[{lab}] v{ivel} s{iseed} loc{i} - {fast_fnames[i]} {fast_dlclist[jloc]}")
                                     for i in range(nx):
                                         hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
 
@@ -639,15 +680,15 @@ if __name__ == '__main__':
 
 
                         for j in range(n_aggr):
-                            if dlc["extr_meth"] ==0:
+                            if extr_meth ==0:
                                 # EXTR_life_B1, EXTR_distr_p = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*5, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
-                            elif dlc["extr_meth"] ==1:
+                            elif extr_meth ==1:
                                 #assumes only normal
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob)
                             # elif extremeExtrapMeth ==2: #DEPREC
                             #     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1[:,:,:,j], distr, IEC_50yr_prob)
-                            elif dlc["extr_meth"] ==3:
+                            elif extr_meth ==3:
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
 
                             # save data to the dict.
@@ -656,12 +697,12 @@ if __name__ == '__main__':
                         
 
                     # ------------ TIMIMGS ------------    
-                    wt = MPI.Wtime()
+                    wt = mytime()
                     elapsed_postpro = wt - wt_postpro
 
                     # ------------ DUMPING RESULTS ------------    
                     if saveExtrNpy:
-                        np.savez(saveExtrNpy, rng=rng, nbins=nbins, iec_extr=iec_extr, distr=distr, dt=dt)
+                        np.savez(saveExtrNpy, rng=rng, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, dt=dt)
                 
                     # ------------ PLOTTING ------------    
                     for k in range(5):
@@ -678,8 +719,9 @@ if __name__ == '__main__':
                         ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])         
 
                         xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)       
-
-                        for dlc in iec_extr:    
+  
+                        for dlc_num in DLCs_extr: 
+                            dlc = DLCs_extr[dlc_num] 
 
                             j = 0 #just plot the first timeseries or the aggregated one
 
@@ -694,7 +736,7 @@ if __name__ == '__main__':
                                 ax2.plot(dlc["extr_loads"][j][i,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
                             
                             
-                                if dlc["extr_meth"] > 0:
+                                if extr_meth > 0:
 
                                     print(dlc["extr_params"][j][i,k,:])
 
@@ -727,7 +769,8 @@ if __name__ == '__main__':
 
                     #EXTR_life_B1[:,k] *= fac[k]
 
-                    for dlc in iec_extr:
+                    for dlc_num in DLCs_extr: 
+                        dlc = DLCs_extr[dlc_num] 
                         for j in range(len(dlc["extr_loads"])):
                             dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3]
 
@@ -753,58 +796,56 @@ if __name__ == '__main__':
                         schema["extreme"] = {}
                         schema["extreme"]["grid_nd"] = locs.tolist()
 
-                        for dlc in iec_extr:
-                            schema["extreme"][dlc["DLC"]] = {}
-                            schema["extreme"][dlc["DLC"]]["U"] = dlc["U"]
-                            schema["extreme"][dlc["DLC"]]["Seeds"] = dlc["Seeds"]
-                            schema["extreme"][dlc["DLC"]]["MLx"] = []
-                            schema["extreme"][dlc["DLC"]]["MLy"] = []
-                            schema["extreme"][dlc["DLC"]]["FLz"] = []
+                        for dlc_num in DLCs_extr: 
+                            schema["extreme"][dlc_num] = {}
+                            schema["extreme"][dlc_num]["U"] = dlc["U"]
+                            schema["extreme"][dlc_num]["nsims"] = dlc["nsims"]
+                            schema["extreme"][dlc_num]["MLx"] = []
+                            schema["extreme"][dlc_num]["MLy"] = []
+                            schema["extreme"][dlc_num]["FLz"] = []
 
-                            schema["extreme"][dlc["DLC"]]["MLx_avg"] = []
-                            schema["extreme"][dlc["DLC"]]["MLy_avg"] = []
-                            schema["extreme"][dlc["DLC"]]["FLz_avg"] = []
+                            schema["extreme"][dlc_num]["MLx_avg"] = []
+                            schema["extreme"][dlc_num]["MLy_avg"] = []
+                            schema["extreme"][dlc_num]["FLz_avg"] = []
 
-                            schema["extreme"][dlc["DLC"]]["MLx_std"] = []
-                            schema["extreme"][dlc["DLC"]]["MLy_std"] = []
-                            schema["extreme"][dlc["DLC"]]["FLz_std"] = []
+                            schema["extreme"][dlc_num]["MLx_std"] = []
+                            schema["extreme"][dlc_num]["MLy_std"] = []
+                            schema["extreme"][dlc_num]["FLz_std"] = []
 
                             #filling: we assume that the param vector has [average, max or std, xxx]
-                            for j in range( len(dlc["Seeds"])*len(dlc["U"]) ):
-                                schema["extreme"][dlc["DLC"]]["MLx"].append( dlc["extr_loads"][j][:,2].tolist() )
-                                schema["extreme"][dlc["DLC"]]["MLy"].append( dlc["extr_loads"][j][:,3].tolist() )
-                                schema["extreme"][dlc["DLC"]]["FLz"].append( dlc["extr_loads"][j][:,4].tolist() )
+                            for j in range( dlc["nsims"] ):
+                                schema["extreme"][dlc_num]["MLx"].append( dlc["extr_loads"][j][:,2].tolist() )
+                                schema["extreme"][dlc_num]["MLy"].append( dlc["extr_loads"][j][:,3].tolist() )
+                                schema["extreme"][dlc_num]["FLz"].append( dlc["extr_loads"][j][:,4].tolist() )
 
                                 #XXX CAUTION: should multiply by fac here!! finally done in the postpro script but still
-                                schema["extreme"][dlc["DLC"]]["MLx_avg"].append( dlc["extr_params"][j][:,2,0].tolist() )
-                                schema["extreme"][dlc["DLC"]]["MLy_avg"].append( dlc["extr_params"][j][:,3,0].tolist() )
-                                schema["extreme"][dlc["DLC"]]["FLz_avg"].append( dlc["extr_params"][j][:,4,0].tolist() )
+                                schema["extreme"][dlc_num]["MLx_avg"].append( dlc["extr_params"][j][:,2,0].tolist() )
+                                schema["extreme"][dlc_num]["MLy_avg"].append( dlc["extr_params"][j][:,3,0].tolist() )
+                                schema["extreme"][dlc_num]["FLz_avg"].append( dlc["extr_params"][j][:,4,0].tolist() )
 
-                                schema["extreme"][dlc["DLC"]]["MLx_std"].append( dlc["extr_params"][j][:,2,1].tolist() )
-                                schema["extreme"][dlc["DLC"]]["MLy_std"].append( dlc["extr_params"][j][:,3,1].tolist() )
-                                schema["extreme"][dlc["DLC"]]["FLz_std"].append( dlc["extr_params"][j][:,4,1].tolist() )
+                                schema["extreme"][dlc_num]["MLx_std"].append( dlc["extr_params"][j][:,2,1].tolist() )
+                                schema["extreme"][dlc_num]["MLy_std"].append( dlc["extr_params"][j][:,3,1].tolist() )
+                                schema["extreme"][dlc_num]["FLz_std"].append( dlc["extr_params"][j][:,4,1].tolist() )
 
                     fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withUnsteadyLoads.yaml"
                     my_write_yaml(schema, fname_analysis_options_struct)
                     #could use write_analysis_yaml from weis instead
 
                 else:
-                    #TODO: CHANGE THIS TO BE MORE CONSISTENT WITH THE DLC TREATMENT
-
                     # ----------------------------------------------------------------------------------------------
                     # -- Create a descriptor:
 
                     #Just a string written in the DEL export files to describe what's in there
-                    if iec_del and len(iec_del)>0:
-                        del_descr_str = "DEL computed based on DLC %f with %i seeds and the following vels: %s"%(
-                            iec_del[0]['DLC'], len(iec_del[0]['Seeds']), iec_del[0]['U']
+                    if DLCs_fat and len(DLCs_fat)>0:
+                        del_descr_str = "DEL computed based on DLC %s with %s seeds and the following vels: %s"%(
+                            list(DLCs_fat), [DLCs_fat[k]['nsims']/len(DLCs_fat[k]['U']) for k in DLCs_fat], [DLCs_fat[k]['U'] for k in DLCs_fat]
                         )
                     else:
                         del_descr_str = "DEL unavailable"
 
-                    if iec_extr and len(iec_extr)>0:
-                        extr_descr_str = "extreme loading computed based on DLC %f with %i seeds and the following vels: %s"%(
-                            iec_extr[0]['DLC'], len(iec_extr[0]['Seeds']), iec_extr[0]['U']
+                    if DLCs_extr and len(DLCs_extr)>0:
+                        extr_descr_str = "extreme loading computed based on DLC %s with %s seeds and the following vels: %s"%(
+                            list(DLCs_extr), [DLCs_extr[k]['nsims']/len(DLCs_extr[k]['U']) for k in DLCs_extr], [DLCs_extr[k]['U'] for k in DLCs_extr]
                         )
                     else:
                         extr_descr_str = "extreme loading unavailable"
@@ -868,9 +909,10 @@ if __name__ == '__main__':
                 for k in range(5):
                     plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
                     if withEXTR:
-                        for dlc in iec_extr:
+                        for dlc_num in DLCs_extr: 
+                            dlc = DLCs_extr[dlc_num] 
                             for j in range(len(dlc["extr_loads"])):
-                                plt.plot(locs,dlc["extr_loads"][j][:,k], label=f'{dlc["DLC"]}')
+                                plt.plot(locs,dlc["extr_loads"][j][:,k], label=f'{dlc_num}')
                     if withDEL:
                         plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
                     plt.ylabel(labs[k])
@@ -879,18 +921,18 @@ if __name__ == '__main__':
                     plt.savefig(f"{labs[k].split(' ')[0]}.png")
                 if showPlots:
                     plt.show()
-            elif fname_analysis_options_FORCED:
-                #if you already postprocessed the data above, and want to do the lofi optimization
-                print(f"Forced use of analysis file: {fname_analysis_options_FORCED}\nI will not check that this file contains DEL or EXTRM info. Please make sure it matches your current request.")
-                fname_analysis_options_struct = fname_analysis_options_FORCED
-            else:
-                fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
+        elif fname_analysis_options_FORCED:
+            #if you already postprocessed the data above, and want to do the lofi optimization
+            print(f"Forced use of analysis file: {fname_analysis_options_FORCED}\nI will not check that this file contains DEL or EXTRM info. Please make sure it matches your current request.")
+            fname_analysis_options_struct = fname_analysis_options_FORCED
+        else:
+            fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct.yaml"
 
-
-        MPI.COMM_WORLD.Barrier()
+        if MPI:
+            MPI.COMM_WORLD.Barrier()
 
         if rank == 0:
-            wt = MPI.Wtime()
+            wt = mytime()
             wt_optim = wt
 
         # +++++++++++++++++++++++++++++++++++++++
@@ -903,7 +945,7 @@ if __name__ == '__main__':
             print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")    
 
         if rank == 0:
-            wt = MPI.Wtime()
+            wt = mytime()
             elapsed_optim = wt - wt_optim
             
         # +++++++++++++++++++++++++++++++++++++++
@@ -955,7 +997,7 @@ if __name__ == '__main__':
             os.system(f"mv *.png {thisfdir}")
 
             # --- TIMINGS --
-            wt = MPI.Wtime()
+            wt = mytime()
             elapsed_tot = wt - wt_tot
 
             with open(folder_arch + os.sep + "timings.txt", "a") as file:
