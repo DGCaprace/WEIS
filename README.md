@@ -75,7 +75,12 @@ The installation instructions below use the environment name, "weis-env," but an
         git checkout branch_name # (Only if you want to switch git branch, say develop)
         python setup.py develop
 
-3. Instructions specific for DOE HPC system Eagle
+> CAUTION ! due to a bug introduced in OpenMDAO 3.17, there are issues with discrete variables. A fix was introduced on the master. https://github.com/OpenMDAO/OpenMDAO/pull/2495
+> Advise to install directely from the master (or use 3.16):
+
+        pip install git+https://github.com/OpenMDAO/OpenMDAO@master
+
+1. Instructions specific for DOE HPC system Eagle
 
         conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy openmdao openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
         conda install -y petsc4py mpi4py

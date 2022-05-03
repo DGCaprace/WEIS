@@ -3782,10 +3782,10 @@ class BladeCost(om.ExplicitComponent):
         #if all materials are isotropic, then area_root_ss is never set !
         if area_root_ss < 0:
             area_root_ss = 0
-            print("Warning: blade joint sizing: bould not find area_root_ss! setting to 0.")
+            print("Warning: blade joint sizing: could not find area_root_ss! setting to 0.")
         if area_root_ps < 0:
             area_root_ps = 0
-            print("Warning: blade joint sizing: bould not find area_root_ps! setting to 0.")
+            print("Warning: blade joint sizing: could not find area_root_ps! setting to 0.")
 
         # Virtual factory
         blade_specs["max_chord"] = np.max(chord)
