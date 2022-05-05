@@ -398,11 +398,6 @@ if __name__ == '__main__':
                 # (after removing "elapsed" from the del post_processing routine in weis)
                 npDelstar = DELs.to_numpy()
                 
-                #duration of  time series
-                #DG TODO: make this adaptive if different for the avrious sims
-                # Tj = fast_dlclist[0][('Fst', 'TMax')] - fast_dlclist[0][('Fst', 'TStart')]
-                Tj = DLCs[0]["analysis_time"]
-                
                 #number of time series
                 Nj = len(npDelstar) #= len(DLCs)
 
@@ -433,6 +428,7 @@ if __name__ == '__main__':
                             DLCs_fat[label]['U'] = []
                             DLCs_fat[label]['idx'] = []
                             DLCs_fat[label]['nsims'] = 0
+                            DLCs_fat[label]['Tsim'] = dlc["analysis_time"] 
 
                         if not float( dlc["URef"] ) in DLCs_fat[label]['U']:
                             DLCs_fat[label]['U'].append(float( dlc["URef"] ) )
@@ -449,6 +445,7 @@ if __name__ == '__main__':
                             DLCs_extr[label]['U'] = []
                             DLCs_extr[label]['idx'] = []
                             DLCs_extr[label]['nsims'] = 0
+                            DLCs_extr[label]['Tsim'] = dlc["analysis_time"]                             
 
                         if not float( dlc["URef"] ) in DLCs_extr[label]['U']:
                             DLCs_extr[label]['U'].append(float( dlc["URef"] ) )
@@ -489,6 +486,9 @@ if __name__ == '__main__':
                         nSEEDdel = dlc['nsims'] / len(dlc['U'])
                         # nVELdel = len(dlc["wind_speed"])
 
+                        #duration of  time series
+                        Tj = dlc["Tsim"]
+
                         # ----------------------------------------------------------------------------------------------
                         #    probability of the turbine to operate in specific conditions. 
                         #XXX THIS IS NOW ALSO AVAILABLE IN DLCs, but maybe only for dlc1.2? Let's just recompute it.
@@ -510,7 +510,7 @@ if __name__ == '__main__':
                             print(f"Time series {dlc['idx']} are being processed for DEL...")
 
                         # a. Obtain the equivalent number of cycles
-                        #TODO: better handle this for various DLCs with different nvels and nseeds
+                        #TODO: better handle this for various DLCs with different nvels and nseeds. We currently assume the same Tj and nSeed across all fatigue DLCs.
                         fj = Tlife / Tj * pj
                         n_life_eq = np.sum(fj * Tj * f_eq)
                         
@@ -561,13 +561,16 @@ if __name__ == '__main__':
 
                     # common values
                     dt = modeling_options["Level3"]["simulation"]["DT"]
-                    nt = int( Tj / dt ) + 1
+                    
 
                     for dlc_num in DLCs_extr: 
                         dlc = DLCs_extr[dlc_num]
 
                         nSEEDextr = dlc['nsims'] / len(dlc['U'])
-                        # nVELextr = len(dlc["wind_speed"])
+
+                        #duration of  time series
+                        Tj = dlc["Tsim"]
+                        nt = int( Tj / dt ) + 1 #not used anymore
 
                         print(iec_dlc_meth)
                         extr_meth = iec_dlc_meth[dlc_num]
@@ -589,7 +592,7 @@ if __name__ == '__main__':
 
                         # Init our extreme loads
                         if dontAggregateExtreme:
-                            n_aggr = dlc['nsims'] #nSEEDextr*nVELextr
+                            n_aggr = dlc['nsims']
                         else:
                             n_aggr = 1
                         EXTR_distro_B1 = np.zeros([nx,5,nbins,n_aggr])    
