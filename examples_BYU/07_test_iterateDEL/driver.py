@@ -245,21 +245,23 @@ if __name__ == '__main__':
     #  Preparation of the channels passed to the LoadsAnalysis reader
     magnitude_channels = {}
     fatigue_channels = {}
+    Sult = 3500.e-6 #HARDCODED. Should come from something like analysis_opts["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
+    m_wholer = 10.0 #HARDCODED
     for i in range(1,41): #TODO: must read this number from somewhere!!
         tag = "B1N%03iMLx"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "B1N%03iMLy"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "B1N%03iFLz"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "AB1N%03iFn"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "AB1N%03iFt"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "AB1N%03iFx"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
         tag = "AB1N%03iFy"%(i)
-        fatigue_channels[tag] = FatigueParams(m_wohler)
+        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
 
     if MPI:
         MPI.COMM_WORLD.Barrier()

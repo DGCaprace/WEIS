@@ -107,6 +107,32 @@ class OpenFASTBase:
             self.data = np.append(self.data, normed, axis=1)
             self.channels = np.append(self.channels, new_chan)
 
+    def append_combili_channels(self):
+        """
+        Append the linear combination of `channels` to the dataset.
+
+        Parameters
+        ----------
+        self._combili_channels : dict
+            Format: 'new-chan' [ ['chan1',fact1], ['chan2',fact2], ['chan3',fact3] ],
+        """
+
+        for new_chan, chanFacts in self._combili_channels.items():
+
+            if new_chan in self.channels:
+                print(f"Channel '{new_chan}' already exists.")
+                continue
+            try:
+                arrays = np.array([self[a[0]] for a in chanFacts]).T
+                facts = np.array([ a[1] for a in chanFacts])
+                combili = np.sum(facts * arrays, axis=1).reshape(arrays.shape[0], 1)
+
+            except:
+                combili = np.nan * np.ones((self.data.shape[0],1))
+                
+            self.data = np.append(self.data, combili, axis=1)
+            self.channels = np.append(self.channels, new_chan)
+
     @property
     def headers(self):
         if getattr(self, "units", None) is None:
@@ -269,7 +295,9 @@ class OpenFASTOutput(OpenFASTBase):
 
         self._dlc = dlc
         self._magnitude_channels = kwargs.get("magnitude_channels", {})
+        self._combili_channels = kwargs.get("combili_channels", {})
         self.append_magnitude_channels()
+        self.append_combili_channels()
 
     @property
     def filename(self):
@@ -282,7 +310,6 @@ class OpenFASTOutput(OpenFASTBase):
         data = np.array(list(data.values())).T
 
         return cls(data, channels, name, **kwargs)
-
 
 class OpenFASTBinary(OpenFASTBase):
     """OpenFAST binary output class."""
@@ -300,6 +327,7 @@ class OpenFASTBinary(OpenFASTBase):
         self._chan_chars = kwargs.get("chan_char_length", 10)
         self._unit_chars = kwargs.get("unit_char_length", 10)
         self._magnitude_channels = kwargs.get("magnitude_channels", {})
+        self._combili_channels = kwargs.get("combili_channels", {})
 
     @property
     def filename(self):
@@ -356,6 +384,7 @@ class OpenFASTBinary(OpenFASTBase):
                 )
 
         self.append_magnitude_channels()
+        self.append_combili_channels()
 
     def build_headers(self, f, num_channels):
         """
@@ -428,6 +457,7 @@ class OpenFASTAscii(OpenFASTBase):
 
         self.filepath = filepath
         self._magnitude_channels = kwargs.get("magnitude_channels", {})
+        self._combili_channels = kwargs.get("combili_channels", {})
 
     @property
     def filename(self):
@@ -448,6 +478,7 @@ class OpenFASTAscii(OpenFASTBase):
             )
 
         self.append_magnitude_channels()
+        self.append_combili_channels()
 
     def parse_header(self, f):
         """Reads the header data for file."""

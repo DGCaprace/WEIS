@@ -1,3 +1,4 @@
+from WISDEM.wisdem.commonse.utilities import cosd
 import numpy as np
 import pandas as pd
 import os, shutil, sys, platform
@@ -122,16 +123,23 @@ class FASTLoadCases(ExplicitComponent):
                 while r[-1] should be the blade tip. Any number \
                 of locations can be specified between these in ascending order.')
             self.add_input('le_location',           val=np.zeros(n_span), desc='Leading-edge positions from a reference blade axis (usually blade pitch axis). Locations are normalized by the local chord length. Positive in -x direction for airfoil-aligned coordinate system')
-            self.add_input('beam:Tw_iner',          val=np.zeros(n_span), units='m', desc='y-distance to elastic center from point about which above structural properties are computed')
+            self.add_input('beam:Tw_iner',          val=np.zeros(n_span), units='deg', desc='Orientation of the section principal inertia axes with respect the blade reference plane')
             self.add_input('beam:rhoA',             val=np.zeros(n_span), units='kg/m', desc='mass per unit length')
             self.add_input('beam:EIyy',             val=np.zeros(n_span), units='N*m**2', desc='flatwise stiffness (bending about y-direction of airfoil aligned coordinate system)')
             self.add_input('beam:EIxx',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+            self.add_input('beam:EI11',             val=np.zeros(n_span), units='N*m**2', desc="stiffness w.r.t principal axis 1",)
+            self.add_input('beam:EI22',             val=np.zeros(n_span), units='N*m**2', desc="stiffness w.r.t principal axis 2",)
             #BYU: added the following 5, attempting to connect to BeamDyn
             self.add_input('beam:EIxy',             val=np.zeros(n_span), units='N*m**2', desc='edgewise stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:GJ',               val=np.zeros(n_span), units='N*m**2', desc='torsional stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:EA',               val=np.zeros(n_span), units='N', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:flap_iner',        val=np.zeros(n_span), units='kg*m', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:edge_iner',        val=np.zeros(n_span), units='kg*m', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
+            self.add_input('beam:xu_spar',        val=np.zeros(n_span), units='m', desc='x-position of midpoint of spar cap on upper surface for strain calculation')
+            self.add_input('beam:xl_spar',        val=np.zeros(n_span), units='m', desc='x-position of midpoint of spar cap on lower surface for strain calculation')
+            self.add_input('beam:yu_spar',        val=np.zeros(n_span), units='m', desc='y-position of midpoint of spar cap on upper surface for strain calculation')
+            self.add_input('beam:yl_spar',        val=np.zeros(n_span), units='m', desc='y-position of midpoint of spar cap on lower surface for strain calculation')
+            self.add_input('beam:alpha',          val=np.zeros(n_span), units="deg", desc="Angle between blade c.s. and principal axes")
             self.add_input('x_tc',                  val=np.zeros(n_span), units='m',      desc='x-distance to the neutral axis (torsion center)')
             self.add_input('y_tc',                  val=np.zeros(n_span), units='m',      desc='y-distance to the neutral axis (torsion center)')
             self.add_input('flap_mode_shapes',      val=np.zeros((n_freq_blade,5)), desc='6-degree polynomial coefficients of mode shapes in the flap direction (x^2..x^6, no linear or constant term)')
@@ -1295,6 +1303,8 @@ class FASTLoadCases(ExplicitComponent):
 
                 #Recompute the inertial properties in the airfoil axes:
                 alpha = inputs['beam:Tw_iner'][i] - inputs['theta'][i] #angle between airfoil axes and inertia principal axes
+                print("\n\n\ THIS IS A LITTLE TEST: {alpha} vs. {input['alpha'][i]")
+
                 Ixx = inputs['beam:edge_iner'][i] * np.cos(alpha)**2 + inputs['beam:flap_iner'][i] * np.sin(alpha)**2
                 Iyy = inputs['beam:flap_iner'][i] * np.cos(alpha)**2 + inputs['beam:edge_iner'][i] * np.sin(alpha)**2
                 Ixy = (inputs['beam:edge_iner'][i] - inputs['beam:flap_iner'][i]) * np.sin(alpha)**2 * np.cos(alpha)
@@ -2156,13 +2166,77 @@ class FASTLoadCases(ExplicitComponent):
                             fatigue_channels[f'M1N1{s}{k}K{x}e'] = monopile_fatigue_ii
                             magnitude_channels[f'M1N1{s}{k}K{x}e'] = [f'M1N1{k}K{x}e'] if x=='z' else [f'M1N1{k}Kxe', f'M1N1{k}Kye']
 
-        # Store settings
+
+            # BYU: CUSTOM COMBINATION OF CHANNELS
+            # add linar combination channels for fatigue based on the strain in the spars
+            
+            combili_channels = {}
+            
+            EI11 = inputs["beam:EI11"]
+            EI22 = inputs["beam:EI22"]
+            EA = inputs["beam:EA"]
+            # beam:xu_te
+            # beam:xl_te
+            # beam:yu_te
+            # beam:yl_te
+
+            m_wholer = 10.0
+
+            # We will do only 1 blade, but the full span
+            for u in ['U','L']:
+                y = inputs[f"beam:x{u.lower()}_spar"] #swapping x and y before rotating
+                x = inputs[f"beam:y{u.lower()}_spar"]
+                alpha = inputs["beam:alpha"]
+
+                for i in range(self.n_span):
+                    blade_spar_strain = FatigueParams(slope=m_wholer, DELstar=True, load2stress=1.0, ult_stress=3500.e-6) #HARDCODED. TODO: get ult_stress, slope from inputs!!
+                    # blade_spar_strain.load2stress = inputs[...] #can do that if needed, or from modopts?
+                    fatigue_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = blade_spar_strain
+
+                    #rotate the coordinates from 'swapped' airfoil frame to principal axes
+                    ca = np.cos(np.deg2rad(alpha[i]))
+                    sa = np.sin(np.deg2rad(alpha[i]))
+                    x2 = x[i] * ca + y[i] * sa
+                    y2 = -x[i] * sa + y[i] * ca
+                    
+                    # SHOOT: I need to rotate the EI as well
+                    fMLx = y2 / EI11[i]
+                    fMLy = - x2 / EI22[i]
+                    fFLz = 1.0 / EA[i]
+                    # Hansen, wind energy handbook, Eq.11.10:
+                    #     strainU = M1 / EI11 * y - M2 / EI22 * x + F3in / EA  
+
+                    #the channels MLx,MLy,FLz are in principal axes
+                    combili_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = [ ["B1N%03iMLx"%(i+1), fMLx], ["B1N%03iMLy"%(i+1), fMLy], ["B1N%03iFLz"%(i+1), fFLz],]
+            
+            # TODO: also add my stuff that come from DefaultCahnnels here as well
+            # Former BYU fatigue channels (for SciTech2022):
+            # slope,load2stress,elapsed1: just faking parameters so that the output is a DEL^* that we can aggregate afterwards. No goodman correction ever with load2stress=0.
+            # for i in range(1,self.n_span+1):
+                # tag = "B1N%03iMLx"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0) #load2stress=0 so there will be no Goodman correction anyway
+                # tag = "B1N%03iMLy"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                # tag = "B1N%03iFLz"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                # tag = "AB1N%03iFn"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                # tag = "AB1N%03iFt"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                # tag = "AB1N%03iFx"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                # tag = "AB1N%03iFy"%(i)
+                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+
+        # Store settings 
         fastBatch.goodman            = modopt['General']['goodman_correction'] # Where does this get placed in schema?
         fastBatch.fatigue_channels   = fatigue_channels
         fastBatch.magnitude_channels = magnitude_channels
+        fastBatch.combili_channels   = combili_channels
         self.la = LoadsAnalysis(
             outputs=[],
             magnitude_channels=magnitude_channels,
+            combili_channels=combili_channels,
             fatigue_channels=fatigue_channels,
         )
         self.magnitude_channels = magnitude_channels

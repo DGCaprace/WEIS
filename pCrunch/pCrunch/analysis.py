@@ -19,7 +19,7 @@ from pCrunch.io import OpenFASTAscii, OpenFASTBinary #, OpenFASTOutput
 class FatigueParams:
     """Simple data structure of parameters needed by fatigue calculation."""
 
-    def __init__(self, lifetime=0.0, load2stress=1.0, slope=4.0, ult_stress=1.0, S_intercept=0.0):
+    def __init__(self, lifetime=0.0, load2stress=1.0, slope=4.0, ult_stress=1.0, S_intercept=0.0, DELstar=False):
         """
         Creates an instance of `FatigueParams`.
 
@@ -35,6 +35,9 @@ class FatigueParams:
             Ultimate stress for use in Goodman equivalent stress calculation
         S_intercept : float (optional)
             Stress-axis intercept of log-log S-N Wohler curve. Taken as ultimate stress unless specified
+        DELstar : bool (optional)
+            If True, the fatigue computation stops at DEL* : we do not rescale by the length of the simulation, 
+            and we do not take the 1/mth power of sum of all ranges
         """
 
         self.lifetime = float(lifetime)
@@ -42,11 +45,13 @@ class FatigueParams:
         self.slope = float(slope)
         self.ult_stress = float(ult_stress)
         self.S_intercept = float(S_intercept) if float(S_intercept) > 0.0 else self.ult_stress
+        self.DELstar = DELstar
 
     def copy(self):
         return FatigueParams(lifetime=self.lifetime,
                              load2stress=self.load2stress, slope=self.slope,
-                             ult_stress=self.ult_stress, S_intercept=self.S_intercept)
+                             ult_stress=self.ult_stress, S_intercept=self.S_intercept,
+                             DELstar=self.DELstar)
 
 class LoadsAnalysis:
     """Implementation of `mlife` in python."""
@@ -68,6 +73,9 @@ class LoadsAnalysis:
         magnitude_channels : dict (optional)
             Additional channels as vector magnitude of other channels.
             Format: 'new-chan': ['chan1', 'chan2', 'chan3']
+        combili_channels : dict (optional)
+            Additional channels as a linear combination of other channels. (fact1*chan1+fact2*chan2+...)
+            Format: 'new-chan': [ ['chan1',fact1], ['chan2',fact2], ['chan3',fact3]]
         trim_data : tuple
             Trim processed outputs to desired times.
             Format: (min, max)
@@ -83,6 +91,7 @@ class LoadsAnalysis:
         self._directory = kwargs.get("directory", None)
         self._ec = kwargs.get("extreme_channels", True)
         self._mc = kwargs.get("magnitude_channels", {})
+        self._cl = kwargs.get("combili_channels", {})
         self._fc = kwargs.get("fatigue_channels", {})
         self._td = kwargs.get("trim_data", ())
         
@@ -291,11 +300,11 @@ class LoadsAnalysis:
             fp = f
 
         try:
-            output = OpenFASTAscii(fp, magnitude_channels=self._mc)
+            output = OpenFASTAscii(fp, magnitude_channels=self._mc, combili_channels=self._cl)
             output.read()
 
         except UnicodeDecodeError:
-            output = OpenFASTBinary(fp, magnitude_channels=self._mc)
+            output = OpenFASTBinary(fp, magnitude_channels=self._mc, combili_channels=self._cl)
             output.read()
 
         return output
@@ -411,6 +420,7 @@ class LoadsAnalysis:
                     fatparams.lifetime,
                     fatparams.load2stress, fatparams.slope,
                     fatparams.ult_stress, fatparams.S_intercept,
+                    fatparams.DELstar,
                     **kwargs
                 )
 
@@ -422,7 +432,7 @@ class LoadsAnalysis:
         return DELs, D
 
     @staticmethod
-    def _compute_del(ts, elapsed, lifetime, load2stress, slope, Sult, Sc=0.0, **kwargs):
+    def _compute_del(ts, elapsed, lifetime, load2stress, slope, Sult, Sc=0.0, DELstar=False, **kwargs):
         """
         Computes damage equivalent load of input `ts`.
         WARNING: to obtain the actual short term DEL, the returned quantity must be divided by the equivalent number of cycles, and to the power 1/m
@@ -456,54 +466,51 @@ class LoadsAnalysis:
 
         bins = kwargs.get("rainflow_bins", 100)
 
-        ranges = fatpack.find_rainflow_ranges(ts)
-        #Note: Goodman correction should be performed here if needed. However, there is no straightforward way of implementing it since it depends on the final definition of "ultimate load" used for the SN curve model.
-        Nrf, Srf = fatpack.find_range_count(ranges, bins)
-
-        DELs = Srf ** slope * Nrf 
-        DEL = DELs.sum() #** (1 / slope)
-        D = np.nan
-
-        return DEL, D
-        #DG: THE NEW CODE in v1.0 : NEED TO OVERHAUL MINE 
-        # return_damage = kwargs.get("return_damage", False)
-        # goodman = kwargs.get("goodman_correction", False)
-        # Scin = Sc if Sc > 0.0 else Sult
+        return_damage = kwargs.get("return_damage", False)
+        goodman = kwargs.get("goodman_correction", False)
+        Scin = Sc if Sc > 0.0 else Sult
         
-        # # Working with loads for DELs
-        # try:
-        #     F, Fmean = fatpack.find_rainflow_ranges(ts, return_means=True)
-        # except:
-        #     F = Fmean = np.zeros(1)
-        # if goodman and np.abs(load2stress) > 0.0:
-        #     F = fatpack.find_goodman_equivalent_stress(F, Fmean, Sult/np.abs(load2stress))
-        # Nrf, Frf = fatpack.find_range_count(F, bins)
-        # DELs = Frf ** slope * Nrf / elapsed
-        # DEL = DELs.sum() ** (1.0 / slope)
-        # # With fatpack do:
-        # #curve = fatpack.LinearEnduranceCurve(1.)
-        # #curve.m = slope
-        # #curve.Nc = elapsed
-        # #DEL = curve.find_miner_sum(np.c_[Frf, Nrf]) ** (1 / slope)
+        # Working with loads for DELs
+        try:
+            F, Fmean = fatpack.find_rainflow_ranges(ts, return_means=True)
+        except:
+            F = Fmean = np.zeros(1)
+        if goodman and np.abs(load2stress) > 0.0:
+            F = fatpack.find_goodman_equivalent_stress(F, Fmean, Sult/np.abs(load2stress))
+        Nrf, Frf = fatpack.find_range_count(F, bins)
+        
+        # -------- BYU MODIFICATION ---------
+        if DELstar:
+            DELs = Frf ** slope * Nrf #/ elapsed
+            DEL = DELs.sum() #** (1.0 / slope)
+        else:
+            DELs = Frf ** slope * Nrf / elapsed
+            DEL = DELs.sum() ** (1.0 / slope)        
+        # -----------------------------------
+        # With fatpack do:
+        #curve = fatpack.LinearEnduranceCurve(1.)
+        #curve.m = slope
+        #curve.Nc = elapsed
+        #DEL = curve.find_miner_sum(np.c_[Frf, Nrf]) ** (1 / slope)
 
-        # # Compute Palmgren/Miner damage using stress
-        # D = np.nan # default return value
-        # if return_damage and np.abs(load2stress) > 0.0:
-        #     try:
-        #         S, Mrf = fatpack.find_rainflow_ranges(ts*load2stress, return_means=True)
-        #     except:
-        #         S = Mrf = np.zeros(1)
-        #     if goodman:
-        #         S = fatpack.find_goodman_equivalent_stress(S, Mrf, Sult)
-        #     Nrf, Srf = fatpack.find_range_count(S, bins)
-        #     curve = fatpack.LinearEnduranceCurve(Scin)
-        #     curve.m = slope
-        #     curve.Nc = 1
-        #     D = curve.find_miner_sum(np.c_[Srf, Nrf])
-        #     if lifetime > 0.0:
-        #         D *= lifetime*365.0*24.0*60.0*60.0 / elapsed
+        # Compute Palmgren/Miner damage using stress
+        D = np.nan # default return value
+        if return_damage and np.abs(load2stress) > 0.0:
+            try:
+                S, Mrf = fatpack.find_rainflow_ranges(ts*load2stress, return_means=True)
+            except:
+                S = Mrf = np.zeros(1)
+            if goodman:
+                S = fatpack.find_goodman_equivalent_stress(S, Mrf, Sult)
+            Nrf, Srf = fatpack.find_range_count(S, bins)
+            curve = fatpack.LinearEnduranceCurve(Scin)
+            curve.m = slope
+            curve.Nc = 1
+            D = curve.find_miner_sum(np.c_[Srf, Nrf])
+            if lifetime > 0.0:
+                D *= lifetime*365.0*24.0*60.0*60.0 / elapsed
                 
-        # return DEL, D
+        return DEL, D
 
 
 class PowerProduction:

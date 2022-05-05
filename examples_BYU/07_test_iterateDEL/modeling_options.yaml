@@ -1,6 +1,8 @@
 # Generic modeling options file to run standard WISDEM case
 General:
     verbosity: False  # When set to True, the code prints to screen many infos
+    goodman_correction: True
+    
 WISDEM:
     RotorSE:
         flag: True

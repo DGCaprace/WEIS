@@ -48,6 +48,9 @@ magnitude_channels_default = {
     #can we add channels that are nodes, and not the sections? probably need to ask for the node output first...
 }
 
+combili_channels_default = {
+}
+
 fatigue_channels_default = {
     'RootMc1': FatigueParams(slope=10),
     'RootMc2': FatigueParams(slope=10),
@@ -59,21 +62,25 @@ fatigue_channels_default = {
     'LSShftM': FatigueParams(slope=4),
 }
 
-for i in range(1,41): #TODO: must read this number from somewhere!!
+# Adding all the channels required for fatigue along the blade
+# Note: 
+#  * slope,load2stress,elapsed1: just faking parameters so that the output is a DEL^* that we can aggregate afterwards. No goodman correction ever with load2stress=0.
+# TODO: MOVE THIS ELSEWHERE (a user file, for instance)
+for i in range(1,41): 
     tag = "B1N%03iMLx"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "B1N%03iMLy"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "B1N%03iFLz"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "AB1N%03iFn"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "AB1N%03iFt"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "AB1N%03iFx"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
     tag = "AB1N%03iFy"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10)
+    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
 
 # channel_extremes_default = [
 #     'RotSpeed',
@@ -132,6 +139,7 @@ class runFAST_pywrapper(object):
         self.use_exe            = False  # use openfast executable instead of library, helpful for debugging sometimes
         self.goodman            = False
         self.magnitude_channels = magnitude_channels_default
+        self.combili_channels   = combili_channels_default
         self.fatigue_channels   = fatigue_channels_default
         self.la                 = None # Will be initialized on first run through
         self.allow_fails        = False
@@ -153,6 +161,7 @@ class runFAST_pywrapper(object):
             self.la = LoadsAnalysis(
                 outputs=[],
                 magnitude_channels=self.magnitude_channels,
+                combili_channels=self.combili_channels,
                 fatigue_channels=self.fatigue_channels,
                 #extreme_channels=channel_extremes_default,
             )
@@ -208,7 +217,7 @@ class runFAST_pywrapper(object):
             # Add channel to indicate failed run
             output_dict['openfast_failed'] = np.zeros(len(output_dict[channel]))
 
-            output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut, magnitude_channels=self.magnitude_channels)
+            output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut, magnitude_channels=self.magnitude_channels, combili_channels=self.combili_channels)
 
             # if save_file: write_fast
             os.chdir(orig_dir)
@@ -244,9 +253,9 @@ class runFAST_pywrapper(object):
 
             if not failed:
                 if os.path.exists(FAST_Output):
-                    output_init = OpenFASTBinary(FAST_Output, magnitude_channels=self.magnitude_channels)
+                    output_init = OpenFASTBinary(FAST_Output, magnitude_channels=self.magnitude_channels,combili_channels=self.combili_channels)
                 elif os.path.exists(FAST_Output_txt):
-                    output_init = OpenFASTAscii(FAST_Output, magnitude_channels=self.magnitude_channels)
+                    output_init = OpenFASTAscii(FAST_Output, magnitude_channels=self.magnitude_channels,combili_channels=self.combili_channels)
                     
                 output_init.read()
 
@@ -272,7 +281,7 @@ class runFAST_pywrapper(object):
                 # Add channel to indicate failed run
                 output_dict['openfast_failed'] = np.ones(len(output_dict['Time']), dtype=np.uint8)
 
-                output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut, magnitude_channels=self.magnitude_channels)
+                output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut, magnitude_channels=self.magnitude_channels, combili_channels=self.combili_channels)
 
 
 
@@ -311,6 +320,7 @@ class runFAST_pywrapper_batch(object):
 
         self.goodman            = False
         self.magnitude_channels = magnitude_channels_default
+        self.combili_channels   = combili_channels_default
         self.fatigue_channels   = fatigue_channels_default
         self.la                 = None
         self.use_exe            = False
@@ -324,6 +334,7 @@ class runFAST_pywrapper_batch(object):
             self.la = LoadsAnalysis(
                 outputs=[],
                 magnitude_channels=self.magnitude_channels,
+                combili_channels=self.combili_channels,
                 fatigue_channels=self.fatigue_channels,
                 #extreme_channels=channel_extremes_default,
             )
@@ -353,6 +364,7 @@ class runFAST_pywrapper_batch(object):
             case_data['keep_time']          = self.keep_time
             case_data['goodman']            = self.goodman
             case_data['magnitude_channels'] = self.magnitude_channels
+            case_data['combili_channels']   = self.combili_channels
             case_data['fatigue_channels']   = self.fatigue_channels
             case_data['post']               = self.post
 
@@ -483,7 +495,7 @@ def evaluate(indict):
     known_keys = ['case', 'case_name', 'FAST_exe', 'FAST_lib', 'FAST_runDirectory',
                   'FAST_InputFile', 'FAST_directory', 'read_yaml', 'FAST_yamlfile_in', 'fst_vt',
                   'write_yaml', 'FAST_yamlfile_out', 'channels', 'overwrite_outfiles', 'keep_time',
-                  'goodman','magnitude_channels','fatigue_channels','post','use_exe','allow_fails','fail_value']
+                  'goodman','magnitude_channels','combili_channels','fatigue_channels','post','use_exe','allow_fails','fail_value']
     
     fast = runFAST_pywrapper()
     for k in indict:
