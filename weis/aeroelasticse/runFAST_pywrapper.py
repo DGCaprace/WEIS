@@ -62,26 +62,6 @@ fatigue_channels_default = {
     'LSShftM': FatigueParams(slope=4),
 }
 
-# Adding all the channels required for fatigue along the blade
-# Note: 
-#  * slope,load2stress,elapsed1: just faking parameters so that the output is a DEL^* that we can aggregate afterwards. No goodman correction ever with load2stress=0.
-# TODO: MOVE THIS ELSEWHERE (a user file, for instance)
-for i in range(1,41): 
-    tag = "B1N%03iMLx"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "B1N%03iMLy"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "B1N%03iFLz"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "AB1N%03iFn"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "AB1N%03iFt"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "AB1N%03iFx"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-    tag = "AB1N%03iFy"%(i)
-    fatigue_channels_default[tag] = FatigueParams(slope=10.0,DELstar=True, load2stress=0.0)
-
 # channel_extremes_default = [
 #     'RotSpeed',
 #     'BldPitch1','BldPitch2','BldPitch3',

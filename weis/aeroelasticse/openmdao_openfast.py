@@ -2167,7 +2167,7 @@ class FASTLoadCases(ExplicitComponent):
                             magnitude_channels[f'M1N1{s}{k}K{x}e'] = [f'M1N1{k}K{x}e'] if x=='z' else [f'M1N1{k}Kxe', f'M1N1{k}Kye']
 
 
-            # BYU: CUSTOM COMBINATION OF CHANNELS
+            # ============== BYU: CUSTOM COMBINATION OF CHANNELS =================
             # add linar combination channels for fatigue based on the strain in the spars
             
             combili_channels = {}
@@ -2209,24 +2209,24 @@ class FASTLoadCases(ExplicitComponent):
                     #the channels MLx,MLy,FLz are in principal axes
                     combili_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = [ ["B1N%03iMLx"%(i+1), fMLx], ["B1N%03iMLy"%(i+1), fMLy], ["B1N%03iFLz"%(i+1), fFLz],]
             
-            # TODO: also add my stuff that come from DefaultCahnnels here as well
             # Former BYU fatigue channels (for SciTech2022):
             # slope,load2stress,elapsed1: just faking parameters so that the output is a DEL^* that we can aggregate afterwards. No goodman correction ever with load2stress=0.
-            # for i in range(1,self.n_span+1):
-                # tag = "B1N%03iMLx"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0) #load2stress=0 so there will be no Goodman correction anyway
-                # tag = "B1N%03iMLy"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
-                # tag = "B1N%03iFLz"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
-                # tag = "AB1N%03iFn"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
-                # tag = "AB1N%03iFt"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
-                # tag = "AB1N%03iFx"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
-                # tag = "AB1N%03iFy"%(i)
-                # fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+            for i in range(1,self.n_span+1):
+                tag = "B1N%03iMLx"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0) #load2stress=0 so there will be no Goodman correction anyway
+                tag = "B1N%03iMLy"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                tag = "B1N%03iFLz"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                tag = "AB1N%03iFn"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                tag = "AB1N%03iFt"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                tag = "AB1N%03iFx"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+                tag = "AB1N%03iFy"%(i)
+                fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=0.0)
+            # =================  =================  ================= =================
 
         # Store settings 
         fastBatch.goodman            = modopt['General']['goodman_correction'] # Where does this get placed in schema?
