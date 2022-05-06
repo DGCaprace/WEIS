@@ -28,17 +28,17 @@ def my_write_yaml(instance, foutput):
         yaml.dump(instance, f)
 
 
-def myOpenFASTread(fname,addExt=0):
+def myOpenFASTread(fname,addExt=0, **kwargs):
     if addExt>0 and not ".out" in fname:
         ext = ".outb"
         if  addExt == 1: ext = ".out"
         fname += ext #appending the right extension
     try:
-        output = OpenFASTAscii(fname) #magnitude_channels=self._mc
+        output = OpenFASTAscii(fname, **kwargs) #magnitude_channels=self._mc
         output.read()
 
     except UnicodeDecodeError:
-        output = OpenFASTBinary(fname) #magnitude_channels=self._mc
+        output = OpenFASTBinary(fname, **kwargs) #magnitude_channels=self._mc
         output.read()
 
     return output
@@ -145,7 +145,10 @@ if __name__ == '__main__':
             (-2.e4,2.e4),  #Fy
             (-2.e4,2.e4),  #MLx
             (-5.e4,5.e4),  #MLy
-            (-5.e3,5.e3)]  #FLz
+            (-5.e3,5.e3),  #FLz
+            (-6.e-3,6.e-3),  #StrainU #TODO: CHECK THESE VALUES
+            (-6.e-3,6.e-3),  #StrainL #TODO: CHECK THESE VALUES
+            ]
 
 
     #-Extreme load extrapolation-:
@@ -211,6 +214,7 @@ if __name__ == '__main__':
     # Associate a specific extrapolation method per DLC
     iec_dlc_meth = {}
     iec_dlc_meth["1.1"] = extremeExtrapMeth
+    iec_dlc_meth["1.2"] = 0 
     iec_dlc_meth["1.3"] = extremeExtrapMeth
     iec_dlc_meth["1.4"] = 0
     iec_dlc_meth["1.5"] = 0
@@ -241,28 +245,6 @@ if __name__ == '__main__':
             raise FileNotFoundError(f"Can't restart from iter {restartAt-1} in folder {folder_wt_restart}")     
         current_wt_input = folder_wt_restart + os.sep + "blade_out.yaml"
             
-
-    #  Preparation of the channels passed to the LoadsAnalysis reader
-    magnitude_channels = {}
-    fatigue_channels = {}
-    Sult = 3500.e-6 #HARDCODED. Should come from something like analysis_opts["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
-    m_wholer = 10.0 #HARDCODED
-    for i in range(1,41): #TODO: must read this number from somewhere!!
-        tag = "B1N%03iMLx"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "B1N%03iMLy"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "B1N%03iFLz"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "AB1N%03iFn"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "AB1N%03iFt"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "AB1N%03iFx"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-        tag = "AB1N%03iFy"%(i)
-        fatigue_channels[tag] = FatigueParams(slope=m_wholer,DELstar=True, load2stress=1.0, ult_stress=Sult)
-
     if MPI:
         MPI.COMM_WORLD.Barrier()
 
@@ -319,6 +301,11 @@ if __name__ == '__main__':
 
                 # modeling_options['DLC_driver']['n_cases']
 
+                # Retreiving some channel information
+                combili_channels = load_yaml( simfolder + os.sep + 'extra' + os.sep + 'combili_channels.yaml')
+                n_span = combili_channels["n_span"]
+                combili_channels.pop("n_span")
+
                 print("\n\n\n  -------------- DONE WITH WEIS ------------------\n\n\n\n")
                 sys.stdout.flush()
 
@@ -333,26 +320,58 @@ if __name__ == '__main__':
                     if ".out" in file:
                         fast_fnames.append(file)
 
-                # Sort the file list, to avoid relying on the order determined by 'ls'
+                # Sort the file list, to avoid relying on the order determined by 'ls' and make sure they come in the same order as they were computed
                 fast_fnames.sort()
 
                 if not fast_fnames:
                     raise Warning(f"could not find any output files in the directory {readOutputFrom}")
                 print(f"Will try to read the following files: {fast_fnames}")
                 
-                fast_fnames.sort() # sort filename list to make sure they come in the same order as they were computed
+                #  Preparation of the channels passed to the LoadsAnalysis reader
+                magnitude_channels = {}
+                fatigue_channels = {}
+                                
+                combili_channels = load_yaml( simfolder + os.sep + 'extra' + os.sep + 'combili_channels.yaml')
+                n_span = combili_channels["n_span"]
+                combili_channels.pop("n_span")
+                Sult = 3500.e-6 #HARDCODED. Should come from something like analysis_opts["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
+
+                for k in combili_channels:
+                    blade_spar_strain = FatigueParams(slope=m_wohler, DELstar=True, load2stress=1.0, ult_stress=Sult) 
+                    # blade_spar_strain.load2stress = inputs[...] #can do that if needed, or from modopts?
+                    fatigue_channels[k] = blade_spar_strain
+
+                for i in range(1,n_span+1):
+                    # for u in ['U','L']:
+                    #     fatigue_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = blade_spar_strain
+                    
+                    tag = "B1N%03iMLx"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "B1N%03iMLy"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "B1N%03iFLz"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "AB1N%03iFn"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "AB1N%03iFt"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "AB1N%03iFx"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
+                    tag = "AB1N%03iFy"%(i)
+                    fatigue_channels[tag] = FatigueParams(slope=m_wohler,DELstar=True, load2stress=0.0)
 
                 la = LoadsAnalysis(
                     outputs= fast_fnames,
                     directory = readOutputFrom,
                     magnitude_channels=magnitude_channels,
+                    combili_channels=combili_channels,
                     fatigue_channels=fatigue_channels,
                     #extreme_channels=channel_extremes,
                     # trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]), #trim of data unnecessary since we only saved meaningful portion
                 )
 
                 print(f"pCrunch: will run the analysis on {NUM_THREAD} threads.")
-                la.process_outputs(cores=NUM_THREAD) 
+                la.process_outputs(cores=NUM_THREAD, goodman_correction=modeling_options['General']['goodman_correction']) 
                 # summary_stats = la._summary_stats
                 # extremes = la._extremes
                 DELs = la._dels
@@ -387,21 +406,24 @@ if __name__ == '__main__':
                 if nx > nx_hard: 
                     raise RuntimeError("Not enough channels for DELs provisionned in runFAST_pywrapper.")
 
-                fac = np.array([1.,1.,1.e3,1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
-                labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+                fac = np.array([1.,1.,1.e3,1.e3,1.e3, 1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
+                labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]","SparStrainU [-]","SparStrainL [-]"]
 
                 # ----------------------------------------------------------------------------------------------
                 #   reading data and setting up indices
                 
                 # Init our lifetime DEL
-                DEL_life_B1 = np.zeros([nx,5])    
+                DEL_life_B1 = np.zeros([nx,len(labs)])    
 
                 #  -- Retreive the DELstar --
                 # (after removing "elapsed" from the del post_processing routine in weis)
                 npDelstar = DELs.to_numpy()
                 
-                #number of time series
+                #total number of time series
                 Nj = len(npDelstar) #= len(DLCs)
+                
+                #number of time series in common (fatigue and extreme)
+                Ncommon = 0
 
                 print(f"Found {Nj} time series...")
                 DELs.info()
@@ -456,12 +478,20 @@ if __name__ == '__main__':
                         DLCs_extr[label]['nsims'] += 1
                         nTotExtrSim += 1
 
+                    # If one simulation is used both for fatigue and extreme loads, we just make the cound right.
+                    if  float( label ) in iec_dlc_for_fat and float( label ) in iec_dlc_for_extr:
+                        Ncommon += 1
 
-                if nTotFatSim+nTotExtrSim != Nj: 
+
+                if nTotFatSim+nTotExtrSim != Nj+Ncommon: 
                     raise Warning("Not the same number of velocities and seeds in the input yaml and in the output files: %i vs %i." % (nTotFatSim+nTotExtrSim,Nj))
 
                 # ----------------------------------------------------------------------------------------------
                 # -- proceed to DEL aggregation if requested
+
+                if withDEL and not DLCs_fat:
+                    print("CAUTION: you requested fatigue load processing but I have no DLC to treat for that! Turning off fatigue load processing.")
+                    withDEL = False
 
                 if withDEL:
 
@@ -472,6 +502,8 @@ if __name__ == '__main__':
                     i_B1MLx = np.zeros(nx,int)
                     i_B1MLy = np.zeros(nx,int)
                     i_B1FLz = np.zeros(nx,int)
+                    i_B1StU = np.zeros(nx,int)
+                    i_B1StL = np.zeros(nx,int)
                     for i in range(nx):
                         # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
                         # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
@@ -480,6 +512,8 @@ if __name__ == '__main__':
                         i_B1MLx[i] = colnames.get_loc("B1N%03iMLx"%(i+1))
                         i_B1MLy[i] = colnames.get_loc("B1N%03iMLy"%(i+1))
                         i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
+                        i_B1StU[i] = colnames.get_loc(f"BladeSparU_Strain_Stn{i+1}")
+                        i_B1StL[i] = colnames.get_loc(f"BladeSparL_Strain_Stn{i+1}")
 
 
                     for dlc_num in DLCs_fat: #TODO: loop over the dlcs in DLCs_fat
@@ -518,7 +552,7 @@ if __name__ == '__main__':
                         
                         # b. Aggregate DEL
                         k=0
-                        for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz]:
+                        for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz,i_B1StU,i_B1StL]:
                             #loop over the DELs from all time series and sum
                             for i in dlc['idx']: 
                                 
@@ -559,6 +593,10 @@ if __name__ == '__main__':
                 # ----------------------------------------------------------------------------------------------
                 # -- proceed to extreme load/gust extrapolation if requested
 
+                if withEXTR and not DLCs_extr:
+                    print("CAUTION: you requested exrtreme load processing but I have no DLC to treat for that! Turning off extreme load processing.")
+                    withEXTR = False
+
                 if withEXTR:
 
                     # common values
@@ -597,7 +635,7 @@ if __name__ == '__main__':
                             n_aggr = dlc['nsims']
                         else:
                             n_aggr = 1
-                        EXTR_distro_B1 = np.zeros([nx,5,nbins,n_aggr])    
+                        EXTR_distro_B1 = np.zeros([nx,len(labs),nbins,n_aggr])    
                         # if extremeExtrapMeth ==2: #DEPREC
                         #     EXTR_data_B1 = np.zeros([nx,5,nt])    
 
@@ -609,10 +647,10 @@ if __name__ == '__main__':
                                 # Because raw data are not available as such, need to go back look into the output files:
                                 fname = simfolder + os.sep + fast_fnames[i]
                                 print(fname)
-                                fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"])
+                                fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"], combili_channels=combili_channels)
                             
                                 k = 0
-                                for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz"]:
+                                for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz","BladeSparU_Strain_Stn%i","BladeSparL_Strain_Stn%i"]:
                                     # print(f"[{lab}] v{ivel} s{iseed} loc{i} - {fast_fnames[i]} {fast_dlclist[jloc]}")
                                     for i in range(nx):
                                         hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
@@ -630,7 +668,7 @@ if __name__ == '__main__':
                                 del(fulldata)
 
                         #normalizing the distributions
-                        for k in range(5):
+                        for k in range(len(labs)):
                             dx = (rng[k][1]-rng[k][0])/(nbins)
                             x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
                             # normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
@@ -679,8 +717,10 @@ if __name__ == '__main__':
                         truncThr = None #no restriction
 
                         # new recommended setup:
-                        distr = ["norm","norm","twiceMaxForced","norm","norm"] 
+                        distr = ["norm","norm","twiceMaxForced","norm","norm","norm","norm"] 
                         # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
+
+                        #TODO: check which distr is appropriate for strain?
                         # ------------
 
 
@@ -710,7 +750,7 @@ if __name__ == '__main__':
                         np.savez(saveExtrNpy, rng=rng, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, dt=dt)
                 
                     # ------------ PLOTTING ------------    
-                    for k in range(5):
+                    for k in range(len(labs)):
                         stp = (rng[k][1]-rng[k][0])/(nbins)
                         xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
                         dx = (rng[k][1]-rng[k][0])/(nbins)
@@ -779,7 +819,7 @@ if __name__ == '__main__':
                         for j in range(len(dlc["extr_loads"])):
                             dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3]
 
-                            for k in range(5):
+                            for k in range(len(labs)):
                                     dlc["extr_loads"][j][:,k] *= fac[k]
 
 
@@ -869,6 +909,8 @@ if __name__ == '__main__':
                         schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
                         schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
                         schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
+                        schema["DEL"]["StrainSparL"] = DEL_life_B1[:,5].tolist()
+                        schema["DEL"]["StrainSparU"] = DEL_life_B1[:,6].tolist()
                     if withEXTR:
                         schema["extreme"] = {}
                         schema["extreme"]["description"] = extr_descr_str
@@ -876,6 +918,8 @@ if __name__ == '__main__':
                         schema["extreme"]["deMLx"] = dlc["extr_loads"][0][:,2].tolist()
                         schema["extreme"]["deMLy"] = dlc["extr_loads"][0][:,3].tolist()
                         schema["extreme"]["deFLz"] = dlc["extr_loads"][0][:,4].tolist()
+                        schema["extreme"]["StrainSparL"] = dlc["extr_loads"][0][:,5].tolist()
+                        schema["extreme"]["StrainSparU"] = dlc["extr_loads"][0][:,6].tolist()
 
                     schema["general"]["folder_output"] = "outputs_struct_withFatigue"
                     if withDEL:
@@ -911,7 +955,7 @@ if __name__ == '__main__':
 
                 # ----------------------------------------------------------------------------------------------
                 # -- Final plots
-                for k in range(5):
+                for k in range(len(labs)):
                     plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
                     if withEXTR:
                         for dlc_num in DLCs_extr: 

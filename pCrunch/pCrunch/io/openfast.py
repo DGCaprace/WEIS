@@ -123,8 +123,12 @@ class OpenFASTBase:
                 print(f"Channel '{new_chan}' already exists.")
                 continue
             try:
-                arrays = np.array([self[a[0]] for a in chanFacts]).T
-                facts = np.array([ a[1] for a in chanFacts])
+                if isinstance(chanFacts,list):
+                    arrays = np.array([self[a[0]] for a in chanFacts]).T
+                    facts = np.array([ a[1] for a in chanFacts])
+                else:
+                    arrays = np.array([self[chan] for chan in chanFacts]).T
+                    facts = np.array([ fact for chan, fact in chanFacts.items()])
                 combili = np.sum(facts * arrays, axis=1).reshape(arrays.shape[0], 1)
 
             except:

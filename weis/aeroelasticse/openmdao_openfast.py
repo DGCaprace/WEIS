@@ -4,6 +4,7 @@ import pandas as pd
 import os, shutil, sys, platform
 import copy
 import glob
+import yaml
 from pathlib import Path
 from scipy.interpolate                      import PchipInterpolator
 from openmdao.api                           import ExplicitComponent
@@ -2240,6 +2241,7 @@ class FASTLoadCases(ExplicitComponent):
             fatigue_channels=fatigue_channels,
         )
         self.magnitude_channels = magnitude_channels
+        self.combili_channels = combili_channels
 
         # Run FAST
         if self.mpi_run and not self.options['opt_options']['driver']['design_of_experiments']['flag']:
@@ -2294,6 +2296,18 @@ class FASTLoadCases(ExplicitComponent):
 
         if modopt['General']['openfast_configuration']['save_iterations']:
             self.save_iterations(summary_stats,DELs,discrete_outputs)
+
+        #To avoid the hurdle of having to redo this again, I'm gonna just save the combili_channels 
+        if self.combili_channels:
+            tmp_dict = {}
+
+            tmp_dict["n_span"] = self.n_span
+            for key, vals in self.combili_channels.items():
+                tmp_dict[key] = {}
+                for val in vals:
+                    tmp_dict[key][val[0]] = float(val[1])
+
+            self.save_dict_to_yaml(tmp_dict, 'combili_channels.yaml')
 
         # Open loop to closed loop error, move this to before save_timeseries when finished
         if modopt['OL2CL']['flag']:
@@ -2877,3 +2891,17 @@ class FASTLoadCases(ExplicitComponent):
             pickle.dump(self.fst_vt,f)
 
         discrete_outputs['ts_out_dir'] = save_dir
+
+    def save_dict_to_yaml(self, mydict, myname):
+        '''
+        Save a dictionnary to a file
+        '''
+
+        # Make iteration directory
+        save_dir = os.path.join(self.FAST_runDirectory,'extra')
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Save fst_vt as pickle
+        # with open(os.path.join(save_dir,myname), 'wb') as f:
+        with open(os.path.join(save_dir,myname), "w", encoding="utf-8") as f:            
+            yaml.dump(mydict, f)
