@@ -528,9 +528,9 @@ class WindPark(om.Group):
                 self.connect('rotorse.xl_spar', 'aeroelastic.beam:xl_spar')
                 self.connect('rotorse.yu_spar', 'aeroelastic.beam:yu_spar')
                 self.connect('rotorse.yl_spar', 'aeroelastic.beam:yl_spar')
-                # self.connect('rotorse.xu_te',   'aeroelastic.beam:xu_te') #not currently used but could be.
-                # self.connect('rotorse.xl_te',   'aeroelastic.beam:xl_te')
-                # self.connect('rotorse.yu_te',   'aeroelastic.beam:yu_te')
+                self.connect('rotorse.xu_te',   'aeroelastic.beam:xu_te') 
+                # self.connect('rotorse.xl_te',   'aeroelastic.beam:xl_te') #not currently used but could be.
+                self.connect('rotorse.yu_te',   'aeroelastic.beam:yu_te')
                 # self.connect('rotorse.yl_te',   'aeroelastic.beam:yl_te')
                 self.connect('rotorse.re.Tw_iner',                 'aeroelastic.beam:Tw_iner')
                 self.connect('rotorse.rs.frame.flap_mode_shapes',       'aeroelastic.flap_mode_shapes')

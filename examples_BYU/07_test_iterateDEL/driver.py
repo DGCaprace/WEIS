@@ -159,13 +159,13 @@ if __name__ == '__main__':
     #         (-1.e3,4.e3)]  #FLz
 
     nbins = 500        
-    rng = [ (-2.e4,2.e4), #Fx
-            (-2.e4,2.e4),  #Fy
-            (-2.e4,2.e4),  #MLx
-            (-5.e4,5.e4),  #MLy
-            (-5.e3,5.e3),  #FLz
-            (-6.e-3,6.e-3),  #StrainU #TODO: CHECK THESE VALUES
-            (-6.e-3,6.e-3),  #StrainL #TODO: CHECK THESE VALUES
+    rng = [ (-2.e4,2.e4), #Fx [N/m]
+            (-2.e4,2.e4),  #Fy [N/m]
+            (-2.e4,2.e4),  #MLx [kNm]
+            (-5.e4,5.e4),  #MLy [kNm]
+            (-5.e3,5.e3),  #FLz [kN]
+            (-6.e-3,6.e-3),  #StrainU [-]
+            (-6.e-3,6.e-3),  #StrainL [-]
             ]
 
 
@@ -241,7 +241,6 @@ if __name__ == '__main__':
 
 
 
-    # analysis_opt = load_yaml(fname_analysis_options)
     wt_init = load_yaml(fname_wt_input)
     modeling_options = load_yaml(fname_modeling_options)  #initial load
 
@@ -424,14 +423,19 @@ if __name__ == '__main__':
                 if nx > nx_hard: 
                     raise RuntimeError("Not enough channels for DELs provisionned in runFAST_pywrapper.")
 
-                fac = np.array([1.,1.,1.e3,1.e3,1.e3, 1.e3,1.e3]) #multiplicator because output of AD is in N, but output of ED is in kN
-                labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]","SparStrainU [-]","SparStrainL [-]"]
+                fac = np.array([1.,1.,1.e3,1.e3,1.e3, 1.,1.,1.]) #multiplicator because output of AD is in N, but output of ED is in kN
+                # for the strain, Mx,My,Fz are in kN(m) but the combili factors include a 10^3, so that the output of the channel is indeed a strain
+                labs = ["Fn [N/m]","Ft [N/m]","MLx (lead lag) [Nm]","MLy (flap, +TE) [Nm]","FLz [N]","SparStrainU [-]","SparStrainL [-]","SparStrainTE [-]"]
+                labs_Lt = ["LtildeU [N]","LtildeL [N]", "MxtU [Nm]","MytU [Nm]","FztU [N]", "MxtL [Nm]","MytL [Nm]","FztL [N]"]
+                
+                n_processed = len(labs) #number of quantities processed
 
                 # ----------------------------------------------------------------------------------------------
                 #   reading data and setting up indices
                 
                 # Init our lifetime DEL
-                DEL_life_B1 = np.zeros([nx,len(labs)])    
+                DEL_life_B1 = np.zeros([nx,n_processed])    
+                Ltilde_life_B1 = np.zeros([nx,8])    
 
                 #  -- Retreive the DELstar --
                 # (after removing "elapsed" from the del post_processing routine in weis)
@@ -522,6 +526,7 @@ if __name__ == '__main__':
                     i_B1FLz = np.zeros(nx,int)
                     i_B1StU = np.zeros(nx,int)
                     i_B1StL = np.zeros(nx,int)
+                    i_B1StTE = np.zeros(nx,int)
                     for i in range(nx):
                         # i_AB1Fn[i] = colnames.get_loc("AB1N%03iFn"%(i+1)) #local chordwise
                         # i_AB1Ft[i] = colnames.get_loc("AB1N%03iFt"%(i+1)) #local normal
@@ -532,6 +537,7 @@ if __name__ == '__main__':
                         i_B1FLz[i] = colnames.get_loc("B1N%03iFLz"%(i+1))
                         i_B1StU[i] = colnames.get_loc(f"BladeSparU_Strain_Stn{i+1}")
                         i_B1StL[i] = colnames.get_loc(f"BladeSparL_Strain_Stn{i+1}")
+                        i_B1StTE[i] = colnames.get_loc(f"BladeTE_Strain_Stn{i+1}")
 
 
                     for dlc_num in DLCs_fat: #TODO: loop over the dlcs in DLCs_fat
@@ -567,10 +573,10 @@ if __name__ == '__main__':
                         #TODO: better handle this for various DLCs with different nvels and nseeds. We currently assume the same Tj and nSeed across all fatigue DLCs.
                         fj = Tlife / Tj * pj
                         n_life_eq = np.sum(fj * Tj * f_eq)
-                        
+
                         # b. Aggregate DEL
                         k=0
-                        for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz,i_B1StU,i_B1StL]:
+                        for ids in [i_AB1Fn,i_AB1Ft,i_B1MLx,i_B1MLy,i_B1FLz,i_B1StU,i_B1StL,i_B1StTE]:
                             #loop over the DELs from all time series and sum
                             for i in dlc['idx']: 
                                 
@@ -604,6 +610,92 @@ if __name__ == '__main__':
                         # DEL_life_B1[:,2] = DEL_life_B1[:,2]
                         # DEL_life_B1[:,3] = DEL_life_B1[:,3]  
                         # DEL_life_B1[:,4] = DEL_life_B1[:,4]
+                        
+
+                        # d. Obtain the equivalent load corresponding to the equivalent strain in spars
+                        #    We can use the factors y/EI11, x/EI22, 1/EA, already computed for the combili factors. 
+
+                        fact_LtU = np.zeros(n_span)
+                        fact_LtL = np.zeros(n_span)
+
+                        ooEA = np.zeros(n_span)
+                        yoEIxxU = np.zeros(n_span)
+                        xoEIyyU = np.zeros(n_span)
+                        yoEIxxL = np.zeros(n_span)
+                        xoEIyyL = np.zeros(n_span)
+                        yoEIxxTE = np.zeros(n_span)
+                        xoEIyyTE = np.zeros(n_span)
+                        
+                        for i in range(n_span):
+                            ooEA[i]  = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dFLz"%(i+1)]
+                            yoEIxxU[i] = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
+                            xoEIyyU[i] = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
+                            yoEIxxL[i] = combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
+                            xoEIyyL[i] = combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
+                            yoEIxxTE[i] = combili_channels["BladeTE_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
+                            xoEIyyTE[i] = combili_channels["BladeTE_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
+
+                            for e in combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ].values():
+                                fact_LtU[i] += e
+                            for e in combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ].values():
+                                fact_LtL[i] += e
+
+                        # # or recompute them...
+                        # EA = wt_opt['rotorse.EA']
+                        # EI11 = wt_opt['rotorse.rs.frame.EI11']
+                        # EI22 = wt_opt['rotorse.rs.frame.EI22']
+                        # yU = wt_opt['rotorse.xu_spar'] #swapping coordinates before rotating: Airfoil to Hansen frame
+                        # xU = wt_opt['rotorse.yu_spar']
+                        # yL = wt_opt['rotorse.xl_spar']
+                        # xL = wt_opt['rotorse.yl_spar']
+                        # alpha = wt_opt['rotorse.rs.frame.alpha']
+                        # x2U = np.zeros(len(xU))
+                        # y2U = np.zeros(len(yU))
+                        # x2L = np.zeros(len(xU))
+                        # y2L = np.zeros(len(yU))
+
+                        # for i in range(len(xU)):
+                        #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
+                        #     ca = np.cos(np.deg2rad(alpha[i]))
+                        #     sa = np.sin(np.deg2rad(alpha[i]))
+
+                        #     x2U[i] = xU[i] * ca + yU[i] * sa
+                        #     y2U[i] = -xU[i] * sa + yU[i] * ca
+                        #     x2L[i] = xL[i] * ca + yL[i] * sa
+                        #     y2L[i] = -xL[i] * sa + yL[i] * ca
+                        # fact_LtU = (y2U / EI11 - x2U / EI22 + 1/EA)
+                        # fact_LtL = (y2L / EI11 - x2L / EI22 + 1/EA)
+
+                        # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
+                        #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
+                        Ltilde_life_B1[:,4] = DEL_life_B1[:,5] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxU + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyU + ooEA )
+                        Ltilde_life_B1[:,2] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,4]
+                        Ltilde_life_B1[:,3] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,4]
+
+                        Ltilde_life_B1[:,7] = DEL_life_B1[:,6] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxL + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyL + ooEA )
+                        Ltilde_life_B1[:,5] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,7]
+                        Ltilde_life_B1[:,6] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,7]
+
+
+                        # Find the unique equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain
+                        #  in the spars and at the TE simultaneously
+
+                        A = np.zeros([3,3])
+                        # b = np.zeros([3,1])
+                        for i in range(n_span):
+                            A[0,0] = yoEIxxU[i]
+                            A[0,1] = xoEIyyU[i]
+                            A[1,0] = yoEIxxL[i]
+                            A[1,1] = xoEIyyL[i]
+                            A[2,0] = yoEIxxTE[i]
+                            A[2,1] = xoEIyyTE[i]
+                            A[:,2] = ooEA[i]
+                            b = DEL_life_B1[i,5:]
+                            sol = np.linalg.solve(A, b)
+
+                            Ltilde_life_B1[i,2] = sol[0]
+                            Ltilde_life_B1[i,3] = sol[1]
+                            Ltilde_life_B1[i,4] = sol[2]
 
                         print("Damage eq loads:")
                         print(np.transpose(DEL_life_B1))
@@ -654,7 +746,7 @@ if __name__ == '__main__':
                             n_aggr = dlc['nsims']
                         else:
                             n_aggr = 1
-                        EXTR_distro_B1 = np.zeros([nx,len(labs),nbins,n_aggr])    
+                        EXTR_distro_B1 = np.zeros([nx,n_processed,nbins,n_aggr])    
                         # if extremeExtrapMeth ==2: #DEPREC
                         #     EXTR_data_B1 = np.zeros([nx,5,nt])    
 
@@ -669,7 +761,7 @@ if __name__ == '__main__':
                                 fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"], combili_channels=combili_channels)
                             
                                 k = 0
-                                for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz","BladeSparU_Strain_Stn%i","BladeSparL_Strain_Stn%i"]:
+                                for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz","BladeSparU_Strain_Stn%i","BladeSparL_Strain_Stn%i","BladeTE_Strain_Stn%i"]:
                                     # print(f"[{lab}] v{ivel} s{iseed} loc{i} - {fast_fnames[i]} {fast_dlclist[jloc]}")
                                     for i in range(nx):
                                         hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
@@ -687,7 +779,7 @@ if __name__ == '__main__':
                                 del(fulldata)
 
                         #normalizing the distributions
-                        for k in range(len(labs)):
+                        for k in range(n_processed):
                             dx = (rng[k][1]-rng[k][0])/(nbins)
                             x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
                             # normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
@@ -746,7 +838,7 @@ if __name__ == '__main__':
                         for j in range(n_aggr):
                             if extr_meth ==0:
                                 # EXTR_life_B1, EXTR_distr_p = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*5, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
+                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*n_processed, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
                             elif extr_meth ==1:
                                 #assumes only normal
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob)
@@ -769,7 +861,7 @@ if __name__ == '__main__':
                         np.savez(saveExtrNpy, rng=rng, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, dt=dt)
                 
                     # ------------ PLOTTING ------------    
-                    for k in range(len(labs)):
+                    for k in range(n_processed):
                         stp = (rng[k][1]-rng[k][0])/(nbins)
                         xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
                         dx = (rng[k][1]-rng[k][0])/(nbins)
@@ -819,6 +911,11 @@ if __name__ == '__main__':
                                         ax2.plot(xx, this.sf(xx, dlc["extr_params"][j][i,k,0], loc = dlc["extr_params"][j][i,k,1], scale = dlc["extr_params"][j][i,k,2]),'--', alpha=0.6 , color=c1)
                         f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
                         f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
+
+                        #NOTE: CAUTION: the sign on these plots correspond to ELASTODYN convention
+                        # z: along the blade
+                        # x: positive streamwise
+                        # y: complete the triad, positive towards TE (left)
                     if showPlots:
                         plt.show()
 
@@ -832,7 +929,7 @@ if __name__ == '__main__':
                         for j in range(len(dlc["extr_loads"])):
                             # dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3] #NOPE! the sign of y axis in ED and AIRFOIL frames is consistent
 
-                            for k in range(len(labs)):
+                            for k in range(n_processed):
                                     dlc["extr_loads"][j][:,k] *= fac[k]
 
 
@@ -922,8 +1019,8 @@ if __name__ == '__main__':
                         schema["DEL"]["deMLx"] = DEL_life_B1[:,2].tolist()
                         schema["DEL"]["deMLy"] = DEL_life_B1[:,3].tolist()
                         schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
-                        schema["DEL"]["StrainSparL"] = DEL_life_B1[:,5].tolist()
-                        schema["DEL"]["StrainSparU"] = DEL_life_B1[:,6].tolist()
+                        schema["DEL"]["StrainSparU"] = DEL_life_B1[:,5].tolist()
+                        schema["DEL"]["StrainSparL"] = DEL_life_B1[:,6].tolist()
                     if withEXTR:
                         schema["extreme"] = {}
                         schema["extreme"]["description"] = extr_descr_str
@@ -968,7 +1065,7 @@ if __name__ == '__main__':
 
                 # ----------------------------------------------------------------------------------------------
                 # -- Final plots
-                for k in range(len(labs)):
+                for k in range(n_processed):
                     plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
                     if withEXTR:
                         for dlc_num in DLCs_extr: 

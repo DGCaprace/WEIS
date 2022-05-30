@@ -108,16 +108,6 @@ class FASTLoadCases(ExplicitComponent):
             n_freq_blade = int(rotorse_options['n_freq']/2)
             n_pc         = int(rotorse_options['n_pc'])
 
-            self.n_xy          = n_xy      = rotorse_options['n_xy'] # Number of coordinate points to describe the airfoil geometry
-            self.n_aoa         = n_aoa     = rotorse_options['n_aoa']# Number of angle of attacks
-            self.n_Re          = n_Re      = rotorse_options['n_Re'] # Number of Reynolds, so far hard set at 1
-            self.n_tab         = n_tab     = rotorse_options['n_tab']# Number of tabulated data. For distributed aerodynamic control this could be > 1
-
-            self.te_ss_var       = rotorse_options['te_ss']
-            self.te_ps_var       = rotorse_options['te_ps']
-            self.spar_cap_ss_var = rotorse_options['spar_cap_ss']
-            self.spar_cap_ps_var = rotorse_options['spar_cap_ps']
-
             # ElastoDyn Inputs
             # Assuming the blade modal damping to be unchanged. Cannot directly solve from the Rayleigh Damping without making assumptions. J.Jonkman recommends 2-3% https://wind.nrel.gov/forum/wind/viewtopic.php?t=522
             self.add_input('r',                     val=np.zeros(n_span), units='m', desc='radial positions. r[0] should be the hub location \
@@ -138,8 +128,10 @@ class FASTLoadCases(ExplicitComponent):
             self.add_input('beam:edge_iner',        val=np.zeros(n_span), units='kg*m', desc='axial stiffness (bending about :ref:`x-direction of airfoil aligned coordinate system <blade_airfoil_coord>`)')
             self.add_input('beam:xu_spar',        val=np.zeros(n_span), units='m', desc='x-position of midpoint of spar cap on upper surface for strain calculation')
             self.add_input('beam:xl_spar',        val=np.zeros(n_span), units='m', desc='x-position of midpoint of spar cap on lower surface for strain calculation')
+            self.add_input('beam:xu_te',        val=np.zeros(n_span), units='m', desc='x-position of midpoint of trailing edge on upper surface for strain calculation')
             self.add_input('beam:yu_spar',        val=np.zeros(n_span), units='m', desc='y-position of midpoint of spar cap on upper surface for strain calculation')
             self.add_input('beam:yl_spar',        val=np.zeros(n_span), units='m', desc='y-position of midpoint of spar cap on lower surface for strain calculation')
+            self.add_input('beam:yu_te',        val=np.zeros(n_span), units='m', desc='y-position of midpoint of spar trailing edge lower surface for strain calculation')
             self.add_input('beam:alpha',          val=np.zeros(n_span), units="deg", desc="Angle between blade c.s. and principal axes")
             self.add_input('x_tc',                  val=np.zeros(n_span), units='m',      desc='x-distance to the neutral axis (torsion center)')
             self.add_input('y_tc',                  val=np.zeros(n_span), units='m',      desc='y-distance to the neutral axis (torsion center)')
@@ -2176,39 +2168,46 @@ class FASTLoadCases(ExplicitComponent):
             EI11 = inputs["beam:EI11"]
             EI22 = inputs["beam:EI22"]
             EA = inputs["beam:EA"]
-            # beam:xu_te
             # beam:xl_te
-            # beam:yu_te
             # beam:yl_te
 
             m_wholer = 10.0
 
             # We will do only 1 blade, but the full span
-            for u in ['U','L']:
-                y = inputs[f"beam:x{u.lower()}_spar"] #swapping x and y before rotating
-                x = inputs[f"beam:y{u.lower()}_spar"]
+            for (u,U) in zip(['u_spar','l_spar','u_te'],['SparU','SparL','TE']):
+                y = inputs[f"beam:x{u.lower()}"] #swapping x and y before rotating
+                x = inputs[f"beam:y{u.lower()}"]
                 alpha = inputs["beam:alpha"]
 
                 for i in range(self.n_span):
                     blade_spar_strain = FatigueParams(slope=m_wholer, DELstar=True, load2stress=1.0, ult_stress=3500.e-6) #HARDCODED. TODO: get ult_stress, slope from inputs!!
                     # blade_spar_strain.load2stress = inputs[...] #can do that if needed, or from modopts?
-                    fatigue_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = blade_spar_strain
+                    fatigue_channels[f'Blade{U}_Strain_Stn{i+1}'] = blade_spar_strain
 
                     #rotate the coordinates from 'swapped' airfoil frame to principal axes
                     ca = np.cos(np.deg2rad(alpha[i]))
                     sa = np.sin(np.deg2rad(alpha[i]))
-                    x2 = x[i] * ca + y[i] * sa
-                    y2 = -x[i] * sa + y[i] * ca
+                    x1 = x[i] * ca + y[i] * sa
+                    y1 = -x[i] * sa + y[i] * ca
                     
-                    # SHOOT: I need to rotate the EI as well
-                    fMLx = y2 / EI11[i]
-                    fMLy = - x2 / EI22[i]
-                    fFLz = 1.0 / EA[i]
+                    #compute the factors multiplying the loads WHEN THEY ARE EXPRESSED IN THE PRINCIPAL AXES
+                    fML1 = y1 / EI11[i] * 1e3 # *1e3 because MLx,MLy,MLz are in kN
+                    fML2 = - x1 / EI22[i] * 1e3
+                    fFLz = 1.0 / EA[i] * 1e3
                     # Hansen, wind energy handbook, Eq.11.10:
-                    #     strainU = M1 / EI11 * y - M2 / EI22 * x + F3in / EA  
+                    #     strainU = M1 / EI11 * y1 - M2 / EI22 * x1 + F3in / EA  
 
-                    #the channels MLx,MLy,FLz are in principal axes
-                    combili_channels[f'BladeSpar{u}_Strain_Stn{i+1}'] = [ ["B1N%03iMLx"%(i+1), fMLx], ["B1N%03iMLy"%(i+1), fMLy], ["B1N%03iFLz"%(i+1), fFLz],]
+                    #in practice, the ElastoDyn output is not in principal axes, but in the airfoil frame. So we further need to "rotate" the loads:
+                    # M1 = (ca*My-sa*Mx) # note that we swap again x<->y and then rotate by -alpha
+                    # M2 = (ca*Mx+sa*My)
+                    #Finally, the strain as a function of Mx,My,Fz is:
+                    #     strainU = (ca*My-sa*Mx) / EI11 * y1 - (ca*Mx+sa*My) / EI22 * x1 + F3in / EA  
+                    fMLx = - (-sa * fML1  - ca * fML2)
+                    fMLy = - (ca * fML1  - sa * fML2)
+                    # The - comes from the swapping: we go from a right-handed frame to a left-handed frame. If we want to maintain that traction is >0, we need to change sign.
+
+                    #the channels MLx,MLy,FLz are in airfoil axes
+                    combili_channels[f'Blade{U}_Strain_Stn{i+1}'] = [ ["B1N%03iMLx"%(i+1), fMLx], ["B1N%03iMLy"%(i+1), fMLy], ["B1N%03iFLz"%(i+1), fFLz],]
             
             # Former BYU fatigue channels (for SciTech2022):
             # slope,load2stress,elapsed1: just faking parameters so that the output is a DEL^* that we can aggregate afterwards. No goodman correction ever with load2stress=0.
@@ -2273,7 +2272,6 @@ class FASTLoadCases(ExplicitComponent):
         # If DLC 1.1 not used, calculate_AEP will just compute average power of simulations
         outputs, discrete_outputs = self.calculate_AEP(summary_stats, case_list, dlc_generator, discrete_inputs, outputs, discrete_outputs)
 
-        #DG: URGENT: understand how this works, and clean the way I bypass it
         print("Warning: BYU implementation does DEL weighting outside of WEIS.")
         # if modopt['DLC_driver']['n_ws_dlc11'] > 0 and bool(self.fst_vt['Fst']['CompAero']):
         #     outputs, discrete_outputs = self.get_weighted_DELs(dlc_generator, DELs, damage, discrete_inputs, outputs, discrete_outputs)

@@ -8,6 +8,7 @@ WISDEM:
         flag: True
         spar_cap_ss: DP13_DP10_uniax
         spar_cap_ps: DP07_DP04_uniax
+        te_ss: DP17_DP15 #putting a web here  does not work because of region_stacking
         n_span: &nspan 30  #or 40 to force to be equal to what I give in the yaml - but it REINTERPOLATES anyway (see assign_outer_shape_bem_values)
     DriveSE:
         flag: False #apparently can't run this without tower... crashes in frame3dd
