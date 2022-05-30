@@ -591,17 +591,18 @@ if __name__ == '__main__':
                         # -> switch from IEC local blade frame to "PRECOMP frame" with x positive towards TE
                         #    Notes: 
                         #    - ELASTODYN output is in "local coordinate system similar to the standard blade system", 
-                        #       So we have x upwards and y chordwise positive towards LE. This is
-                        #       confirmed by the results that give positive M in x AND y, with moment in y (flapwise) larger.
+                        #       So we have x upwards and y chordwise positive towards TE (see FASTv8 manual). This is
+                        #       confirmed by the results that give positive M in x AND y, with moment in y (flapwise) larger and >0.
                         #       Note: this is NOT in principal elastic axes, just airfoil-aligned axes.
-                        #    - WISDEM strain computation needs the moments in principal axes coordinates: 1st principal 
-                        #       direction is chordwise positive towards TE, and 2 is positive upwards. This is confirmed by 
-                        #       the stifness properties: EI11 is lower than EI22 (lower stifness edgewise than flapwise). 
-                        #       However, the strain module processes the input by swapping x and y and by rotating to the 
-                        #       principal axes. So out input should be in PRECOMP axes: x positive towards suction side, y positive towards TE.
-                        #    CONCLUSION: switch from ED frame to PRECOMP frame by changing sign of My
+                        #    - WISDEM strain computation needs the moments in airfoil axes: x positive towards suction side, 
+                        #       y positive towards TE. Then the strain module processes the input by swapping x and y and by rotating to the 
+                        #       principal axes: the 1st principal direction is chordwise positive towards TE, and 2 is positive upwards. 
+                        #       This is confirmed by the stifness properties: EI11 is lower than EI22 (lower stifness edgewise than flapwise). 
+                        #       
+                        #    CONCLUSION: ED frame and AIRFOIL frame are aligned, NO NEED TO CHANGE ANYTHING.
+                        
                         # DEL_life_B1[:,2] = DEL_life_B1[:,2]
-                        DEL_life_B1[:,3] = -DEL_life_B1[:,3] 
+                        # DEL_life_B1[:,3] = DEL_life_B1[:,3]  
                         # DEL_life_B1[:,4] = DEL_life_B1[:,4]
 
                         print("Damage eq loads:")
@@ -824,18 +825,12 @@ if __name__ == '__main__':
 
 
                     # ------------ MORE PROCESSING ------------
-                    #1) switch from IEC local blade frame to "PRECOMP frame" with y positive towards TE
+                    #1) switch from IEC local blade frame to "AIRFOIL frame" with y positive towards TE
                   
-                    # # EXTR_life_B1[:,2] = EXTR_life_B1[:,2]
-                    # EXTR_life_B1[:,3] = -EXTR_life_B1[:,3]
-                    # # EXTR_life_B1[:,4] = EXTR_life_B1[:,4]
-
-                    #EXTR_life_B1[:,k] *= fac[k]
-
                     for dlc_num in DLCs_extr: 
                         dlc = DLCs_extr[dlc_num] 
                         for j in range(len(dlc["extr_loads"])):
-                            dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3]
+                            # dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3] #NOPE! the sign of y axis in ED and AIRFOIL frames is consistent
 
                             for k in range(len(labs)):
                                     dlc["extr_loads"][j][:,k] *= fac[k]

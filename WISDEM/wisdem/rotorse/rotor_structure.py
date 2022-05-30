@@ -591,7 +591,7 @@ class ProcessDels(ExplicitComponent):
         # From FAST manual about the "local xb frame":
         #       "When you request output of motions or loads for various span locations along the blade with the BldGagNd array, a local coordinate system similar to the standard blade system,  
         #        but the x-axis and y-axis are aligned with the local principal axes and the local coordinate systems orient themselves with the deflected blade."
-        # ---> From our observations M1,M2,F3 are in th AIROIL coordinate system, NOT in the principal axes. We will thus need to rotate them by alpha.
+        # ---> From our observations M1,M2,F3 are in th AIROIL coordinate system, NOT in the principal axes. We will thus need to rotate them by alpha. We will do it directly in the computestrain component.
 
         # Reinterpolate: (rotation from will be done in the next component)
         outputs["M1"] = np.interp(s, self.s_usr, self.deMLx) #1: positive towards suction side
