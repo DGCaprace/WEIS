@@ -1,5 +1,5 @@
 import os
-import yaml
+import yaml, copy
 
 from wisdem import run_wisdem
 from weis.glue_code.runWEIS import run_weis
@@ -17,6 +17,24 @@ import extrapolate_utils as exut
 import matplotlib.pyplot as plt
 
 from wisdem.commonse.mpi_tools import MPI
+
+# ---------------------
+# Duplicate stdout to a file
+class Tee(object):
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stdout = sys.stdout
+        sys.stdout = self
+    def __del__(self):
+        sys.stdout = self.stdout
+        self.file.close()
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+    def flush(self):
+        self.file.flush()
+
+sys.stdout = Tee('stdout.log','w')
 
 # ---------------------
 def my_write_yaml(instance, foutput):
@@ -1061,3 +1079,5 @@ if __name__ == '__main__':
     ## -- plot successive DEL --
 
     print(f"  ============== DONE AFTER {nGlobalIter} ITER ===================\n")
+
+os.system(f"mv stdout.log {folder_arch + os.sep}")        
