@@ -526,22 +526,26 @@ class ProcessDels(ExplicitComponent):
     def initialize(self):
         self.options.declare("modeling_options")
         self.options.declare("opt_options")
+        self.options.declare("component", default="fatigue_spar_cap_ss")
 
     def setup(self):
         rotorse_options = self.options["modeling_options"]["WISDEM"]["RotorSE"]
         self.n_span = n_span = rotorse_options["n_span"]
         
         self.opt_options = opt_options = self.options["opt_options"]
+        component = self.options["component"]
 
         #read the DEL/DEM:
-        if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
+        if opt_options["constraints"]["blade"][component]["flag"]:
             self.s_usr = opt_options["DEL"]["grid_nd"]
-            # self.deMLx = opt_options["DEL"]["deMLx"]
-            # self.deMLy = opt_options["DEL"]["deMLy"]
-            # self.deFLz = opt_options["DEL"]["deFLz"]
-            self.deMLx = opt_options["DEL"]["deMLxTilde"]
-            self.deMLy = opt_options["DEL"]["deMLyTilde"]
-            self.deFLz = opt_options["DEL"]["deFLzTilde"]
+            if "DEL_Tilde" in opt_options["constraints"]["blade"][component]["loading"]:
+                self.deMLx = opt_options["DEL_Tilde_" + component[-2:]]["deMLx"]
+                self.deMLy = opt_options["DEL_Tilde_" + component[-2:]]["deMLy"]
+                self.deFLz = opt_options["DEL_Tilde_" + component[-2:]]["deFLz"]
+            else:
+                self.deMLx = opt_options["DEL"]["deMLx"]
+                self.deMLy = opt_options["DEL"]["deMLy"]
+                self.deFLz = opt_options["DEL"]["deFLz"]
         else:
             self.s_usr = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
             # self.deFn  = -np.ones(n_span)
@@ -1921,16 +1925,22 @@ class RotorStructure(Group):
             "yu_te",
             "yl_te",
         ]
-        self.add_subsystem("del", ProcessDels(modeling_options=modeling_options, opt_options=opt_options), promotes=["s"])
         self.add_subsystem("strains", ComputeStrains(modeling_options=modeling_options), promotes=promoteListStrains)
-        self.add_subsystem("fatigue_strains", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) 
-            #pBeam=True: DEL input are in airfoil axes. PBeam option will swap and rotate them by alpha to put them in principal axes frame.
         self.add_subsystem("tip_pos", TipDeflection(), promotes=["tilt", "pitch_load"])
         self.add_subsystem(
             "aero_hub_loads",
             CCBladeEvaluate(modeling_options=modeling_options),
             promotes=promoteListAeroLoads + ["presweep", "presweepTip"],
         )
+
+        #Add the system and the corresponding constraint for user-inputed fatigue loading
+        self.add_subsystem("del_U", ProcessDels(modeling_options=modeling_options, opt_options=opt_options, component="fatigue_spar_cap_ss"), promotes=["s"])
+        self.add_subsystem("del_L", ProcessDels(modeling_options=modeling_options, opt_options=opt_options, component="fatigue_spar_cap_ps"), promotes=["s"])
+        self.add_subsystem("fatigue_strains_U", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) 
+            #pBeam=True: DEL input are in airfoil axes. PBeam option will swap and rotate them by alpha to put them in principal axes frame.
+        self.add_subsystem("fatigue_strains_L", ComputeStrains(modeling_options=modeling_options, pbeam=True), promotes=promoteListStrains) 
+            #pBeam=True: DEL input are in airfoil axes. PBeam option will swap and rotate them by alpha to put them in principal axes frame.
+        
 
         #Add the system and the corresponding constraint for user-inputed extreme loading
         # Alternatly, we could replace the above gust completely
@@ -1981,14 +1991,20 @@ class RotorStructure(Group):
         #Why is EA not changing?
 
         # DEM to fatigue strains
-        self.connect("frame.alpha", "fatigue_strains.alpha")  #We can reuse the `frame` data: alpha is between the airfoil c.s. and the principal axis (and theta between the blade and airfoil c.s.)
-        self.connect("frame.EI11" , "fatigue_strains.EI11") # 11,22 correspond to principal axes whereas xx,yy refer to airfoil-aligned c.s.
-        self.connect("frame.EI22" , "fatigue_strains.EI22")
+        self.connect("frame.alpha", "fatigue_strains_U.alpha")  #We can reuse the `frame` data: alpha is between the airfoil c.s. and the principal axis (and theta between the blade and airfoil c.s.)
+        self.connect("frame.EI11" , "fatigue_strains_U.EI11") # 11,22 correspond to principal axes whereas xx,yy refer to airfoil-aligned c.s.
+        self.connect("frame.EI22" , "fatigue_strains_U.EI22")
+        self.connect("frame.alpha", "fatigue_strains_L.alpha")
+        self.connect("frame.EI11" , "fatigue_strains_L.EI11") 
+        self.connect("frame.EI22" , "fatigue_strains_L.EI22")
         #   however this should come from the inputs directly
-        # CAUTION> are these input supposed to be in principal axes or in airfoil coordinates? The former I guess
-        self.connect("del.M1", "fatigue_strains.M1")
-        self.connect("del.M2", "fatigue_strains.M2")
-        self.connect("del.F3", "fatigue_strains.F3")
+        # CAUTION> these inputs are still in airfoil frame, but the fatigue_strains component will rotate them in principal axes.
+        self.connect("del_U.M1", "fatigue_strains_U.M1")
+        self.connect("del_U.M2", "fatigue_strains_U.M2")
+        self.connect("del_U.F3", "fatigue_strains_U.F3")
+        self.connect("del_L.M1", "fatigue_strains_L.M1")
+        self.connect("del_L.M2", "fatigue_strains_L.M2")
+        self.connect("del_L.F3", "fatigue_strains_L.F3")
         
 
         # Blade distributed deflections to tip deflection
@@ -2005,8 +2021,8 @@ class RotorStructure(Group):
         self.connect("frame.flap_mode_freqs", "constr.flap_mode_freqs")
         self.connect("frame.edge_mode_freqs", "constr.edge_mode_freqs")
         # Strains from fatigue DEM to constraint
-        self.connect("fatigue_strains.strainU_spar","constr.fatigue_strainU_spar")
-        self.connect("fatigue_strains.strainL_spar","constr.fatigue_strainL_spar")
+        self.connect("fatigue_strains_U.strainU_spar","constr.fatigue_strainU_spar")
+        self.connect("fatigue_strains_L.strainL_spar","constr.fatigue_strainL_spar")
 
         # if opt_options["constraints"]["blade"]["extreme_loads_from_user_inputs"]:
         # user Extreme to strains

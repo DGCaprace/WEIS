@@ -38,7 +38,7 @@ constraints:
         fatigue_spar_cap_ss:
             flag: False 
             eq_Ncycle:  12.e+6
-            # Could add safety factor and wholer expo here
+            loading: "DEL_Tilde" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
             index_end: 3    #must be <= n_opt
             m_wohler: 10 #wohler expo
@@ -46,7 +46,7 @@ constraints:
         fatigue_spar_cap_ps:
             flag: False    
             eq_Ncycle:  12.e+6
-            # Could add safety factor and wholer expo here  
+            loading: "DEL_Tilde" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
             index_end: 3
             m_wohler: 10 #wohler expo

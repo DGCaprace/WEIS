@@ -745,27 +745,40 @@ if __name__ == '__main__':
 
                         #--
                         # # d.(option2)
-                        # Find the unique equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain
-                        #  in the spars and at the TE simultaneously
-                        A = np.zeros([3,3])
-                        # b = np.zeros([3,1])
-                        for i in range(n_span):
-                            A[0,0] = yoEIxxU[i]
-                            A[0,1] = xoEIyyU[i]
-                            A[1,0] = yoEIxxL[i]
-                            A[1,1] = xoEIyyL[i]
-                            A[2,0] = yoEIxxTE[i]
-                            A[2,1] = xoEIyyTE[i]
-                            A[:,2] = ooEA[i]
-                            b = DEL_life_B1[i,5:]
-                            sol = np.linalg.solve(A, b) * 1.e3  # A assumes x vector in thousands
+                        # # Find the unique equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain
+                        # #   in the spars and at the TE simultaneously
+                        # # NOTE: This one will not work: you can find the equivalent Mx,My,Fz that give this strain, but this is not what you want!
+                        # #       Imagine a simple beam with pure bending cyclinc loads. The DEstrain will be the same in U and L spars, and the equivalent 
+                        # #       loading will be pure Fz, and not bending! 
+                        # A = np.zeros([3,3])
+                        # for i in range(n_span):
+                        #     A[0,0] = yoEIxxU[i]
+                        #     A[0,1] = xoEIyyU[i]
+                        #     A[1,0] = yoEIxxL[i]
+                        #     A[1,1] = xoEIyyL[i]
+                        #     A[2,0] = yoEIxxTE[i]
+                        #     A[2,1] = xoEIyyTE[i]
+                        #     A[:,2] = ooEA[i]
+                        #     b = DEL_life_B1[i,5:]
+                        #     sol = np.linalg.solve(A, b) * 1.e3  # A assumes x vector in thousands
+                        #     Ltilde_life_B1[i,0] = sol[0] 
+                        #     Ltilde_life_B1[i,1] = sol[1] 
+                        #     Ltilde_life_B1[i,2] = sol[2] 
+                        # Ltilde_life_B1[:,3] = Ltilde_life_B1[:,0]
+                        # Ltilde_life_B1[:,4] = Ltilde_life_B1[:,1]
+                        # Ltilde_life_B1[:,5] = Ltilde_life_B1[:,2]
 
-                            Ltilde_life_B1[i,0] = sol[0] 
-                            Ltilde_life_B1[i,1] = sol[1] 
-                            Ltilde_life_B1[i,2] = sol[2] 
-                        Ltilde_life_B1[:,3] = Ltilde_life_B1[:,0]
-                        Ltilde_life_B1[:,4] = Ltilde_life_B1[:,1]
-                        Ltilde_life_B1[:,5] = Ltilde_life_B1[:,2]
+                        #--
+                        # d.(option3)
+                        # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
+                        #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
+                        Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                        Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                        Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+
+                        Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
 
                         print("Damage eq loads:")
                         print(np.transpose(DEL_life_B1))
@@ -1091,9 +1104,14 @@ if __name__ == '__main__':
                         schema["DEL"]["StrainSparL"] = DEL_life_B1[:,6].tolist()
                         schema["DEL"]["StrainTE"] = DEL_life_B1[:,7].tolist()
 
-                        schema["DEL"]["deMLxTilde"] = Ltilde_life_B1[:,0].tolist()
-                        schema["DEL"]["deMLyTilde"] = Ltilde_life_B1[:,1].tolist()
-                        schema["DEL"]["deFLzTilde"] = Ltilde_life_B1[:,2].tolist()
+                        schema["DEL_Tilde_ss"] = {}
+                        schema["DEL_Tilde_ss"]["deMLx"] = Ltilde_life_B1[:,0].tolist()
+                        schema["DEL_Tilde_ss"]["deMLy"] = Ltilde_life_B1[:,1].tolist()
+                        schema["DEL_Tilde_ss"]["deFLz"] = Ltilde_life_B1[:,2].tolist()
+                        schema["DEL_Tilde_ps"] = {}
+                        schema["DEL_Tilde_ps"]["deMLx"] = Ltilde_life_B1[:,3].tolist()
+                        schema["DEL_Tilde_ps"]["deMLy"] = Ltilde_life_B1[:,4].tolist()
+                        schema["DEL_Tilde_ps"]["deFLz"] = Ltilde_life_B1[:,5].tolist()
 
 
                     if withEXTR:
