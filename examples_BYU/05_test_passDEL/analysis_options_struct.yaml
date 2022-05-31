@@ -57,15 +57,6 @@ constraints:
         #     margin: 1.134 #1.4175
 
 
-# #EXTRA DATA
-# DELs:
-#     grid_nd: [0, 1] #<----- SHOULD DEFINITELY MAKE SURE THAT THIS IS THE SAME AS THE CCBLADE R
-#     deFt: [42, 42]   
-#     deFn: [42, 42]   
-#     deMLx: [42, 42]   
-#     deMLy: [42, 42]   
-#     deFLz: [42, 42]   
-
 driver:
     optimization:
         flag: True         # Flag to enable optimization

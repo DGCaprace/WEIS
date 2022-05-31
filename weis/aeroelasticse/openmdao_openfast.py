@@ -2192,18 +2192,18 @@ class FASTLoadCases(ExplicitComponent):
                     
                     #compute the factors multiplying the loads WHEN THEY ARE EXPRESSED IN THE PRINCIPAL AXES
                     fML1 = y1 / EI11[i] * 1e3 # *1e3 because MLx,MLy,MLz are in kN
-                    fML2 = - x1 / EI22[i] * 1e3
+                    fML2 = x1 / EI22[i] * 1e3
                     fFLz = 1.0 / EA[i] * 1e3
                     # Hansen, wind energy handbook, Eq.11.10:
                     #     strainU = M1 / EI11 * y1 - M2 / EI22 * x1 + F3in / EA  
 
                     #in practice, the ElastoDyn output is not in principal axes, but in the airfoil frame. So we further need to "rotate" the loads:
-                    # M1 = (ca*My-sa*Mx) # note that we swap again x<->y and then rotate by -alpha
-                    # M2 = (ca*Mx+sa*My)
+                    # M1 = (ca*My +sa*Mx) # note that we swap again x<->y and then rotate by -alpha
+                    # M2 = (-sa*My+ca*Mx)
                     #Finally, the strain as a function of Mx,My,Fz is:
-                    #     strainU = (ca*My-sa*Mx) / EI11 * y1 - (ca*Mx+sa*My) / EI22 * x1 + F3in / EA  
-                    fMLx = - (-sa * fML1  - ca * fML2)
-                    fMLy = - (ca * fML1  - sa * fML2)
+                    #     strainU = (ca*My+sa*Mx) / EI11 * y1 - (-sa*My+ca*Mx) / EI22 * x1 + F3in / EA  
+                    fMLx = -(sa * fML1  - ca * fML2)
+                    fMLy = -(ca * fML1  + sa * fML2)
                     # The - comes from the swapping: we go from a right-handed frame to a left-handed frame. If we want to maintain that traction is >0, we need to change sign.
 
                     #the channels MLx,MLy,FLz are in airfoil axes

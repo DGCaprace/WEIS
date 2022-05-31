@@ -536,9 +536,12 @@ class ProcessDels(ExplicitComponent):
         #read the DEL/DEM:
         if opt_options["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] or opt_options["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"]:
             self.s_usr = opt_options["DEL"]["grid_nd"]
-            self.deMLx = opt_options["DEL"]["deMLx"]
-            self.deMLy = opt_options["DEL"]["deMLy"]
-            self.deFLz = opt_options["DEL"]["deFLz"]
+            # self.deMLx = opt_options["DEL"]["deMLx"]
+            # self.deMLy = opt_options["DEL"]["deMLy"]
+            # self.deFLz = opt_options["DEL"]["deFLz"]
+            self.deMLx = opt_options["DEL"]["deMLxTilde"]
+            self.deMLy = opt_options["DEL"]["deMLyTilde"]
+            self.deFLz = opt_options["DEL"]["deFLzTilde"]
         else:
             self.s_usr = -np.ones(n_span)  #not set to zero otherwise creates a divided by 0 error in evaluation of fatigue
             # self.deFn  = -np.ones(n_span)
@@ -840,9 +843,21 @@ class ComputeStrains(ExplicitComponent):
 
             # convert to principal axes, unless already there
             if self.options["pbeam"]:
-                M1, M2 = rotate(M2in, M1in)
+                M1, M2 = rotate(-M2in, -M1in)
+                # We do 2 things here:
+                # 1. We swap the x and y axes because we go from airfoil axes to Hansen's
+                # 2. Because of the swap, Hansen's axes are left-handed: a positive M1 will give positive strain in the U side, while it should be compression! 
+                #   So we add the minus sign in front of everything, making sure that positive M1 gives negative strain, that is compression.
+                #NOTE: should we be doing that without pbeam as well??
+                # -> nope, because the My corresponding to the M1,M2 below is <0 already
             else:
                 M1, M2 = M1in, M2in
+
+                # My = M1in * ca - M2in * sa
+                # Mx = M1in * sa + M2in * ca
+                # print("Gust Mx,My:")
+                # print( Mx)
+                # print( My)
 
             # compute strain
             x, y = rotate(xuu, yuu)

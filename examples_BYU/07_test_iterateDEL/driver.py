@@ -166,6 +166,7 @@ if __name__ == '__main__':
             (-5.e3,5.e3),  #FLz [kN]
             (-6.e-3,6.e-3),  #StrainU [-]
             (-6.e-3,6.e-3),  #StrainL [-]
+            (-6.e-3,6.e-3),  #StrainTE [-]
             ]
 
 
@@ -426,7 +427,7 @@ if __name__ == '__main__':
                 fac = np.array([1.,1.,1.e3,1.e3,1.e3, 1.,1.,1.]) #multiplicator because output of AD is in N, but output of ED is in kN
                 # for the strain, Mx,My,Fz are in kN(m) but the combili factors include a 10^3, so that the output of the channel is indeed a strain
                 labs = ["Fn [N/m]","Ft [N/m]","MLx (lead lag) [Nm]","MLy (flap, +TE) [Nm]","FLz [N]","SparStrainU [-]","SparStrainL [-]","SparStrainTE [-]"]
-                labs_Lt = ["LtildeU [N]","LtildeL [N]", "MxtU [Nm]","MytU [Nm]","FztU [N]", "MxtL [Nm]","MytL [Nm]","FztL [N]"]
+                labs_Lt = ["MxtU [Nm]","MytU [Nm]","FztU [N]", "MxtL [Nm]","MytL [Nm]","FztL [N]"]
                 
                 n_processed = len(labs) #number of quantities processed
 
@@ -435,7 +436,7 @@ if __name__ == '__main__':
                 
                 # Init our lifetime DEL
                 DEL_life_B1 = np.zeros([nx,n_processed])    
-                Ltilde_life_B1 = np.zeros([nx,8])    
+                Ltilde_life_B1 = np.zeros([nx,6])    
 
                 #  -- Retreive the DELstar --
                 # (after removing "elapsed" from the del post_processing routine in weis)
@@ -666,20 +667,22 @@ if __name__ == '__main__':
                         # fact_LtU = (y2U / EI11 - x2U / EI22 + 1/EA)
                         # fact_LtL = (y2L / EI11 - x2L / EI22 + 1/EA)
 
-                        # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
-                        Ltilde_life_B1[:,4] = DEL_life_B1[:,5] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxU + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyU + ooEA )
-                        Ltilde_life_B1[:,2] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,4]
-                        Ltilde_life_B1[:,3] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,4]
 
-                        Ltilde_life_B1[:,7] = DEL_life_B1[:,6] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxL + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyL + ooEA )
-                        Ltilde_life_B1[:,5] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,7]
-                        Ltilde_life_B1[:,6] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,7]
+                        # # d.(option1)
+                        # # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
+                        # #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
+                        # Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxU + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyU + ooEA )
+                        # Ltilde_life_B1[:,0] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,2]
+                        # Ltilde_life_B1[:,1] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,2]
 
+                        # Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxL + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyL + ooEA )
+                        # Ltilde_life_B1[:,3] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,5]
+                        # Ltilde_life_B1[:,4] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,5]
 
+                        #--
+                        # # d.(option2)
                         # Find the unique equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain
                         #  in the spars and at the TE simultaneously
-
                         A = np.zeros([3,3])
                         # b = np.zeros([3,1])
                         for i in range(n_span):
@@ -691,11 +694,14 @@ if __name__ == '__main__':
                             A[2,1] = xoEIyyTE[i]
                             A[:,2] = ooEA[i]
                             b = DEL_life_B1[i,5:]
-                            sol = np.linalg.solve(A, b)
+                            sol = np.linalg.solve(A, b) * 1.e3  # A assumes x vector in thousands
 
-                            Ltilde_life_B1[i,2] = sol[0]
-                            Ltilde_life_B1[i,3] = sol[1]
-                            Ltilde_life_B1[i,4] = sol[2]
+                            Ltilde_life_B1[i,0] = sol[0] 
+                            Ltilde_life_B1[i,1] = sol[1] 
+                            Ltilde_life_B1[i,2] = sol[2] 
+                        Ltilde_life_B1[:,3] = Ltilde_life_B1[:,0]
+                        Ltilde_life_B1[:,4] = Ltilde_life_B1[:,1]
+                        Ltilde_life_B1[:,5] = Ltilde_life_B1[:,2]
 
                         print("Damage eq loads:")
                         print(np.transpose(DEL_life_B1))
@@ -784,8 +790,6 @@ if __name__ == '__main__':
                             x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
                             # normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
                             # EXTR_distro_B1[:,k,:] *= normFac 
-                        # EXTR_distro_B1[:,k,:] *= normFac 
-                            # EXTR_distro_B1[:,k,:] *= normFac 
                             #--> there might be missing timesteps or anything... let's just make sure the distro sum to 1.00
                             for i in range(nx):
                                 for j in range(n_aggr):
@@ -828,7 +832,7 @@ if __name__ == '__main__':
                         truncThr = None #no restriction
 
                         # new recommended setup:
-                        distr = ["norm","norm","twiceMaxForced","norm","norm","norm","norm"] 
+                        distr = ["norm","norm","twiceMaxForced","norm","norm","norm","norm","norm"] 
                         # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
 
                         #TODO: check which distr is appropriate for strain?
@@ -1021,6 +1025,13 @@ if __name__ == '__main__':
                         schema["DEL"]["deFLz"] = DEL_life_B1[:,4].tolist()
                         schema["DEL"]["StrainSparU"] = DEL_life_B1[:,5].tolist()
                         schema["DEL"]["StrainSparL"] = DEL_life_B1[:,6].tolist()
+                        schema["DEL"]["StrainTE"] = DEL_life_B1[:,7].tolist()
+
+                        schema["DEL"]["deMLxTilde"] = Ltilde_life_B1[:,0].tolist()
+                        schema["DEL"]["deMLyTilde"] = Ltilde_life_B1[:,1].tolist()
+                        schema["DEL"]["deFLzTilde"] = Ltilde_life_B1[:,2].tolist()
+
+
                     if withEXTR:
                         schema["extreme"] = {}
                         schema["extreme"]["description"] = extr_descr_str
@@ -1030,6 +1041,7 @@ if __name__ == '__main__':
                         schema["extreme"]["deFLz"] = dlc["extr_loads"][0][:,4].tolist()
                         schema["extreme"]["StrainSparL"] = dlc["extr_loads"][0][:,5].tolist()
                         schema["extreme"]["StrainSparU"] = dlc["extr_loads"][0][:,6].tolist()
+                        schema["extreme"]["StrainTE"] = dlc["extr_loads"][0][:,7].tolist()
 
                     schema["general"]["folder_output"] = "outputs_struct_withFatigue"
                     if withDEL:
@@ -1078,6 +1090,23 @@ if __name__ == '__main__':
                     plt.xlabel("r/R")
                     plt.legend()
                     plt.savefig(f"{labs[k].split(' ')[0]}.png")
+
+                if withDEL:
+                    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    for k in [0,1,2]:
+                        plt.plot(locs,Ltilde_life_B1[:,k] , label=labs_Lt[k])
+                        plt.ylabel("U")
+                        plt.xlabel("r/R")
+                        plt.legend()
+                        plt.savefig("LtildeU.png")
+
+                    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    for k in [3,4,5]:
+                        plt.plot(locs,Ltilde_life_B1[:,k] , label=labs_Lt[k])
+                        plt.ylabel("L")
+                        plt.xlabel("r/R")
+                        plt.legend()
+                        plt.savefig("LtildeL.png")
                 if showPlots:
                     plt.show()
         elif fname_analysis_options_FORCED:

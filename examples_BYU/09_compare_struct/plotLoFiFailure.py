@@ -32,10 +32,10 @@ def my_write_yaml(instance, foutput):
 withEXTR = False
 withDEL = False  
 withNominal = False #REPLACE the EXTR with the nominal load
-WRONG_CONVENTION = False
 importHifiCstr = ""
 HANKY_MLx = False
 HANKY_FLz = False
+USE_LTILDE = False
 
 m_wohler = 10
 n_life_eq = 1
@@ -67,17 +67,6 @@ fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 # # importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominal.npz"
 # importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominalg.npz"
 # HFc = 0 # index of the corresponding constraint in HiFi
-
-
-# #Original constant thickness model, under DEL
-# fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
-# fname_loads = mydir + os.sep + "../07_test_iterateDEL/results-IEC1.1-IEC1.3_5vels_120s_0Glob_norm_neq1/analysis_options_struct_withDEL.yaml" 
-# folder_arch = mydir + os.sep + "LoFiEval_isotropic_DEL"
-# withDEL = True
-# importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_damage.npz"
-# HFc = 0 # index of the corresponding constraint in HiFi
-# WRONG_CONVENTION = True # to use old DEL files
-# HANKY_FLz = True
 
 
 
@@ -115,13 +104,8 @@ if withEXTR or withNominal:
     schema["extreme"] = {}
     schema["extreme"]["description"] = schema_loads[src_name]["description"]
     schema["extreme"]["grid_nd"] = schema_loads[src_name]["grid_nd"]
-    if WRONG_CONVENTION:
-        #sign change was done but should not have swapped
-        schema["extreme"]["deMLx"] = ( np.array(schema_loads[src_name]["deMLy"]) ).tolist()
-        schema["extreme"]["deMLy"] = ( np.array(schema_loads[src_name]["deMLx"]) ).tolist()
-    else:
-        schema["extreme"]["deMLx"] = schema_loads[src_name]["deMLx"]
-        schema["extreme"]["deMLy"] = schema_loads[src_name]["deMLy"]
+    schema["extreme"]["deMLx"] = schema_loads[src_name]["deMLx"]
+    schema["extreme"]["deMLy"] = schema_loads[src_name]["deMLy"]
     schema["extreme"]["deFLz"] = schema_loads[src_name]["deFLz"]
     schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True #we are using that channel as a way to specify a loading. The we will read the corresponding strain the EXTRM strain  output
 
@@ -136,15 +120,14 @@ if withDEL:
     schema["DEL"] = {}
     schema["DEL"]["description"] = schema_loads["DEL"]["description"]
     schema["DEL"]["grid_nd"] = schema_loads["DEL"]["grid_nd"]
-    if WRONG_CONVENTION:
-        #sign change was done but should not have swapped
-        schema["DEL"]["deMLx"] = ( np.array(schema_loads["DEL"]["deMLy"]) ).tolist()
-        schema["DEL"]["deMLy"] = ( np.array(schema_loads["DEL"]["deMLx"]) ).tolist()
+    if USE_LTILDE:
+        schema["DEL"]["deMLx"] = schema_loads["DEL"]["deMLxTilde"]
+        schema["DEL"]["deMLy"] = schema_loads["DEL"]["deMLyTilde"]
+        schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLzTilde"]
     else:
         schema["DEL"]["deMLx"] = schema_loads["DEL"]["deMLx"]
         schema["DEL"]["deMLy"] = schema_loads["DEL"]["deMLy"]
-    
-    schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLz"]
+        schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLz"]
 
     if HANKY_MLx:
         schema["DEL"]["deMLx"] = ( np.array(schema_loads["DEL"]["deMLx"])/2. ).tolist()
