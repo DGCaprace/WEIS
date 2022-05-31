@@ -397,6 +397,22 @@ if __name__ == '__main__':
                 DLCs = redo_dlc_generator(modeling_options, wt_init).to_dict()
                 #Note: the turbine could have changed across global iterations but not the properties that we need in that function
 
+                # # ----------------------------------------------------------------------------------------------
+                # #  ------ Run a simple WISDEM evaluation to fill the wt_opt structure and have access to openMDAO structures
+
+                # #  Modify the analysis option to do a dry run, just so that we create the openMDAO structures.
+                # fname_analysis_options_dry = readOutputFrom + os.sep + "analysis_options_dry.yaml"
+                # analysis_opt = load_yaml(fname_analysis_options)
+                # amalysis_options_dry = copy.deepcopy(analysis_opt)
+                # amalysis_options_dry["driver"]["optimization"]["flag"] = False #turn off optimization, so that we only do a simple evaluation
+                # if rank == 0:
+                #     my_write_yaml(amalysis_options_dry, fname_analysis_options_dry)
+
+                # # Dry-run wisdem
+                # wt_opt, _, _ = run_wisdem(current_wt_input, fname_modeling_options, fname_analysis_options_dry)
+
+                # print("\n\n\n  -------------- DONE RELOADING ------------------\n\n\n\n")
+
             if rank == 0:
                 wt = mytime()
                 elapsed_sim = wt - wt_sim
@@ -641,7 +657,9 @@ if __name__ == '__main__':
                             for e in combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ].values():
                                 fact_LtL[i] += e
 
-                        # # or recompute them...
+
+                        # ############# NOTE: DEBUGGING ##########################
+                        # # # or recompute them... may need to turn on WISDEM dry run above 
                         # EA = wt_opt['rotorse.EA']
                         # EI11 = wt_opt['rotorse.rs.frame.EI11']
                         # EI22 = wt_opt['rotorse.rs.frame.EI22']
@@ -649,24 +667,70 @@ if __name__ == '__main__':
                         # xU = wt_opt['rotorse.yu_spar']
                         # yL = wt_opt['rotorse.xl_spar']
                         # xL = wt_opt['rotorse.yl_spar']
+                        # yTE = wt_opt['rotorse.xu_te']
+                        # xTE = wt_opt['rotorse.yu_te']
                         # alpha = wt_opt['rotorse.rs.frame.alpha']
-                        # x2U = np.zeros(len(xU))
-                        # y2U = np.zeros(len(yU))
-                        # x2L = np.zeros(len(xU))
-                        # y2L = np.zeros(len(yU))
 
+                        # x1U = np.zeros(len(xU))
+                        # y1U = np.zeros(len(yU))
+                        # x1L = np.zeros(len(xU))
+                        # y1L = np.zeros(len(yU))
+                        # x1TE = np.zeros(len(xU))
+                        # y1TE = np.zeros(len(yU))
+
+                        # fxU = np.zeros(len(yU))
+                        # fyU = np.zeros(len(yU))
+                        
                         # for i in range(len(xU)):
                         #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
                         #     ca = np.cos(np.deg2rad(alpha[i]))
                         #     sa = np.sin(np.deg2rad(alpha[i]))
 
-                        #     x2U[i] = xU[i] * ca + yU[i] * sa
-                        #     y2U[i] = -xU[i] * sa + yU[i] * ca
-                        #     x2L[i] = xL[i] * ca + yL[i] * sa
-                        #     y2L[i] = -xL[i] * sa + yL[i] * ca
-                        # fact_LtU = (y2U / EI11 - x2U / EI22 + 1/EA)
-                        # fact_LtL = (y2L / EI11 - x2L / EI22 + 1/EA)
+                        #     x1U[i] =  xU[i] * ca + yU[i] * sa
+                        #     y1U[i] = -xU[i] * sa + yU[i] * ca
+                        #     x1L[i] =  xL[i] * ca + yL[i] * sa
+                        #     y1L[i] = -xL[i] * sa + yL[i] * ca
+                        #     x1TE[i] =  xTE[i] * ca + yTE[i] * sa
+                        #     y1TE[i] = -xTE[i] * sa + yTE[i] * ca
 
+                        #     fxU[i] =  -(sa * y1U[i] / EI11[i] - ca * x1U[i] / EI22[i]) #minus because left-handed to right-handed: positive strain must give traction
+                        #     fyU[i] =  -(ca * y1U[i] / EI11[i] + sa * x1U[i] / EI22[i])
+                            
+
+
+                        # #-----------------
+                        # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    
+                        # plt.plot(ooEA ,label="1/EA")
+                        # plt.plot(yoEIxxU,label="*MLx")
+                        # plt.plot(xoEIyyU,label="*MLy")
+                        # plt.plot(1/EA *1.e3,'--',label="1/EA")
+                        # plt.plot(fxU *1.e3,'--',label="*MLx")
+                        # plt.plot(fyU *1.e3,'--',label="*MLy")
+                        # # plt.plot(fact_LtU,'k--',label="sum")
+                        # plt.ylabel("u")
+                        # plt.xlabel("stn")
+                        # plt.xlim([0,10])
+                        # plt.ylim([-1e-7,1e-7])
+                        # plt.legend()
+                        # plt.savefig("combiliF_U.png")
+
+                        # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    
+                        # plt.plot(ooEA ,label="1/EA")
+                        # plt.plot(yoEIxxL,label="*MLx")
+                        # plt.plot(xoEIyyL,label="*MLy")
+                        # # plt.plot(fact_LtL,'k--',label="sum")
+                        # plt.ylabel("l")
+                        # plt.xlabel("stn")
+                        # plt.xlim([0,10])
+                        # plt.ylim([-1e-7,1e-7])
+                        # plt.legend()
+                        # plt.savefig("combiliF_L.png")
+
+                        # # plt.show()
+                        # #-----------------
+                        ################
 
                         # # d.(option1)
                         # # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
@@ -1107,6 +1171,45 @@ if __name__ == '__main__':
                         plt.xlabel("r/R")
                         plt.legend()
                         plt.savefig("LtildeL.png")
+                    
+                    # ############# NOTE: DEBUGGING ##########################
+                    # #Verify the solving: the tilde stresses give the correct strains
+                    # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+                    # plt.plot(locs,(Ltilde_life_B1[:,0]*yoEIxxU+Ltilde_life_B1[:,1]*xoEIyyU+Ltilde_life_B1[:,2]*ooEA) *1e-3, label="U")
+                    # plt.plot(locs,(Ltilde_life_B1[:,3]*yoEIxxL+Ltilde_life_B1[:,4]*xoEIyyL+Ltilde_life_B1[:,5]*ooEA) *1e-3, label="L")
+                    # # plt.plot(locs,(Ltilde_life_B1[:,0]*yoEIxxTE+Ltilde_life_B1[:,1]*xoEIyyTE+Ltilde_life_B1[:,2]*ooEA ) *1e-3, label="TE")
+
+                    # # Double check!!
+                    # # ROTATE LOADS
+                    # M1 = np.zeros(len(xU))
+                    # M2 = np.zeros(len(yU))
+                    
+                    # for i in range(len(xU)):
+                    #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
+                    #     ca = np.cos(np.deg2rad(alpha[i]))
+                    #     sa = np.sin(np.deg2rad(alpha[i]))
+                    #     M1[i] =  Ltilde_life_B1[i,1] * ca + Ltilde_life_B1[i,0] * sa
+                    #     M2[i] = -Ltilde_life_B1[i,1] * sa + Ltilde_life_B1[i,0] * ca
+
+                    # plt.plot(locs,(  -(M1*y1U/EI11 -M2*x1U/EI22 ) +Ltilde_life_B1[:,2]/EA) ,'--', label="U")
+
+
+                    # for i in range(len(xU)):
+                    #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
+                    #     ca = np.cos(np.deg2rad(alpha[i]))
+                    #     sa = np.sin(np.deg2rad(alpha[i]))
+                    #     M1[i] =  Ltilde_life_B1[i,4] * ca + Ltilde_life_B1[i,3] * sa
+                    #     M2[i] = -Ltilde_life_B1[i,4] * sa + Ltilde_life_B1[i,3] * ca
+                        
+                    # plt.plot(locs,(  -(M1*y1L/EI11 -M2*x1L/EI22 ) +Ltilde_life_B1[:,5]/EA) ,'--', label="L")
+                    # # plt.plot(locs,(  -(M1*y1TE/EI11-M2*x1TE/EI22) +Ltilde_life_B1[:,2]/EA) ,'--', label="TE")
+
+                    # plt.xlabel("r/R")
+                    # plt.legend()
+                    # plt.savefig("strain2.png")
+                    ############# 
+
+
                 if showPlots:
                     plt.show()
         elif fname_analysis_options_FORCED:
