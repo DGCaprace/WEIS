@@ -18,7 +18,7 @@ import os
 # from wisdem.common import sind, cosd
 # from external._precomp import precomp as _precomp
 from wisdem.rotorse._precomp import precomp as _precomp
-
+from wisdem.inputs import validation
 
 def web_loc(r, chord, le, ib_idx, ob_idx, ib_webc, ob_webc):
 
@@ -107,8 +107,9 @@ class PreComp:
         # twist rate
         self.th_prime = _precomp.tw_rate(self.r, self.theta)
 
-    def sectionProperties(self):
+    def sectionProperties(self, exportRawPrecompFile=''):
         """see meth:`SectionStrucInterface.sectionProperties`"""
+        # exportRawPrecompFile: name of a yaml file to export raw precomp parameters
 
         # radial discretization
         nsec = len(self.r)
@@ -151,13 +152,13 @@ class PreComp:
         csL = self.lowerCS
         csW = self.websCS
 
-        # arrange materials into array
+        # arrange materials into array. Use numpy arrays for typing issues.
         n = len(mat)
-        E1 = [0] * n
-        E2 = [0] * n
-        G12 = [0] * n
-        nu12 = [0] * n
-        rho = [0] * n
+        E1 = np.zeros(n)
+        E2 = np.zeros(n)
+        G12 = np.zeros(n)
+        nu12 = np.zeros(n)
+        rho = np.zeros(n)
 
         for i in range(n):
             E1[i] = mat[i].E1
@@ -165,6 +166,9 @@ class PreComp:
             G12[i] = mat[i].G12
             nu12[i] = mat[i].nu12
             rho[i] = mat[i].rho
+
+        export_dct = {}
+        export_dct_out = {}
 
         for i in range(nsec):
             # print(i)
@@ -218,6 +222,39 @@ class PreComp:
                 mat_idxW,
             )
 
+            if exportRawPrecompFile:
+                export_dct[i] = {}
+                export_dct[i]["chord"] = self.chord[i]
+                export_dct[i]["theta"] = self.theta[i]
+                export_dct[i]["th_prime"] = self.th_prime[i]
+                export_dct[i]["leLoc"] = self.leLoc[i]
+                export_dct[i]["xnode"] = xnode
+                export_dct[i]["ynode"] = ynode
+                export_dct[i]["E1"] = E1
+                export_dct[i]["E2"] = E2
+                export_dct[i]["G12"] = G12
+                export_dct[i]["nu12"] = nu12
+                export_dct[i]["rho"] = rho
+                export_dct[i]["locU"] = locU
+                export_dct[i]["n_laminaU"] = n_laminaU
+                export_dct[i]["n_pliesU"] = n_pliesU
+                export_dct[i]["tU"] = tU
+                export_dct[i]["thetaU"] = thetaU
+                export_dct[i]["mat_idxU"] = mat_idxU
+                export_dct[i]["locL"] = locL
+                export_dct[i]["n_laminaL"] = n_laminaL
+                export_dct[i]["n_pliesL"] = n_pliesL
+                export_dct[i]["tL"] = tL
+                export_dct[i]["thetaL"] = thetaL
+                export_dct[i]["mat_idxL"] = mat_idxL
+                export_dct[i]["nwebs"] = nwebs
+                export_dct[i]["locW"] = locW
+                export_dct[i]["n_laminaW"] = n_laminaW
+                export_dct[i]["n_pliesW"] = n_pliesW
+                export_dct[i]["tW"] = tW
+                export_dct[i]["thetaW"] = thetaW
+                export_dct[i]["mat_idxW"] = mat_idxW
+
             beam_EIxx[i] = results[1]  # EIedge  Nm2
             beam_EIyy[i] = results[0]  # EIflap  Nm2
             beam_GJ[i] = results[2]
@@ -247,6 +284,12 @@ class PreComp:
             self.x_ec_nose[i] = results[13] + self.leLoc[i] * self.chord[i]
             self.y_ec_nose[i] = results[12]  # switch b.c of coordinate system used
 
+        if exportRawPrecompFile:
+            foutput = exportRawPrecompFile
+
+            instance2 = validation.simple_types(export_dct)
+            validation.write_yaml(instance2, foutput)
+
         return (
             beam_EIxx,
             beam_EIyy,
@@ -269,7 +312,8 @@ class PreComp:
             beam_y_cg,
         )
 
-    def criticalStrainLocations(self, sector_idx_strain_ss, sector_idx_strain_ps):
+    def criticalStrainLocations(self, sector_idx_strain_ss, sector_idx_strain_ps,exportMaxCoordsFile=''):
+        # exportMaxCoordsFile: name of a yaml file to export coordinates of the spar locations
 
         n = len(self.r)
 
@@ -303,6 +347,12 @@ class PreComp:
             else:
                 xun[i] = 0.5 * (csU.loc[idx_ss] + csU.loc[idx_ss + 1])
                 yun[i] = np.interp(xun[i], pf.x, pf.yu)
+
+        if exportMaxCoordsFile:
+            export_dct = {'xun':yun,'yun':xun,'xln':yln,'yln':xln} #MIND THE COORDINATE CHANGE: I export already in what I want to ca
+
+            instance2 = validation.simple_types(export_dct)
+            validation.write_yaml(instance2, exportMaxCoordsFile)
 
         # make dimensional and define relative to elastic center: : x positive towards TE, y positive towards Suction side
         xu = xun * self.chord - self.x_ec_nose
@@ -666,7 +716,7 @@ class CompositeSection:
     def _preCompFormat(self):
 
         n = len(self.theta)
-        n_lamina = np.zeros(n)
+        n_lamina = np.zeros(n,dtype=np.int16)
 
         if n == 0:
             return self.loc, n_lamina, self.n_plies, self.t, self.theta, self.mat_idx
@@ -678,7 +728,7 @@ class CompositeSection:
         for i in range(len(mat)):
             mat[i] += 1  # 1-based indexing in Fortran
 
-        return self.loc, n_lamina, np.concatenate(self.n_plies), np.concatenate(self.t), np.concatenate(self.theta), mat
+        return self.loc, n_lamina, np.concatenate(self.n_plies,dtype=np.int16, casting="unsafe"), np.concatenate(self.t), np.concatenate(self.theta), mat
 
 
 class Orthotropic2DMaterial:

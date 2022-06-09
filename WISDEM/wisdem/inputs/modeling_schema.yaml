@@ -185,6 +185,14 @@ properties:
                         type: boolean
                         default: False
                         description: Flag switching on and off the rail transport module of RotorSE
+                    exportRawPrecompFile: 
+                        type: string
+                        description: An additional yaml file where to output precomp inputs for all sections.
+                        default: []
+                    exportMaxCoordsFile: 
+                        type: string
+                        description: An additional yaml file where to output precomp inputs for all sections.
+                        default: []
             DriveSE:
                 type: object
                 default: {}

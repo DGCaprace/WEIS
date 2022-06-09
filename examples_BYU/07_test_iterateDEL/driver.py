@@ -1296,6 +1296,10 @@ if __name__ == '__main__':
                 os.system(f"mv {mydir + os.sep + 'outputs_struct'} {folder_arch + os.sep + 'outputs_optim' + os.sep + currFolder}")
             if saveExtrNpy and os.path.isfile(saveExtrNpy):
                 os.system(f"mv {saveExtrNpy} {folder_arch + os.sep}")        
+            if os.path.isfile(mydir + os.sep + modeling_options["WISDEM"]["RotorSE"]["exportRawPrecompFile"]):
+                os.system(f'mv {modeling_options["WISDEM"]["RotorSE"]["exportRawPrecompFile"]} {folder_arch + os.sep + modeling_options["WISDEM"]["RotorSE"]["exportRawPrecompFile"]}')
+            if os.path.isfile(mydir + os.sep + modeling_options["WISDEM"]["RotorSE"]["exportMaxCoordsFile"]):
+                os.system(f'mv {modeling_options["WISDEM"]["RotorSE"]["exportMaxCoordsFile"]} {folder_arch + os.sep + modeling_options["WISDEM"]["RotorSE"]["exportMaxCoordsFile"]}')
 
             figdir = folder_arch + os.sep + 'figs' 
             if not os.path.isdir(figdir):

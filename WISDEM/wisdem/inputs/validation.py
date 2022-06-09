@@ -85,12 +85,19 @@ def simple_types(indict):
     for k in rv.keys():
         if type(rv[k]) == type(np.array([])):
             rv[k] = rv[k].tolist()
+        elif isinstance(rv[k], (np.float64, np.float32, np.uint32, np.int16)):
+            rv[k] = rv[k].item()
         elif isinstance(rv[k], (float, int, list, dict, bool, str)):
             pass
         else:
             rv[k] = ""
 
         try:
+            #MISSING: if the value is a simple list of numpy values, we are screwed. Should add:
+            #if isinstance(rv[k],  list):
+            #  for i in rv[k]:
+            #       simple_types(i) #but this won't work because i is not a dict
+            #else:
             simple_types(rv[k])
         except:
             continue

@@ -30,6 +30,9 @@ class RunPreComp(ExplicitComponent):
         self.spar_cap_ss_var = rotorse_options["spar_cap_ss"]
         self.spar_cap_ps_var = rotorse_options["spar_cap_ps"]
 
+        self.exportRawPrecompFile = self.options["modeling_options"]["WISDEM"]["RotorSE"]["exportRawPrecompFile"]
+        self.exportMaxCoordsFile = self.options["modeling_options"]["WISDEM"]["RotorSE"]["exportMaxCoordsFile"]
+
         # Outer geometry
         self.add_input(
             "r",
@@ -763,13 +766,13 @@ class RunPreComp(ExplicitComponent):
             y_sc,
             x_cg,
             y_cg,
-        ) = beam.sectionProperties()
+        ) = beam.sectionProperties(exportRawPrecompFile=self.exportRawPrecompFile)
 
         # outputs['eps_crit_spar'] = beam.panelBucklingStrain(sector_idx_spar_cap_ss)
         # outputs['eps_crit_te'] = beam.panelBucklingStrain(sector_idx_te_ss)
 
         xu_spar, xl_spar, yu_spar, yl_spar = beam.criticalStrainLocations(
-            sector_idx_spar_cap_ss, sector_idx_spar_cap_ps
+            sector_idx_spar_cap_ss, sector_idx_spar_cap_ps, exportMaxCoordsFile=self.exportMaxCoordsFile
         )
         xu_te, xl_te, yu_te, yl_te = beam.criticalStrainLocations(sector_idx_te_ss, sector_idx_te_ps)
 
