@@ -13,13 +13,14 @@ import sys, shutil
 import numpy as np
 from scipy import stats
 from time import time
-import extrapolate_utils as exut
+import extrapolate_utils as exut  #TODO make this a module or something
 import matplotlib.pyplot as plt
 
 from wisdem.commonse.mpi_tools import MPI
 
 # ---------------------
 # Duplicate stdout to a file
+# The following will not redirect OpenFAST output though.
 class Tee(object):
     def __init__(self, name, mode):
         self.file = open(name, mode)
@@ -35,6 +36,11 @@ class Tee(object):
         self.file.flush()
 
 sys.stdout = Tee('stdout.log','w')
+
+# Should do something inspired by what they do here:
+# https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
+# of 
+# https://python.tutorialink.com/capturing-print-output-from-shared-library-called-from-python-with-ctypes-module/
 
 # ---------------------
 def my_write_yaml(instance, foutput):

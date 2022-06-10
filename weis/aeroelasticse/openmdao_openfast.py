@@ -2197,7 +2197,12 @@ class FASTLoadCases(ExplicitComponent):
                     # Hansen, wind energy handbook, Eq.11.10:
                     #     strainU = M1 / EI11 * y1 - M2 / EI22 * x1 + F3in / EA  
 
-                    #in practice, the ElastoDyn output is not in principal axes, but in the airfoil frame. So we further need to "rotate" the loads:
+                    #In practice, the ElastoDyn output is not in principal axes, but in the 'blade' frame. 
+                    #IMPORTANT NOTE: all the airfoils provided to precomp were PRE-rotated by the twist angle.
+                    #           This means that 1) the twist angle and rate passed to Precomp is always 0; 2)
+                    #           the precomp axes (or swapped precomp=airfoil axes) are actually aligned with 
+                    #           the blade axes. NO NEED TO ROTATE BY THE TWIST! 
+                    #So we only need to "rotate" the loads back by alpha:
                     # M1 = (ca*My +sa*Mx) # note that we swap again x<->y and then rotate by -alpha
                     # M2 = (-sa*My+ca*Mx)
                     #Finally, the strain as a function of Mx,My,Fz is:
