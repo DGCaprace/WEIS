@@ -1,3 +1,4 @@
+from multiprocessing.sharedctypes import Value
 import os
 import yaml, ast
 
@@ -19,24 +20,44 @@ def my_write_yaml(instance, foutput):
 
 #==================== DEFINITIONS  =====================================
 
-    """ This is a semi automatic script to map the DVs of the HiFi model onto the LoFi model.
+    """ This is a semi automatic script to map the DVs of the HiFi model onto the LoFi model. 
+    
+    The inputs of this script are:
+    - an input Low Fidelity model under the form of a yaml turbine (WindIO format)
+    - a DVCentresCon.dat (output of 'modified' TACS): a file that describes the location and thickness
+        of all structural panels in the model, and also gives the value of the constrsint in each 
+        panel (corresponding to the loading that was used as an input to TACS).
 
+    The output of this script is:
+    - an output Low Fidelity model (yaml). It copies most of the input turbine, but replaces the structural
+      information (spanwaise position of the laminates and their thickness) with the information mapped
+      from the high fidelity model. This file will be written in the current dir.
+
+    Optionally, this script can also:
+    - plot the distribution of the panel thickness and of whatever constraint value was given in the DVCentresCon file
+    - write an alternate DVGroup file that can be used together with TACS to produce colored visual of the blade model. 
+        A different color is given to every group of laminate along the chordwise direction. This is mostly to verify that 
+        The mapping between lofi laminates and hifi panels is consistent.
+    - write a mapping file that gives the static correpondance between each hifi panel (their index) and the region on the lofi
+        model. It does the same thing to map each DV to lofi regions.
+
+    ## Modeling note:
     Currently, there needs to be as many hifi panels around the airfoil than there are zones in the lofi model.
     They are mapped with respect to their order from TE SS to TE PS.
     """
 
-ylab = "failure" #default
 
-## File management
+## ======================= File management and inputs =================================================
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 # wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
-wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
-wt_output = "Madsen2019_10_forWEIS_isotropic_TEST"
+wt_input = "Madsen2019_10_forWEIS_isotropic_IC.yaml" 
 
-DV_input = "aeroload_DVCentres.dat"
+# Example set of inputs:
+ylab = "failure" #a descriptor of under what load condition the DV_input file was obtained.
 DV_input = "aeroload_DVCentresCon.dat" #from a structural analysis under nominal loads
-DV_folder = mydir + os.sep + "HiFi_DVs"
+DV_folder = mydir + os.sep + "HiFi_DVs" #location where to find the DV file(s)
+wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of output turbine
 
 
 # #Original constant thickness model, under nominal loads
@@ -51,14 +72,14 @@ DV_folder = mydir + os.sep + "HiFi_DVs"
 # DV_folder = ""
 # wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
-#Original constant thickness model, under DEL
-ylab = "damage" 
-DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
-DV_folder = ""
-wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
+# #Original constant thickness model, under DEL
+# ylab = "damage" 
+# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
+# DV_folder = ""
+# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
 
-
+#TODO: rm this
 # #Optimized 1st iter model, under DEL
 # DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_ITER1_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
 # DV_folder = ""
@@ -67,10 +88,14 @@ wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
 
 
-# COLORS STUFF
+# DV Groups : files that describe of panels are grouped together to form the DVs
 # DV_input = "generic_DVCentres.dat"
-# DV_folder = "./"
+DVGroup_input = "HiFi_DVs" + os.sep + "generic_DVGroupCentres.dat"
+DVGroup_output = "HiFi_DVs" + os.sep + "generic_DVGroupCentres_colors.dat" #only used if writeDVGroupForColor=True
 
+
+
+## ======================= Modeling details =================================================
 
 #from TE_SS to TE_PS: list of the structural zones
 skinLoFi = ["DP17_DP15","DP15_DP13","DP13_DP10_uniax","DP10_DP09","DP09_DP08","DP08_DP07","DP07_DP04_uniax","DP04_DP02","DP02_DP00",]
@@ -91,13 +116,28 @@ chord_dir = 2 #0=x,1=y,2=z
 R = 89.166
 R0 = 2.8
 
-trans_len = 0.01 #length of the transition between panels in the lofi model, in %(R-R0)
+trans_len = 0.002 #length of the transition between panels in the lofi model, in %(R-R0)
 
+
+## ======================= More script options =================================================
+
+doPlots = True
 debug = False
-writeDVGroupForColor = False
+writeDVGroupForColor = False 
+writeDVGroupMapping = True
 
-spars = ["DP07_DP04_uniax","DP13_DP10_uniax"] 
-spars_legend = ["PS","SS"]
+# for plots:
+spars = ["DP07_DP04_uniax","DP13_DP10_uniax"]  #names of the spars in the lofi model
+spars_legend = ["PS","SS"]  #corresponding name that will be displayed on the plots
+
+# for DVGoupMapping
+mappingFile = mydir + os.sep + wt_output + os.sep + 'hifiMapping.yaml'
+
+
+## ======================= =============== =================================================
+## ======================= =============== =================================================
+## ======================= =============== =================================================
+# NO FURTHER USER MODIFICATION SHOULD BE REQUIRED FROM THE USER AFTER THIS POINT
 
 #==================== LOAD HiFi DVs DATA =====================================
 
@@ -236,6 +276,10 @@ lay_ls = turbine["components"]["blade"]["internal_structure_2d_fem"]["layers"]
 
 
 
+# =================================================================
+# =================== HiFi panels to LoFI   =======================
+# =================================================================
+
 #==================== INTERNAL REPRESENTATION OF HIFI STRUCTURE  =====================================
 
 # --------- skin ------------
@@ -301,7 +345,8 @@ if debug:
     print(skin_hifi[:,:,0])
     # print(skin_hifi[:,:,1])
 
-
+# print("High fidelity mapping to skin panels:")
+# print(skin_hifi[:,:,2])
 
 # ------ webs ------------
 
@@ -344,24 +389,44 @@ if debug:
 
 #==================== MATCH INTERNAL REPRESENTATION OF LOFI STRUCTURE AND HIFI DVs =====================================
 
+def compute_edges(yhf_oR):
+    # Assuming that the first panel starts at 0 and the last one ends at 1.
+    # This might not be the case for webs! That's why we 
+    mids = np.zeros(len(yhf_oR)+1)
+    mids[-1] = 1.0 
+
+    try:
+        #progress from the tip, knowing that the far edge of the last panel is at 1.0
+        for i in range(len(yhf_oR)-1,0,-1 ):
+            mids[i] = yhf_oR[i] + (yhf_oR[i] - mids[i+1])
+            if (yhf_oR[i] - mids[i])<= 0.0: #some tolerance
+                raise(ValueError())
+    except:
+        mids[1:-1] = 0.5 * (yhf_oR[1:] + yhf_oR[:-1])
+
+    mids[0] = 0.0 #forcing 1st point to be 0.
+    return mids
+
+
+
 #because the Hifi has panels, let's try to mimic that in lofi and do a piecewise defined thickness
-yhf_web_mids = 0.5 * (yhf_web_oR[1:] + yhf_web_oR[:-1])
+yhf_web_mids = compute_edges(yhf_web_oR)   
 ylf_web_oR = np.zeros(nhf_web*2)
 ylf_web_oR[0] = 0.0
 ylf_web_oR[-1] = 1.0
-for i in range(len(yhf_web_mids)):
-    ylf_web_oR[2*i+1] = yhf_web_mids[i]-trans_len*.5
-    ylf_web_oR[2*i+2] = yhf_web_mids[i]+trans_len*.5
+for i in range(len(yhf_web_mids)-2):
+    ylf_web_oR[2*i+1] = yhf_web_mids[i+1]-trans_len*.5
+    ylf_web_oR[2*i+2] = yhf_web_mids[i+1]+trans_len*.5
 if any(np.diff(ylf_web_oR) <= 0):
     raise ValueError("ylf_web_oR not monotonically increasing. Try reduce `trans_len`.")
 
-yhf_skn_mids = 0.5 * (yhf_skn_oR[1:] + yhf_skn_oR[:-1])
+yhf_skn_mids = compute_edges(yhf_skn_oR)   
 ylf_skn_oR = np.zeros(nhf_skn*2)
 ylf_skn_oR[0] = 0.0
 ylf_skn_oR[-1] = 1.0
-for i in range(len(yhf_skn_mids)):
-    ylf_skn_oR[2*i+1] = yhf_skn_mids[i]-trans_len*.5
-    ylf_skn_oR[2*i+2] = yhf_skn_mids[i]+trans_len*.5
+for i in range(len(yhf_skn_mids)-2):
+    ylf_skn_oR[2*i+1] = yhf_skn_mids[i+1]-trans_len*.5
+    ylf_skn_oR[2*i+2] = yhf_skn_mids[i+1]+trans_len*.5
 if any(np.diff(ylf_skn_oR) <= 0):
     raise ValueError("ylf_skn_oR not monotonically increasing. Try reduce `trans_len`.")
 
@@ -564,148 +629,156 @@ np.savez(outfile, skinLoFi = skinLoFi, ylf_skn_oR = ylf_skn_oR, skin_hifi_con = 
 
 #==================== Compare DV Plots #====================
 
-#------- skin ----------
-fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
-
-for isk in range(len(skinLoFi)):
-    
-    values = np.zeros(len(ylf_skn_oR))
-    for j in range(nhf_skn):
-        values[2*j] = skin_hifi[j,isk,1]
-        values[2*j+1] = skin_hifi[j,isk,1]
-
-    hp = ax.plot(ylf_skn_oR,values, '-', label=skinLoFi[isk])
-        
-ax.set_ylabel("thickness [mm]")
-ax.set_xlabel("r/R")
-plt.legend()
-
-fig.savefig(mydir + os.sep + wt_output + "/thickness_skin.png")
-
-#------- webs ----------
-fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
-
-for isk in range(len(websLoFi)):
-    
-    values = np.zeros(len(ylf_web_oR))
-    for j in range(nhf_web):
-        #the thickness is 0 where the web is not defined.
-        values[2*j] = max(webs_hifi[j,isk,0],0.0)
-        values[2*j+1] = max(webs_hifi[j,isk,0],0.0)
-        
-    hp = ax.plot(ylf_web_oR,values, '-', label=websLoFi[isk])
-        
-ax.set_ylabel("thickness [mm]")
-ax.set_xlabel("r/R")
-plt.legend()
-
-fig.savefig(mydir + os.sep + wt_output + "/thickness_webs.png")
-
-#==================== Compare CONSTRAINTS Plots #====================
-
-if ncon>0:
+if doPlots:
     #------- skin ----------
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
-    if len(spars)>0:
-        fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
 
     for isk in range(len(skinLoFi)):
         
-        values = np.zeros((len(ylf_skn_oR),ncon))
-        for c in range(ncon):
-            for j in range(nhf_skn):
-                values[2*j,c] = skin_hifi_con[j,isk,c]
-                values[2*j+1,c] = skin_hifi_con[j,isk,c]
+        values = np.zeros(len(ylf_skn_oR))
+        for j in range(nhf_skn):
+            values[2*j] = skin_hifi[j,isk,1]
+            values[2*j+1] = skin_hifi[j,isk,1]
 
-        hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
-        if ncon>1:
-            ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
-
-        if len(spars)>0:
-            if any( [ skinLoFi[isk] in sp for sp in spars ]):
-                isp = spars.index(skinLoFi[isk])
-                hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
-                if ncon>1:
-                    ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
+        hp = ax.plot(ylf_skn_oR,values, '-', label=skinLoFi[isk])
             
-    ax.set_ylabel(ylab)
+    ax.set_ylabel("thickness [mm]")
     ax.set_xlabel("r/R")
-    ax.legend()
-    ax2.set_ylabel(ylab)
-    ax2.set_xlabel("r/R")
-    ax2.legend()
+    plt.legend()
 
-    fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_skin.png")
-    fig2.savefig(mydir + os.sep + wt_output + f"/{ylab}_spars.png")
+    fig.savefig(mydir + os.sep + wt_output + "/thickness_skin.png")
 
     #------- webs ----------
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
 
     for isk in range(len(websLoFi)):
-
-        values = np.zeros((len(ylf_web_oR),ncon))
-        for c in range(ncon):
-            for j in range(nhf_web):
-                values[2*j,c] = webs_hifi_con[j,isk,c]
-                values[2*j+1,c] = webs_hifi_con[j,isk,c]
-
-        hp = ax.plot(ylf_web_oR,values[:,0], '-', label=websLoFi[isk])
-        if ncon>1:
-            ax.plot(ylf_web_oR,values[:,1], '--', color=hp[0].get_color())
         
-    ax.set_ylabel(ylab)
+        values = np.zeros(len(ylf_web_oR))
+        for j in range(nhf_web):
+            #the thickness is 0 where the web is not defined.
+            values[2*j] = max(webs_hifi[j,isk,0],0.0)
+            values[2*j+1] = max(webs_hifi[j,isk,0],0.0)
+            
+        hp = ax.plot(ylf_web_oR,values, '-', label=websLoFi[isk])
+            
+    ax.set_ylabel("thickness [mm]")
     ax.set_xlabel("r/R")
-    ax.legend()
+    plt.legend()
 
-    fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_webs.png")
+    fig.savefig(mydir + os.sep + wt_output + "/thickness_webs.png")
 
-plt.show()
+    #==================== Compare CONSTRAINTS Plots #====================
+
+    if ncon>0:
+        #------- skin ----------
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+        if len(spars)>0:
+            fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+
+        for isk in range(len(skinLoFi)):
+            
+            values = np.zeros((len(ylf_skn_oR),ncon))
+            for c in range(ncon):
+                for j in range(nhf_skn):
+                    values[2*j,c] = skin_hifi_con[j,isk,c]
+                    values[2*j+1,c] = skin_hifi_con[j,isk,c]
+
+            hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
+            if ncon>1:
+                ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
+
+            if len(spars)>0:
+                if any( [ skinLoFi[isk] in sp for sp in spars ]):
+                    isp = spars.index(skinLoFi[isk])
+                    hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
+                    if ncon>1:
+                        ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
+                
+        ax.set_ylabel(ylab)
+        ax.set_xlabel("r/R")
+        ax.legend()
+        ax2.set_ylabel(ylab)
+        ax2.set_xlabel("r/R")
+        ax2.legend()
+
+        fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_skin.png")
+        fig2.savefig(mydir + os.sep + wt_output + f"/{ylab}_spars.png")
+
+        #------- webs ----------
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(15, 5))
+
+        for isk in range(len(websLoFi)):
+
+            values = np.zeros((len(ylf_web_oR),ncon))
+            for c in range(ncon):
+                for j in range(nhf_web):
+                    values[2*j,c] = webs_hifi_con[j,isk,c]
+                    values[2*j+1,c] = webs_hifi_con[j,isk,c]
+
+            hp = ax.plot(ylf_web_oR,values[:,0], '-', label=websLoFi[isk])
+            if ncon>1:
+                ax.plot(ylf_web_oR,values[:,1], '--', color=hp[0].get_color())
+            
+        ax.set_ylabel(ylab)
+        ax.set_xlabel("r/R")
+        ax.legend()
+
+        fig.savefig(mydir + os.sep + wt_output + f"/{ylab}_webs.png")
+
+    plt.show()
 
 
 # =================================================================
+# =================== DV Groups to Panels   =======================
 # =================================================================
-# =================================================================
+
+# Let us now do the mapping between the DVs and the lo-fi.
+# Above, we mapped every single pannel with the lofi. The difference
+# here is that a single DV can span several panels. This is the main
+# reason why we have 2 types of files:
+# - DVCentres: detailes about every single panel
+# - DVGroupCentres: gives how panels are grouped per DV
+
+# - Read the DV Group input -
+
+#Read the roup component file
+with open(DVGroup_input, 'r') as f:
+    lines = f.readlines()
+
+
+    HiFiGrp_idx  = np.zeros(len(lines), int)
+    HiFiGrp_pos = np.zeros((len(lines),3))
+    HiFiGrp_thi = np.zeros(len(lines))
+    # HiFiGrp_con = np.zeros((len(lines), ncon))
+    # HiFiGrp_des = [None]*len(lines)
+    HiFiGrp_icmp = [None]*len(lines)
+
+    i = 0
+    for line in lines:
+        buff = line.split(" ")
+        HiFiGrp_idx[i] = buff[0]
+        HiFiGrp_pos[i,:] = [ float(b) for b in buff[1:4] ]
+        # HiFiGrp_thi[i] = float(buff[4]) 
+        # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
+        buff = line.split('"')
+        # HiFiGrp_des[i] = buff[1]
+        HiFiGrp_icmp[i] = buff[3]
+        i+=1
+
+#Allocate a mapping object: 
+#  binds each group number to the list of constitutive elements it covers
+HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
+
+for i in range(len(HiFiGrp_idx)):
+    tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
+    icmp = ast.literal_eval('['+tmp+']')
+    HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
+
+
+
+# - Write the Group COlor output -
 
 if writeDVGroupForColor:
-    
-    DVGroup_input = "generic_DVGroupCentres.dat"
-    DVGroup_output = "generic_DVGroupCentres_colors.dat"
-
-    #Read the roup component file
-    with open(DVGroup_input, 'r') as f:
-        lines = f.readlines()
-
-
-        HiFiGrp_idx  = np.zeros(len(lines), int)
-        HiFiGrp_pos = np.zeros((len(lines),3))
-        HiFiGrp_thi = np.zeros(len(lines))
-        # HiFiGrp_con = np.zeros((len(lines), ncon))
-        # HiFiGrp_des = [None]*len(lines)
-        HiFiGrp_icmp = [None]*len(lines)
-
-        i = 0
-        for line in lines:
-            buff = line.split(" ")
-            HiFiGrp_idx[i] = buff[0]
-            HiFiGrp_pos[i,:] = [ float(b) for b in buff[1:4] ]
-            # HiFiGrp_thi[i] = float(buff[4]) 
-            # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
-            buff = line.split('"')
-            # HiFiGrp_des[i] = buff[1]
-            HiFiGrp_icmp[i] = buff[3]
-            i+=1
-
-    #Allocate a mapping object: 
-    #  binds each group number to the list of constitutive elements it covers
-    HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
-
-    for i in range(len(HiFiGrp_idx)):
-        tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
-        icmp = ast.literal_eval('['+tmp+']')
-        HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
-
-    print(HiFiDVs_mapping)
-    print(skin_hifi[:,:,2])
 
     #Write the constitutive component file
     with open(DVGroup_output, 'w') as f:
@@ -738,3 +811,68 @@ if writeDVGroupForColor:
                 # tuple(HiFiDVs_con[i,:]),
                 HiFiGrp_icmp[i]
             ))
+
+
+
+# - Write the mapping for use in MACH -
+
+if debug:
+    print("Planform distro:")
+    print(skin_hifi[:,:,2])
+    print(webs_hifi[:,:,1])
+
+
+if writeDVGroupMapping:
+
+    # I know how panels map to planform, and I know how DVs map to panels.
+    # Let's just determine how DVs map to planform.
+
+    # skin  
+    ni = len(skin_hifi)
+    nj = len(skin_hifi[0])
+    skin_DV = [ [-1]*nj for i in range(ni)]
+
+    for i in range(ni):
+        for j in range(nj):
+            # find what DV (i.e. panel group) the current panel belongs to            
+            for ig,group in enumerate(HiFiDVs_mapping):
+                if skin_hifi[i,j,2] in group:
+                    skin_DV[i][j] = ig
+
+    # webs
+    ni = len(webs_hifi)
+    nj = len(webs_hifi[0])
+    webs_DV = [ [-1]*nj for i in range(ni)]
+
+    for i in range(ni):
+        for j in range(nj):
+            # find what DV (i.e. panel group) the current panel belongs to            
+            for ig,group in enumerate(HiFiDVs_mapping):
+                if webs_hifi[i,j,1] in group:
+                    webs_DV[i][j] = ig
+
+    print("COPY THIS TO dv2planform")
+    print(skin_DV)
+    print("COPY THIS TO dv2webs:")
+    print(webs_DV)
+    print("COPY THIS TO planform_rlocs:")
+    print(yhf_skn_mids)
+    print("COPY THIS TO webs_rlocs:")
+    print(yhf_web_mids)
+
+
+    # create the dict for output
+
+    mappingDict = {}
+
+    mappingDict["panels2planform"] = np.intc(skin_hifi[:,:,2]).tolist()
+    mappingDict["panels2webs"] = np.intc(webs_hifi[:,:,1]).tolist()
+
+    mappingDict["dv2planform"] = skin_DV
+    mappingDict["dv2webs"] = webs_DV
+
+    mappingDict["planform_rlocs"] = yhf_skn_mids.tolist()
+    mappingDict["webs_rlocs"] = yhf_web_mids.tolist()
+    
+    # my_
+    write_yaml(mappingDict,mappingFile)
