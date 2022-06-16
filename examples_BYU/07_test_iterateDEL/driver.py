@@ -35,7 +35,9 @@ class Tee(object):
     def flush(self):
         self.file.flush()
 
-sys.stdout = Tee('stdout.log','w')
+if not MPI:
+    # Let's make sure we log the output, because you are probably not running this via a batch script.
+    sys.stdout = Tee('stdout.log','w')
 
 # Should do something inspired by what they do here:
 # https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/

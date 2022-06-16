@@ -116,3 +116,13 @@ mv outputs outputs_withoutFatigue
         - Feedback the structural changes into lofi: strucutre_hifi2lofi > updated_turbine.yaml
     - ...
     - Use 07/plot_results_HiFi to check how iter/DEL converge
+
+
+## MPI
+
+The drivers can be run in parallel doing 
+```
+mpirun -np NUMBER_OF_PROCS python ./driver.py    
+```
+
+It runs with a master-slace paradigm, meaning that a maximum of NUMBER_OF_PROCS-1 simulations will run in parallel (proc 0 is the master and dispatches work to slaves).
