@@ -34,7 +34,8 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options, overridd
         if modeling_options['Level3']['flag']:
             
             # If we are running an optimization method that doesn't use finite differencing, set the number of DVs to 1
-            if not (opt_options['driver']['design_of_experiments']['flag'] or opt_options['driver']['optimization']['solver'] in fd_methods):
+            if not (opt_options['driver']['design_of_experiments']['flag'] or 
+                    (opt_options['driver']['optimization']['flag'] and opt_options['driver']['optimization']['solver'] in fd_methods ) ):
                 n_DV = 1
             
             # If openfast is called, the maximum number of FD is the number of DV, if we have the number of cores available that doubles the number of DVs, 
@@ -45,51 +46,18 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options, overridd
             else:
                 n_FD = int(np.floor(max_cores / 2))
 
-            #DG: URGENT: OLD WAY TO DETERMINED THE NUMBER OF RUNS: HOW IS IT HANDLED NOW??
-            # # need to calculate the number of OpenFAST runs from the user input
-            # n_OF_runs = 0
-            # if modeling_options['openfast']['dlc_settings']['run_power_curve']:
-            #     if modeling_options['openfast']['dlc_settings']['Power_Curve']['turbulent_power_curve']:
-            #         n_OF_runs += len(modeling_options['openfast']['dlc_settings']['Power_Curve']['U'])*len(modeling_options['openfast']['dlc_settings']['Power_Curve']['Seeds'])
-            #     else:
-            #         n_OF_runs += len(modeling_options['openfast']['dlc_settings']['Power_Curve']['U'])
-            # if modeling_options['openfast']['dlc_settings']['run_IEC'] or modeling_options['openfast']['dlc_settings']['run_blade_fatigue']:
-            #     for dlc in modeling_options['openfast']['dlc_settings']['IEC']:
-            #         dlc_vars = list(dlc.keys())
-            #         # Number of wind speeds
-            #         if 'U' not in dlc_vars:
-            #             if dlc['DLC'] == 1.4: 
-            #                 n_U = 6  # assuming 1.4 is run at 3 different velocities and +/- direction changes
-            #             if dlc['DLC'] == 1.5: 
-            #                 n_U = 2*len(dlc['U'])  # assuming 1.5 is run at all velocities and +/- direction changes
-            #             elif dlc['DLC'] == 5.1: # assuming 5.1 is run at [V_rated-2, V_rated, V_rated]
-            #                 n_U = 3
-            #             elif dlc['DLC'] in [6.1, 6.3]: # assuming V_50/V_1 for [-8, 8]/[-20/20] deg yaw error
-            #                 n_U = 2
-            #             else:
-            #                 print('Warning: for OpenFAST DLC %1.1f specified in the Analysis Options, wind speeds "U" must be provided'%dlc['DLC'])
-            #         else:
-            #             n_U = len(dlc['U'])
-            #         # Number of seeds
-            #         if 'Seeds' not in dlc_vars:
-            #             if dlc['DLC'] == 1.4: # not turbulent
-            #                 n_Seeds = 1
-            #             else:
-            #                 print('Warning: for OpenFAST DLC %1.1f specified in the Analysis Options, turbulent seeds "Seeds" must be provided'%dlc['DLC'])
-            #         else:
-            #             n_Seeds = len(dlc['Seeds'])
-            #         n_OF_runs += n_U*n_Seeds
-
             # Get the number of OpenFAST runs from the user input and the max that can run in parallel given the resources
             # The number of OpenFAST runs is the minimum between the actual number of requested OpenFAST simulations, and 
             # the number of cores available (minus the number of DV, which sit and wait for OF to complete)
             n_OF_runs = modeling_options['DLC_driver']['n_cases']
-            n_DV = max([n_DV, 1])
+            n_DV = max([n_DV, 1]) #this will make sure there can be at least one proc can be the master
             max_parallel_OF_runs = max([int(np.floor((max_cores - n_DV) / n_DV)), 1])
             n_OF_runs_parallel = min([int(n_OF_runs), max_parallel_OF_runs])
         elif modeling_options['Level2']['flag']:
         
-            if not (opt_options['driver']['design_of_experiments']['flag'] or opt_options['driver']['optimization']['solver'] in fd_methods):
+            # If we are running an optimization method that doesn't use finite differencing, set the number of DVs to 1
+            if not (opt_options['driver']['design_of_experiments']['flag'] or 
+                    (opt_options['driver']['optimization']['flag'] and opt_options['driver']['optimization']['solver'] in fd_methods ) ):
                 n_DV = 1
         
         
@@ -246,12 +214,12 @@ def run_weis(fname_wt_input, fname_modeling_options, fname_opt_options, overridd
             color_i in color_map:
         # subprocessor ranks spin, waiting for FAST simulations to run
         sys.stdout.flush()
-        if rank in comm_map_up.keys():
+        if rank in comm_map_up.keys(): #(only the up procs must loop)
             subprocessor_loop(comm_map_up)
         sys.stdout.flush()
 
         # close signal to subprocessors
-        subprocessor_stop(comm_map_down)
+        subprocessor_stop(comm_map_down) #(only the down procs must send the stop signal)
         sys.stdout.flush()
 
     if MPI:

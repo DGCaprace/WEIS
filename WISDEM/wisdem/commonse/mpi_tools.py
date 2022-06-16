@@ -94,12 +94,14 @@ def subprocessor_stop(comm_map_down):
     """
     Send stop signal to subprocessors
     """
+    rank = MPI.COMM_WORLD.Get_rank()
+
     # comm = MPI.COMM_WORLD
-    for rank in comm_map_down.keys():
+    if rank in comm_map_down.keys():
         subranks = comm_map_down[rank]
         for subrank_i in subranks:
             MPI.COMM_WORLD.send([False], dest=subrank_i, tag=0)
-        print("All MPI subranks closed.")
+        print("[Rank %i] All following MPI subranks closed: %s"%(rank,subranks) )
 
 
 if __name__ == "__main__":
