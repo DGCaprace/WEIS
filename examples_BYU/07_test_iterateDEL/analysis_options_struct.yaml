@@ -38,7 +38,7 @@ constraints:
             index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
         fatigue_spar_cap_ss:
             flag: False 
-            loading: "DEL_Tilde" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
+            loading: "DEL_Tilde_ss" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
             index_end: 3    #must be <= n_opt
             eta: 1.0  #safety factor
@@ -47,7 +47,7 @@ constraints:
             # eq_Ncycle:  12.e+6
         fatigue_spar_cap_ps:
             flag: False    
-            loading: "DEL_Tilde" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
+            loading: "DEL_Tilde_ps" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
             index_end: 3
             eta: 1.0  #safety factor

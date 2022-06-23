@@ -158,15 +158,11 @@ if __name__ == '__main__':
     #-Binning-:
     #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
 
-    # nbins = 100
-    # # total range over which we bin, for each quantity monitored:
-    # rng = [ (-2.e3,12.e3), #Fx
-    #         (-2.e3,6.e3),  #Fy
-    #         (-8.e3,8.e3),  #MLx
-    #         (-5.e3,2.e4),  #MLy
-    #         (-1.e3,4.e3)]  #FLz
-
+    # total number of bins
     nbins = 500        
+    
+    # total range over which we bin, for each quantity monitored.
+    #   The range should span the entire range of values we can get from the simultaion (from min to max)
     rng = [ (-2.e4,2.e4), #Fx [N/m]
             (-2.e4,2.e4),  #Fy [N/m]
             (-2.e4,2.e4),  #MLx [kNm]
@@ -273,6 +269,9 @@ if __name__ == '__main__':
             
     if MPI:
         MPI.COMM_WORLD.Barrier()
+
+    fname_fatMach = 'dummy'
+    fname_extrMach = 'dummy'
 
     #==================== ======== =====================================
     # Initialize timers
@@ -390,7 +389,7 @@ if __name__ == '__main__':
                     outputs= fast_fnames,
                     directory = readOutputFrom,
                     magnitude_channels=magnitude_channels,
-                    combili_channels=combili_channels,
+                    combili_channels=combili_channels, #they have the right units to work with kN and kNm
                     fatigue_channels=fatigue_channels,
                     #extreme_channels=channel_extremes,
                     # trim_data = (modeling_options["Level3"]["simulation"]["TStart"], modeling_options["Level3"]["simulation"]["TMax"]), #trim of data unnecessary since we only saved meaningful portion
@@ -1144,9 +1143,23 @@ if __name__ == '__main__':
                     if withEXTR:
                         schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True
 
+                    # EXPORT FOR WISDEM
                     fname_analysis_options_struct = mydir + os.sep + "analysis_options_struct_withDEL.yaml"
                     my_write_yaml(schema, fname_analysis_options_struct)
                     #could use write_analysis_yaml from weis instead
+
+                    # EXPORT FOR MACH
+                    if withDEL:
+                        fname_fatMach = mydir + os.sep + "fatigueLoads_forMACH.yaml"
+                        fat_schema = {}
+                        fat_schema["DEL_Tilde_ps"] = schema["DEL_Tilde_ps"]
+                        fat_schema["DEL_Tilde_ss"] = schema["DEL_Tilde_ss"]
+                        my_write_yaml(fat_schema, fname_fatMach)
+                    if withEXTR:
+                        fname_extrMach = mydir + os.sep + "extrLoads_forMACH.yaml"
+                        extr_schema = {}
+                        extr_schema["extreme"] = schema["extreme"]
+                        my_write_yaml(extr_schema, fname_extrMach)
 
                     schema_hifi = {}
                     if withDEL:
@@ -1286,6 +1299,10 @@ if __name__ == '__main__':
                 os.system(f"cp {fname_modeling_options} {folder_arch + os.sep}")
             if os.path.isfile(fname_analysis_options_struct):
                 os.system(f"cp {fname_analysis_options_struct} {folder_arch + os.sep}")
+            if os.path.isfile(fname_extrMach):
+                os.system(f"cp {fname_extrMach} {folder_arch + os.sep}")
+            if os.path.isfile(fname_fatMach):
+                os.system(f"cp {fname_fatMach} {folder_arch + os.sep}")
             if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
                 os.system(f"mkdir {folder_arch + os.sep + 'outputs_WEIS'}")
                 # shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder + os.sep)  
