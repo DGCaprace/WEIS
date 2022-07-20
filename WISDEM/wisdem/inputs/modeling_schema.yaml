@@ -188,11 +188,11 @@ properties:
                     exportRawPrecompFile: 
                         type: string
                         description: An additional yaml file where to output precomp inputs for all sections.
-                        default: []
+                        default: ""
                     exportMaxCoordsFile: 
                         type: string
                         description: An additional yaml file where to output precomp inputs for all sections.
-                        default: []
+                        default: ""
             DriveSE:
                 type: object
                 default: {}
