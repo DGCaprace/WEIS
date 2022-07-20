@@ -501,8 +501,8 @@ if __name__=='__main__':
         for suff in suffs:
             if suff in dict.keys():
                 r = dict[suff]["grid_nd"]
-                FnEL = dict[suff]["Fn"]
-                FtEL = dict[suff]["Ft"]
+                FnEL = dict[suff]["mean"]["Fn"]
+                FtEL = dict[suff]["mean"]["Ft"]
                 FnEL[-1] = 0 #make sure the last loading evaluated at r=R in this case is 0
 
                 aero_HiFi_2_Lofi(ref_HiFi_forceFile,f"./{loadFolder}/force_{loadFolder}_{meshLevel}_{suff}.txt",r, FnEL, FtEL, R0, R, fname_HFdistro=ref_HiFi_liftFile)

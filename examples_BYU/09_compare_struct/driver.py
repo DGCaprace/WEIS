@@ -108,8 +108,8 @@ locs = np.linspace(0.,1.,nx_a) #XXX
 for ifi in range(len(wt_input)):
     wt_file = wt_input[ifi]
 
-    folder_arch = mydir + os.sep + wt_file.split(".")[0]
-    fname_wt_input = mydir + os.sep + wt_file
+    folder_arch = mydir + os.sep + wt_file.split(os.sep)[-1].split(".")[0]
+    fname_wt_input = wt_file
 
     fname_nominalLoads = folder_arch + os.sep + "nominalLoads.yaml"
 
@@ -150,8 +150,8 @@ for ifi in range(len(wt_input)):
             shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS")  
         if os.path.isdir(simfolder): #let's not move the file if it is a path provided by the user
             shutil.move(simfolder, folder_arch + os.sep + "sim")
-        os.system(f"cp {fname_wt_input} {folder_arch}")
-        os.system(f"cp {fname_modeling_options} {folder_arch}")
+        shutil.copy(f"{fname_wt_input}", f"{folder_arch}")
+        shutil.copy(f"{fname_modeling_options}", f"{folder_arch}")
 
 
         #==================== POST PROCESSING =====================================
@@ -199,10 +199,9 @@ for ifi in range(len(wt_input)):
 
         schema = {}
 
-        schema["description"] = f"nominal loads obtained for inflow velocity {run_settings['wind_speed']}"
-        schema["grid_nd"] = locs.tolist()
-
         schema["nominal"] = {}
+        schema["nominal"]["description"] = f"nominal loads obtained for inflow velocity {run_settings['wind_speed']}"
+        schema["nominal"]["grid_nd"] = locs.tolist()
         for ifld,fld in enumerate(flds):
             schema["nominal"][fld] = {}
             schema["nominal"][fld]["Dx"] = data[0,:,ifld,ifi].tolist()
@@ -253,8 +252,13 @@ for ifi in range(len(wt_input)):
     for k in range(nchan):
         hp = ax[k].plot(data[k,:,0,ifi],'x-', label=wt_file)
         
+        # mean +/- 1std
         ax[k].plot(data[k,:,0,ifi]+data[k,:,1,ifi],'--', color=hp[0].get_color())
         ax[k].plot(data[k,:,0,ifi]-data[k,:,1,ifi],'--', color=hp[0].get_color())
+        
+        # # mean +/- max/min
+        # ax[k].plot(data[k,:,0,ifi]+data[k,:,3,ifi],':', color=hp[0].get_color())
+        # ax[k].plot(data[k,:,0,ifi]-data[k,:,2,ifi],':', color=hp[0].get_color())
     
         ax[k].set_ylabel(f"{chans_leg[k]}")
 # plt.xlabel("U [m/s]")
@@ -274,8 +278,13 @@ for ifi in range(len(wt_input)):
     for k in range(nchan_a):
         hp = axa[k].plot(locs,data_a[k,:,0,ifi],'x-', label=wt_file)
         
+        # mean +/- 1std
         axa[k].plot(locs,data_a[k,:,0,ifi]+data_a[k,:,1,ifi],'--', color=hp[0].get_color())
         axa[k].plot(locs,data_a[k,:,0,ifi]-data_a[k,:,1,ifi],'--', color=hp[0].get_color())
+
+        # # mean +/- max/min
+        # axa[k].plot(locs,data_a[k,:,0,ifi]+data_a[k,:,3,ifi],':', color=hp[0].get_color())
+        # axa[k].plot(locs,data_a[k,:,0,ifi]-data_a[k,:,2,ifi],':', color=hp[0].get_color())
     
         axa[k].set_ylabel(f"{chans_a_leg[k]}")
     

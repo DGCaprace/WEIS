@@ -23,23 +23,23 @@ def my_write_yaml(instance, foutput):
     """ This is a semi automatic script to map the DVs of the HiFi model onto the LoFi model. 
     
     The inputs of this script are:
-    - an input Low Fidelity model under the form of a yaml turbine (WindIO format)
-    - a DVCentresCon.dat (output of 'modified' TACS): a file that describes the location and thickness
+    - `wt_input`: an input Low Fidelity model under the form of a yaml turbine (WindIO format)
+    - `DV_input`: a DVCentresCon.dat (output of 'modified' TACS) that describes the location and thickness
         of all structural panels in the model, and also gives the value of the constrsint in each 
         panel (corresponding to the loading that was used as an input to TACS).
 
     The output of this script is:
-    - an output Low Fidelity model (yaml). It copies most of the input turbine, but replaces the structural
+    - `wt_output`: an output Low Fidelity model (yaml). It copies most of the input turbine, but replaces the structural
       information (spanwaise position of the laminates and their thickness) with the information mapped
       from the high fidelity model. This file will be written in the current dir.
 
     Optionally, this script can also:
-    - plot the distribution of the panel thickness and of whatever constraint value was given in the DVCentresCon file
+    - plot the distribution of the panel thickness and of whatever constraint value was given in the DVCentresCon file (see `doPlots`)
     - write an alternate DVGroup file that can be used together with TACS to produce colored visual of the blade model. 
         A different color is given to every group of laminate along the chordwise direction. This is mostly to verify that 
-        The mapping between lofi laminates and hifi panels is consistent.
-    - write a mapping file that gives the static correpondance between each hifi panel (their index) and the region on the lofi
-        model. It does the same thing to map each DV to lofi regions.
+        The mapping between lofi laminates and hifi panels is consistent (see `writeDVGroupForColor`).
+    - write a `mappingFile` that gives the static correpondance between each hifi panel (their index) and the region on the lofi
+        model. It does the same thing to map each DV to lofi regions (see `writeDVGroupMapping`).
 
     ## Modeling note:
     Currently, there needs to be as many hifi panels around the airfoil than there are zones in the lofi model.
@@ -50,15 +50,16 @@ def my_write_yaml(instance, foutput):
 ## ======================= File management and inputs =================================================
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
-# wt_input = "Madsen2019_10_forWEIS_isotropic.yaml" 
-wt_input = "Madsen2019_10_forWEIS_isotropic_IC.yaml" 
+wt_input = "Madsen2019_10_forWEIS_isotropic_IC.yaml" # the reference turbine yaml
 
-# Example set of inputs:
+# --PART I-- 
+# Tranfering HiFi panel distribution to LoFi model
+
+# Example set of options:
 ylab = "failure" #a descriptor of under what load condition the DV_input file was obtained.
-DV_input = "aeroload_DVCentresCon.dat" #from a structural analysis under nominal loads
-DV_folder = mydir + os.sep + "HiFi_DVs" #location where to find the DV file(s)
-wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of output turbine
-
+DV_input = "aeroload_DVCentresCon.dat" #the output of a hifi structural analysis.
+DV_folder = mydir + os.sep + "HiFi_DVs" #location where to find the DV)input file(s)
+wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
 # #Original constant thickness model, under nominal loads
 # ylab = "nominal" 
@@ -78,19 +79,12 @@ wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of output turbine
 # DV_folder = ""
 # wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
+# --PART II--
+# Optional plots and processing
+# Note: the DV Groups files describe how panels are grouped together to form the DVs.
 
-#TODO: rm this
-# #Optimized 1st iter model, under DEL
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Aerostructural/Optimization/1pt_fatigue_ITER1_44949859_L3/Fatigue_force_allwalls_L2_DEL_neq1_0DVCentresCon.dat"
-# DV_folder = ""
-# wt_output = "Madsen2019_10_forWEIS_isotropic_DEL_ITER1"
-
-
-
-
-# DV Groups : files that describe of panels are grouped together to form the DVs
-# DV_input = "generic_DVCentres.dat"
-DVGroup_input = "HiFi_DVs" + os.sep + "generic_DVGroupCentres.dat"
+# Example set of options:
+DVGroup_input = "HiFi_DVs" + os.sep + "generic_DVGroupCentres.dat" #only used if writeDVGroupForColor or writeDVGroupForColor=True
 DVGroup_output = "HiFi_DVs" + os.sep + "generic_DVGroupCentres_colors.dat" #only used if writeDVGroupForColor=True
 
 
@@ -113,8 +107,8 @@ TE_width_percentage = .05 #assuming a constant percentage along the chord: this 
 span_dir = 1 #0=x,1=y,2=z
 chord_dir = 2 #0=x,1=y,2=z
 
-R = 89.166
-R0 = 2.8
+R = 89.166 #TODO: get that from wt_input
+R0 = 2.8 #TODO: get that from wt_input
 
 trans_len = 0.002 #length of the transition between panels in the lofi model, in %(R-R0)
 
@@ -276,9 +270,9 @@ lay_ls = turbine["components"]["blade"]["internal_structure_2d_fem"]["layers"]
 
 
 
-# =================================================================
-# =================== HiFi panels to LoFI   =======================
-# =================================================================
+# =========================================================================
+# =================== PART I: HiFi panels to LoFI   =======================
+# =========================================================================
 
 #==================== INTERNAL REPRESENTATION OF HIFI STRUCTURE  =====================================
 
@@ -615,6 +609,10 @@ if cnt != nwebs:
 #                       values: [0.010, 0.010]
 
 
+if debug:
+    print("Planform distro:")
+    print(skin_hifi[:,:,2])
+    print(webs_hifi[:,:,1])
 
 
 # ==================== SAVE NEW TURBINE =====================================
@@ -728,9 +726,9 @@ if doPlots:
     plt.show()
 
 
-# =================================================================
-# =================== DV Groups to Panels   =======================
-# =================================================================
+# ==========================================================================
+# =================== PART II: DV Groups to Panels   =======================
+# ==========================================================================
 
 # Let us now do the mapping between the DVs and the lo-fi.
 # Above, we mapped every single pannel with the lofi. The difference
@@ -739,40 +737,43 @@ if doPlots:
 # - DVCentres: detailes about every single panel
 # - DVGroupCentres: gives how panels are grouped per DV
 
+
 # - Read the DV Group input -
 
-#Read the roup component file
-with open(DVGroup_input, 'r') as f:
-    lines = f.readlines()
+if (writeDVGroupForColor or writeDVGroupMapping):
+
+    #Read the group component file
+    with open(DVGroup_input, 'r') as f:
+        lines = f.readlines()
 
 
-    HiFiGrp_idx  = np.zeros(len(lines), int)
-    HiFiGrp_pos = np.zeros((len(lines),3))
-    HiFiGrp_thi = np.zeros(len(lines))
-    # HiFiGrp_con = np.zeros((len(lines), ncon))
-    # HiFiGrp_des = [None]*len(lines)
-    HiFiGrp_icmp = [None]*len(lines)
+        HiFiGrp_idx  = np.zeros(len(lines), int)
+        HiFiGrp_pos = np.zeros((len(lines),3))
+        HiFiGrp_thi = np.zeros(len(lines))
+        # HiFiGrp_con = np.zeros((len(lines), ncon))
+        # HiFiGrp_des = [None]*len(lines)
+        HiFiGrp_icmp = [None]*len(lines)
 
-    i = 0
-    for line in lines:
-        buff = line.split(" ")
-        HiFiGrp_idx[i] = buff[0]
-        HiFiGrp_pos[i,:] = [ float(b) for b in buff[1:4] ]
-        # HiFiGrp_thi[i] = float(buff[4]) 
-        # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
-        buff = line.split('"')
-        # HiFiGrp_des[i] = buff[1]
-        HiFiGrp_icmp[i] = buff[3]
-        i+=1
+        i = 0
+        for line in lines:
+            buff = line.split(" ")
+            HiFiGrp_idx[i] = buff[0]
+            HiFiGrp_pos[i,:] = [ float(b) for b in buff[1:4] ]
+            # HiFiGrp_thi[i] = float(buff[4]) 
+            # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
+            buff = line.split('"')
+            # HiFiGrp_des[i] = buff[1]
+            HiFiGrp_icmp[i] = buff[3]
+            i+=1
 
-#Allocate a mapping object: 
-#  binds each group number to the list of constitutive elements it covers
-HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
+    #Allocate a mapping object: 
+    #  binds each group number to the list of constitutive elements it covers
+    HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
 
-for i in range(len(HiFiGrp_idx)):
-    tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
-    icmp = ast.literal_eval('['+tmp+']')
-    HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
+    for i in range(len(HiFiGrp_idx)):
+        tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
+        icmp = ast.literal_eval('['+tmp+']')
+        HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
 
 
 
@@ -815,12 +816,6 @@ if writeDVGroupForColor:
 
 
 # - Write the mapping for use in MACH -
-
-if debug:
-    print("Planform distro:")
-    print(skin_hifi[:,:,2])
-    print(webs_hifi[:,:,1])
-
 
 if writeDVGroupMapping:
 
@@ -874,5 +869,4 @@ if writeDVGroupMapping:
     mappingDict["planform_rlocs"] = yhf_skn_mids.tolist()
     mappingDict["webs_rlocs"] = yhf_web_mids.tolist()
     
-    # my_
     write_yaml(mappingDict,mappingFile)

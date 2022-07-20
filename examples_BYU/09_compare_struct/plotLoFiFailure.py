@@ -32,10 +32,7 @@ def my_write_yaml(instance, foutput):
 withEXTR = False
 withDEL = False  
 withNominal = False #REPLACE the EXTR with the nominal load
-importHifiCstr = ""
-HANKY_MLx = False
-HANKY_FLz = False
-USE_LTILDE = False
+USE_LTILDE = False #use the tilde values instead of the directly aggregated Mx,My,Fz
 
 m_wohler = 10
 n_life_eq = 1
@@ -43,7 +40,7 @@ eta = 1.35
 R = 89.166
 R0 = 2.8
 
-runWISDEM = True
+runWISDEM = False
 plotActualDamage = False
 withLegend = True
 
@@ -60,19 +57,19 @@ fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
 fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
 
 # #Original constant thickness model, under nominal loads
-# fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic.yaml"
-# fname_loads = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_ED/nominalLoads.yaml" #the loading condition you want to use (should have a nominal section)
-# folder_arch = mydir + os.sep + "LoFiEval_isotropic_nominalLoads"
-# withNominal = True
-# # importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominal.npz"
-# importHifiCstr = "Madsen2019_10_forWEIS_isotropic_ED/hifiCstr_nominalg.npz"
-# HFc = 0 # index of the corresponding constraint in HiFi
-
-
+withNominal = True
+fname_wt_input = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_IC.yaml"
+fname_loads = mydir + os.sep + "Madsen2019_10_forWEIS_isotropic_IC/nominalLoads.yaml" #the loading condition you want to use (should have a nominal section)
+folder_arch = mydir + os.sep + "LoFiEval_isotropic_nominalLoads"
+importHifiCstr = "Madsen2019_10_forWEIS_isotropic_IC/hifiCstr_nominalg.npz"
+importHifiCstrCsv = []  #a csv file output from Paraview using a slice of the TACS solution file (f5/plt)
+HFc = 0 # index of the corresponding constraint in HiFi
 
 
 #==================== ======== =====================================
 ## Preprocessing: filling in the loads and relevant parameters
+
+# TODO: replace all this by just reading the strain in the output yaml from the 09/driver
 
 if not os.path.isdir(folder_arch):
     runWISDEM = True
@@ -83,9 +80,6 @@ if withEXTR and withDEL and withNominal or withDEL and withNominal:
 if withEXTR and withNominal:
     raise ValueError("can't do withEXTR and withNominal: nominal loads actually replace the extreme loads")
 
-# analysis_opt = load_yaml(fname_analysis_options)
-# wt_init = load_yaml(fname_wt_input)
-# modeling_options = load_yaml(fname_modeling_options)  #initial load
 
 
 ## Load the loading file
@@ -104,15 +98,10 @@ if withEXTR or withNominal:
     schema["extreme"] = {}
     schema["extreme"]["description"] = schema_loads[src_name]["description"]
     schema["extreme"]["grid_nd"] = schema_loads[src_name]["grid_nd"]
-    schema["extreme"]["deMLx"] = schema_loads[src_name]["deMLx"]
-    schema["extreme"]["deMLy"] = schema_loads[src_name]["deMLy"]
-    schema["extreme"]["deFLz"] = schema_loads[src_name]["deFLz"]
+    schema["extreme"]["deMLx"] = schema_loads[src_name]["mean"]["deMLx"]
+    schema["extreme"]["deMLy"] = schema_loads[src_name]["mean"]["deMLy"]
+    schema["extreme"]["deFLz"] = schema_loads[src_name]["mean"]["deFLz"]
     schema["constraints"]["blade"]["extreme_loads_from_user_inputs"] = True #we are using that channel as a way to specify a loading. The we will read the corresponding strain the EXTRM strain  output
-
-    if HANKY_MLx:
-        schema["extreme"]["deMLx"] = ( -np.array(schema_loads[src_name]["deMLy"]) ).tolist()
-    if HANKY_FLz:
-        schema["extreme"]["deFLz"] = ( np.zeros(len(schema_loads[src_name]["deMLx"])) ).tolist()
 
 
 
@@ -121,19 +110,13 @@ if withDEL:
     schema["DEL"]["description"] = schema_loads["DEL"]["description"]
     schema["DEL"]["grid_nd"] = schema_loads["DEL"]["grid_nd"]
     if USE_LTILDE:
-        schema["DEL"]["deMLx"] = schema_loads["DEL"]["deMLxTilde"]
-        schema["DEL"]["deMLy"] = schema_loads["DEL"]["deMLyTilde"]
-        schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLzTilde"]
+        schema["DEL"]["deMLx"] = schema_loads["DEL"]["mean"]["deMLxTilde"]
+        schema["DEL"]["deMLy"] = schema_loads["DEL"]["mean"]["deMLyTilde"]
+        schema["DEL"]["deFLz"] = schema_loads["DEL"]["mean"]["deFLzTilde"]
     else:
-        schema["DEL"]["deMLx"] = schema_loads["DEL"]["deMLx"]
-        schema["DEL"]["deMLy"] = schema_loads["DEL"]["deMLy"]
-        schema["DEL"]["deFLz"] = schema_loads["DEL"]["deFLz"]
-
-    if HANKY_MLx:
-        schema["DEL"]["deMLx"] = ( np.array(schema_loads["DEL"]["deMLx"])/2. ).tolist()
-    if HANKY_FLz:
-        schema["DEL"]["deFLz"] = ( np.zeros(len(schema_loads["DEL"]["deMLx"])) ).tolist()
-
+        schema["DEL"]["deMLx"] = schema_loads["DEL"]["mean"]["deMLx"]
+        schema["DEL"]["deMLy"] = schema_loads["DEL"]["mean"]["deMLy"]
+        schema["DEL"]["deFLz"] = schema_loads["DEL"]["mean"]["deFLz"]
 
     schema["constraints"]["blade"]["fatigue_spar_cap_ss"]["flag"] = True
     schema["constraints"]["blade"]["fatigue_spar_cap_ps"]["flag"] = True
