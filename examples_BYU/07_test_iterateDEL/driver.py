@@ -604,7 +604,7 @@ if __name__ == '__main__':
                             #loop over the DELs from all time series and sum
                             for i in dlc['idx']: 
                                 
-                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) )
+                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) ) #why not use U in dlc?
                                 #average the DEL over the seeds: just as if we aggregated all the seeds
                                 DEL_life_B1[:,k] += fj[ivel] * npDelstar[i][ids] / nSEEDdel
 
@@ -778,7 +778,7 @@ if __name__ == '__main__':
                         #--
                         # d.(option3)
                         # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
+                        #  and that simply have equal weights (i.e., Mx=My=Fz)
                         Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
                         Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
                         Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
@@ -1166,14 +1166,16 @@ if __name__ == '__main__':
                         schema_hifi["DEL"] = {}
                         schema_hifi["DEL"]["description"] = del_descr_str
                         schema_hifi["DEL"]["grid_nd"] = locs.tolist()
-                        schema_hifi["DEL"]["Fn"] = DEL_life_B1[:,0].tolist()
-                        schema_hifi["DEL"]["Ft"] = DEL_life_B1[:,1].tolist()
+                        schema_hifi["DEL"]["mean"] = {}
+                        schema_hifi["DEL"]["mean"]["Fn"] = DEL_life_B1[:,0].tolist()
+                        schema_hifi["DEL"]["mean"]["Ft"] = DEL_life_B1[:,1].tolist()
                     if withEXTR:
                         schema_hifi["extreme"] = {}
                         schema_hifi["extreme"]["description"] = extr_descr_str
                         schema_hifi["extreme"]["grid_nd"] = locs.tolist()
-                        schema_hifi["extreme"]["Fn"] = dlc["extr_loads"][0][:,0].tolist()
-                        schema_hifi["extreme"]["Ft"] = dlc["extr_loads"][0][:,1].tolist()
+                        schema_hifi["extreme"]["mean"] = {}
+                        schema_hifi["extreme"]["mean"]["Fn"] = dlc["extr_loads"][0][:,0].tolist()
+                        schema_hifi["extreme"]["mean"]["Ft"] = dlc["extr_loads"][0][:,1].tolist()
 
                     my_write_yaml(schema_hifi, fname_aggregatedEqLoads)
 
