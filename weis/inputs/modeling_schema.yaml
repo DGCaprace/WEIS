@@ -365,7 +365,7 @@ properties:
                         description: Time step for tabular output (s) (or 'default')
                     OutFileFmt:
                         type: integer
-                        enum: [0,1,2,3]
+                        enum: [0,1,2,3,4]
                         default: 2
                         description: Format for tabular (time-marching) output file (switch) {1 text file [<RootName>.out], 2 binary file [<RootName>.outb], 3 both}
                     TabDelim:

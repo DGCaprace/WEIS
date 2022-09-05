@@ -50,7 +50,7 @@ Level3:
         # BDBldFile(3):
         # InflowFile:
         # AeroFile:
-        OutFileFmt: 2 #2 is binary
+        OutFileFmt: 4 #2: binary, 4: binary uncompressed
         # Twr_Kdmp:   #damping
         # Bld_Kdmp:   #damping
     # InflowWind:
