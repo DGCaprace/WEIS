@@ -564,7 +564,7 @@ if __name__ == '__main__':
                         i_B1StTE[i] = colnames.get_loc(f"BladeTE_Strain_Stn{i+1}")
 
 
-                    for dlc_num in DLCs_fat: #TODO: loop over the dlcs in DLCs_fat
+                    for dlc_num in DLCs_fat: #TODO: currently, if there are several dlc_num, DEL_life_B1 gets overwritten below
                         dlc = DLCs_fat[dlc_num]
 
                         nSEEDdel = dlc['nsims'] / len(dlc['U'])
@@ -775,18 +775,46 @@ if __name__ == '__main__':
                         # Ltilde_life_B1[:,4] = Ltilde_life_B1[:,1]
                         # Ltilde_life_B1[:,5] = Ltilde_life_B1[:,2]
 
+                        # #--
+                        # # d.(option3)
+                        # # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
+                        # #  and that simply have equal weights (i.e., Mx=My=Fz)
+                        # Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                        # Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                        # Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+
+                        # Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        # Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        # Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+
                         #--
-                        # d.(option3)
+                        # d.(option4)
                         # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        #  and that simply have equal weights (i.e., Mx=My=Fz)
-                        Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                        Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                        Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                        #  for slightly different designs. In addition to the baseline, we should simulate slightly different 
+                        #  beams and obtain the corresponding inertial/stiffness properties and DEstrain. We can then solve 
+                        #  (potentially in the least square sense) for the tilde loads:
+                        #
+                        #     | y/EIxx1  -x/EIyy1  1/EA1 |   | Mx_tilde |   | DEstrain1 |
+                        #     | y/EIxx2  -x/EIyy2  1/EA2 | * | My_tilde | = | DEstrain2 |
+                        #     | y/EIxx3  -x/EIyy3  1/EA3 |   | Fz_tilde |   | DEstrain3 |
+                        #     | ...      ...       ...   |                  | ...       |
+                        # 
+                        # XXX: This procedure should be done dynamically here by perturbing the current DVs 4 times, performing 4 additional 
+                        #   OpenFAST simulations, and re-solving (least-square) again. Currently though,
+                        #   we just do it once a priori on the baseline design, and we will use the same
+                        #   tilde loads for the hifi optimization throughout. The only thing we do here is to rescale the
+                        #   'a priori' tilde loads by the ratio between the current DE strain and the 'a priori' DE strain.
 
-                        Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                        Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                        Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        Ltilde_LstSqrSol = load_yaml("DEL_Tilde_loads_LstSqr.yaml")
+                        Ltilde_life_B1[:,0] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLxPerStrain"]
+                        Ltilde_life_B1[:,1] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLyPerStrain"]
+                        Ltilde_life_B1[:,2] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deFLzPerStrain"]
 
+                        Ltilde_life_B1[:,3] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLxPerStrain"]
+                        Ltilde_life_B1[:,4] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLyPerStrain"]
+                        Ltilde_life_B1[:,5] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deFLzPerStrain"]
+
+                        #--
                         print("Damage eq loads:")
                         print(np.transpose(DEL_life_B1))
 
