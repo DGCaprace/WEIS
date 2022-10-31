@@ -881,14 +881,14 @@ if __name__ == '__main__':
                                 k = 0
                                 for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz","BladeSparU_Strain_Stn%i","BladeSparL_Strain_Stn%i","BladeTE_Strain_Stn%i"]:
                                     # print(f"[{lab}] v{ivel} s{iseed} loc{i} - {fast_fnames[i]} {fast_dlclist[jloc]}")
-                                    for i in range(nx):
-                                        hist, bns = np.histogram(fulldata[lab%(i+1)], bins=nbins, range=rng[k])
+                                    for ii in range(nx):
+                                        hist, bns = np.histogram(fulldata[lab%(ii+1)], bins=nbins, range=rng[k])
 
                                         if dontAggregateExtreme:
-                                            EXTR_distro_B1[i,k,:,jloc] =  hist
+                                            EXTR_distro_B1[ii,k,:,jloc] =  hist
                                         else:
                                             #average the EXTRM over the seeds: just as if we aggregated all the seeds
-                                            EXTR_distro_B1[i,k,:,0] +=  hist * pj_extr[ivel] / nSEEDextr
+                                            EXTR_distro_B1[ii,k,:,0] +=  hist * pj_extr[i] / nSEEDextr
 
                                         # if extremeExtrapMeth ==2:
                                         #     EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
