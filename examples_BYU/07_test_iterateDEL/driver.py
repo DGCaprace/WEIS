@@ -136,7 +136,7 @@ if __name__ == '__main__':
     fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
     fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
     fname_analysis_options_WEIS = mydir + os.sep + "analysis_options_WEIS.yaml"
-    fname_aggregatedEqLoads = mydir + os.sep + "aggregatedEqLoads.yaml"
+    fname_aggregatedEqLoads = mydir + os.sep + "aggregatedAeroLoads.yaml"
 
     folder_arch = mydir + os.sep + "results"
 
@@ -604,7 +604,7 @@ if __name__ == '__main__':
                             #loop over the DELs from all time series and sum
                             for i in dlc['idx']: 
                                 
-                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) ) #why not use U in dlc?
+                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) )
                                 #average the DEL over the seeds: just as if we aggregated all the seeds
                                 DEL_life_B1[:,k] += fj[ivel] * npDelstar[i][ids] / nSEEDdel
 
@@ -805,14 +805,25 @@ if __name__ == '__main__':
                         #   tilde loads for the hifi optimization throughout. The only thing we do here is to rescale the
                         #   'a priori' tilde loads by the ratio between the current DE strain and the 'a priori' DE strain.
 
-                        Ltilde_LstSqrSol = load_yaml("DEL_Tilde_loads_LstSqr.yaml")
-                        Ltilde_life_B1[:,0] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLxPerStrain"]
-                        Ltilde_life_B1[:,1] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLyPerStrain"]
-                        Ltilde_life_B1[:,2] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deFLzPerStrain"]
+                        if os.path.isfile("DEL_Tilde_loads_LstSqr.yaml"):
+                            Ltilde_LstSqrSol = load_yaml("DEL_Tilde_loads_LstSqr.yaml")
 
-                        Ltilde_life_B1[:,3] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLxPerStrain"]
-                        Ltilde_life_B1[:,4] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLyPerStrain"]
-                        Ltilde_life_B1[:,5] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deFLzPerStrain"]
+                            Ltilde_life_B1[:,0] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLxPerStrain"]
+                            Ltilde_life_B1[:,1] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLyPerStrain"]
+                            Ltilde_life_B1[:,2] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deFLzPerStrain"]
+
+                            Ltilde_life_B1[:,3] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLxPerStrain"]
+                            Ltilde_life_B1[:,4] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLyPerStrain"]
+                            Ltilde_life_B1[:,5] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deFLzPerStrain"]
+                        else:
+                            print("WARNING: I did not find 'DEL_Tilde_loads_LstSqr.yaml' so I can''t go for opt4. Reverting to Opt. 3.")
+                            Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                            Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+                            Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
+
+                            Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                            Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                            Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
 
                         #--
                         print("Damage eq loads:")
@@ -877,6 +888,8 @@ if __name__ == '__main__':
                                 fname = simfolder + os.sep + fast_fnames[i]
                                 print(fname)
                                 fulldata = myOpenFASTread(fname, addExt=modeling_options["Level3"]["simulation"]["OutFileFmt"], combili_channels=combili_channels)
+
+                                ivel = dlc['U'].index(  float(DLCs[i]['URef']) ) #index in the velocity probability distribution, different from the sim index if there are several seeds
                             
                                 k = 0
                                 for lab in ["AB1N%03iFx","AB1N%03iFy","B1N%03iMLx","B1N%03iMLy","B1N%03iFLz","BladeSparU_Strain_Stn%i","BladeSparL_Strain_Stn%i","BladeTE_Strain_Stn%i"]:
@@ -888,10 +901,13 @@ if __name__ == '__main__':
                                             EXTR_distro_B1[ii,k,:,jloc] =  hist
                                         else:
                                             #average the EXTRM over the seeds: just as if we aggregated all the seeds
-                                            EXTR_distro_B1[ii,k,:,0] +=  hist * pj_extr[i] / nSEEDextr
+                                            EXTR_distro_B1[ii,k,:,0] +=  hist * pj_extr[ivel] / nSEEDextr
 
                                         # if extremeExtrapMeth ==2:
                                         #     EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
+
+                                    if "BladeSparU" in lab:
+                                        k_SU = k
                                     k+=1
 
                                 del(fulldata)
@@ -906,6 +922,11 @@ if __name__ == '__main__':
                             for i in range(nx):
                                 for j in range(n_aggr):
                                     EXTR_distro_B1[i,k,:,j] /= np.sum(EXTR_distro_B1[i,k,:,j]*dx)
+                                    if k == k_SU:
+                                        #CHANGE SIGN ASSUNING SUCTION SIDE WILL BE COMPRESSED
+                                        #  this is beacuse we identify the tail of the distribution on the positive side
+                                        EXTR_distro_B1[i,k,:,j] = -EXTR_distro_B1[i,k,:,j] 
+                                    
 
                         dlc["binned_loads"] = EXTR_distro_B1
 
@@ -963,6 +984,11 @@ if __name__ == '__main__':
                             elif extr_meth ==3:
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
 
+                            
+                            #PUTTING BACK THE CORRECT SIGN
+                            EXTR_life_B1[:,k_SU,:,:] = -EXTR_life_B1[:,k_SU,:,:] 
+                            #WHAT TO DO WITH params???
+                            
                             # save data to the dict.
                             dlc["extr_loads"].append(EXTR_life_B1)
                             dlc["extr_params"].append(EXTR_distr_p)

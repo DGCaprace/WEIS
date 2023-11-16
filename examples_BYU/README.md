@@ -74,6 +74,7 @@ Typically, you can use the driver as follows to compare high-fidelity and low-fi
 - match your hifi and lofi structural models (in terms of geometry description), run the driver that outputs nominal loads, run case8 to extrapolate load, run a HiFi structural analysis with the extrapolated loads, use the structure_HiFi2LoFi to plot constraint in HiFi, use plotLoFiFailure to plot contraint in LoFi and compare.
 
 
+# Use cases
 
 ## Procedure to apply do a WISDEM optimization with OpenFAST loads
 
@@ -94,16 +95,23 @@ mv outputs outputs_withoutFatigue
 
 ## Procedure to apply the Combine Fidelity Approach
 
-- Derive your original lofi model matching the IC hifi with correct thickness
-- nominal test
-    - Use driver of 09 to simulate nominal loads (see 06)
-    - Transfer the loads to 3D using 08.
-    - Simulate struct at nominal load; use struct_hifi2lofi to process the constraint; use plotLofiConstr to compare with lofi 
-- Damage test
-    - Use driver of 07 to simulate a 1y-eq DEL for a single vel 9m/s
-    - Transfer the loads to 3D using 08.
+- Derive your original lofi model matching the IC hifi model: as much as possible, same panel distribution and thickness
+- To do a simple test under nominal loads
+    - Step1: Use `09/driver` to simulate nominal loads.
+    - Step2: Use `08/transfer_loads` to transfer the loads to 3D. Look at the bottom of the script for folder/filenames.
+    - Step3: Simulate hifi-struct at nominal load, using the aero-load outputed in step2.
+    - Step4: use `09/struct_hifi2lofi` to process the DVCentre output file from step3. It also does plot "per panel". 
+    - (Step5): Use `09/plotLofiFailure` to compare the "failure" constraint (lofi vs hifi) in a more coutinuous way. This requires a bit more of manual process: you need to open the plt solution from step3 and export the values of the failure along the spars in a csv file. #TODO: that script recomputes the lofi strain but now it is readily available in the outuput of step1.
+- Compare the different ways of computing damage:
+    - Step1: Use `07/driver` to simulate a 1y-eq DEL for a single vel 9m/s. This will output:
+      - The aggregated strain in each spar for that 1year
+      - The "stupidly" aggregated damage-equivalent loads: DEMx,DEMy,DEFz
+      - The aggregated Tilde loads, that is, an equivalent Mx,My,Fz that better represents the actual strain
+      - The aggregated damage-equivalent aero loads
+    - Step2: Use `08/transfer_loads` to transfer the loads to 3D. Look at the bottom of the script for folder/filenames.
+    - Step3: Simulate hifi-struct at nominal load, using the aero-load outputed in step2.
     - Simulate struct the 1yr damage; use struct_hifi2lofi to process the constraint; use plotLofiConstr to compare with lofi
-- Full optim
+- To do the full combined fidelity optimization using aero loads (like in SciTech paper 2022)
     - iter1
         - Simulate the full DLCs set with case 7
         - Transfer the loads to 3D using 08
@@ -118,7 +126,7 @@ mv outputs outputs_withoutFatigue
     - Use 07/plot_results_HiFi to check how iter/DEL converge
 
 
-## MPI
+# MPI
 
 The drivers can be run in parallel doing 
 ```
