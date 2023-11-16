@@ -11,9 +11,14 @@ import extrapolate_utils as exut
 folder = "results"
 folder = "results-IEC1.1-IEC1.3_12vels_600s"
 saveExtrNpy = "extrmDistro.npz"
+dlc_label = '1.3' #label of the dlc in the npz that we want to process
 
-labs = ["Fn [N/m]","Ft [N/m]","MLx [kNm]","MLy [kNm]","FLz [kN]"]
-legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$","MLx [kNm]","MLy [kNm]","FLz [kN]"]
+labs = ["Fn [N/m]","Ft [N/m]",
+        "MLx [kNm]","MLy [kNm]","FLz [kN]",
+        "StrainU [-]","StrainL [-]","StrainTE [-]",]
+legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$",
+        r"$ML_x \, [kNm]$",r"$ML_y \, [kNm]$",r"$FL_z \, [kN]$",
+        r"$\epsilon_U \, [-]$",r"$\epsilon_L \, [-]$",r"$\epsilon_{TE} \, [-]$",]
 
 Textrm = 50 #return period of extreme event [years]
 
@@ -30,20 +35,14 @@ pltSize = (6, 3)
 fs = 14
 ls = 12
 
-mydistr = ["weibull_min","weibull_min","norm","norm","norm"]
-mydistr = ["chi2","chi2","chi2","chi2","chi2"]
-# mydistr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
-# mydistr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
-# mydistr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
-# mydistr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
-# mydistr = ["normForced","normForced","normForced","normForced","normForced"]
-
 truncThr = None #We discard all data on the left of the distro `avg + truncThr * std` for the fit. If None, keep everything.
 # truncThr = 0.5
 
 # # new recommended setup:
-mydistr = ["norm","norm","twiceMaxForced","norm","norm"] 
-# truncThr = [0.5,1.0,None,0.5,0.5]
+# mydistr = ["norm","norm","twiceMaxForced","norm","norm"] 
+# # truncThr = [0.5,1.0,None,0.5,0.5]
+
+k_SU = 5 #revert the upper spar strain when computing the tail of the distribution so that it's on the right (>0)
 
 # ========================================
 
@@ -54,18 +53,23 @@ f= np.load(folder + os.sep + saveExtrNpy, allow_pickle=True)
 rng = f["rng"]
 nbins = f["nbins"]
 
-#For old files:
-# EXTR_life_B1 = f["EXTR_life_B1"]
-# EXTR_distr_p = f["EXTR_distr_p"]
-# EXTR_distro_B1 = f["EXTR_distro_B1"]
+# #For new files:
+# dlcs = f["iec_extr"]  
+# dlc = dlcs[0]#assuming the dlc we want to look at is at index 0
+# EXTR_distro_B1 = dlc["binned_loads"]
+# EXTR_life_B1 = dlc["extr_loads"]
+# EXTR_distr_p = dlc["extr_params"]
+# EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0] #assume there is only 1 timeserie, as a result of aggregation
 
-#For new files:
-dlcs = f["iec_extr"]  
-dlc = dlcs[0]#assuming the dlc we want to look at is at index 0
+#After update to WEIS 1.0:
+print(f.files)
+dlcs = f["DLCs_extr"].item() #extracting the dictionary
+dlc = dlcs[dlc_label]#assuming the dlc we want to look at is at index 0
 EXTR_distro_B1 = dlc["binned_loads"]
-EXTR_life_B1 = dlc["extr_loads"]
-EXTR_distr_p = dlc["extr_params"]
-EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0] #assume there is only 1 timeserie, as a result of aggregation
+EXTR_life_B1 = dlc["extr_loads"][0]
+EXTR_distr_p = dlc["extr_params"][0]
+EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0]
+mydistr = f["distr"]
 
 distr = f["distr"]
 dt = f["dt"]
@@ -93,6 +97,11 @@ for k in range(n2):
 
 if reProcess:
     distr = mydistr
+
+    #CHANGE SIGN ASSUNING SUCTION SIDE WILL BE COMPRESSED
+    EXTR_distro_B1[:,k_SU,:] = -EXTR_distro_B1[:,k_SU,:]                                
+                                    
+    #TODO: instead of copy pasting from driver, should do this a little better
     # if extremeExtrapMeth ==1:
     #     #assumes only normal
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads_hist(rng, EXTR_distro_B1,IEC_50yr_prob)
@@ -101,8 +110,12 @@ if reProcess:
     # elif extremeExtrapMeth ==3:
     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
 
+    #REVERTING
+    EXTR_life_B1[:,k_SU] = -EXTR_life_B1[:,k_SU] 
+    EXTR_distro_B1[:,k_SU,:] = -EXTR_distro_B1[:,k_SU,:] 
 
-for k in range(5):
+
+for k in range(8):
     f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
 
@@ -112,9 +125,9 @@ for k in range(5):
     ax1.set_ylabel("probability density",fontsize=fs)
     ax2.set_ylabel("probability of exceedance",fontsize=fs)
 
-    print(EXTR_distr_p[5,k,:])
-    print(EXTR_distr_p[15,k,:])
-    print(EXTR_distr_p[25,k,:])
+    # print(EXTR_distr_p[5,k,:])
+    # print(EXTR_distr_p[15,k,:])
+    # print(EXTR_distr_p[25,k,:])
 
     for i in iplt:
         stp = (rng[k][1]-rng[k][0])/(nbins)
@@ -163,6 +176,8 @@ for k in range(5):
         # ax2.plot([xx[0],xx[-1]],[1.-IEC_50yr_prob,1.-IEC_50yr_prob],'-k',linewidth=0.5 )
     f1.tight_layout()
     f2.tight_layout()
+    if not os.path.isdir(f"{folder}/figs"):
+            os.makedirs(f"{folder}/figs")
     f1.savefig(f"{folder}/figs/fit_{labs[k].split(' ')[0]}_{distr[k]}.eps")
     f2.savefig(f"{folder}/figs/fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.eps")
 

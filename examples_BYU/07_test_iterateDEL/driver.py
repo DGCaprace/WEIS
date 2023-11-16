@@ -986,7 +986,8 @@ if __name__ == '__main__':
 
                             
                             #PUTTING BACK THE CORRECT SIGN
-                            EXTR_life_B1[:,k_SU,:,:] = -EXTR_life_B1[:,k_SU,:,:] 
+                            EXTR_life_B1[:,k_SU] = -EXTR_life_B1[:,k_SU] 
+                            EXTR_distro_B1[:,k_SU,:,:] = -EXTR_distro_B1[:,k_SU,:,:] 
                             #WHAT TO DO WITH params???
                             
                             # save data to the dict.
