@@ -9,6 +9,9 @@ from wisdem.inputs import write_geometry_yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
+# need to use the HiFi layup so we can convert the thickenss dv into the infividual thicknesses of the layers
+# #NOTE: if this import fails, please consider doing: `export PYTHONPATH=$PYTHONPATH:/path/to/ATLANTIS_UM-BYU_utils/SETUP` 
+import material_info
 
 def my_write_yaml(instance, foutput):
     if os.path.isfile(foutput):
@@ -50,16 +53,17 @@ def my_write_yaml(instance, foutput):
 ## ======================= File management and inputs =================================================
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
-wt_input = "Madsen2019_10_forWEIS_isotropic_IC.yaml" # the reference turbine yaml
+wt_input = "Madsen2019_composite_v01.yaml" # the reference turbine yaml
+bladeInput = "composite"
 
 # --PART I-- 
 # Tranfering HiFi panel distribution to LoFi model
 
 # Example set of options:
 ylab = "failure" #a descriptor of under what load condition the DV_input file was obtained.
-DV_input = "aeroload_DVCentresCon.dat" #the output of a hifi structural analysis.
-DV_folder = mydir + os.sep + "HiFi_DVs" #location where to find the DV)input file(s)
-wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
+DV_input = "FatigueWithTacs_DVCentresCon.dat" #the output of a hifi structural analysis.
+DV_folder = "/Users/dcaprace/Documents/BYU/devel/Python/WEIS/examples_BYU/09_compare_struct/2pt_beam_structonly_6173636_1pt_beam/Solutions/FatigueWithTacs__0" #location where to find the DV)input file(s)
+wt_output = "tmp_composite_model" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
 # #Original constant thickness model, under nominal loads
 # ylab = "nominal" 
@@ -84,25 +88,46 @@ wt_output = "Madsen2019_10_forWEIS_isotropic_TEST" #name of the output turbine o
 # Note: the DV Groups files describe how panels are grouped together to form the DVs.
 
 # Example set of options:
-DVGroup_input = "HiFi_DVs" + os.sep + "generic_DVGroupCentres.dat" #only used if writeDVGroupForColor or writeDVGroupForColor=True
+DVGroup_input = "FatigueWithTacs_DVGroupCentres.dat" #only used if writeDVGroupForColor or writeDVGroupMapping=True
 DVGroup_output = "HiFi_DVs" + os.sep + "generic_DVGroupCentres_colors.dat" #only used if writeDVGroupForColor=True
 
 
 
 ## ======================= Modeling details =================================================
 
-#from TE_SS to TE_PS: list of the structural zones
-skinLoFi = ["DP17_DP15","DP15_DP13","DP13_DP10_uniax","DP10_DP09","DP09_DP08","DP08_DP07","DP07_DP04_uniax","DP04_DP02","DP02_DP00",]
-websLoFi = ["Web_fore_panel","Web_aft_panel","Web_te_panel"] #the name they have in the LAYER section **NOT** the WEB section!
-leHiFi = "SPAR.04" #identifier of the leading edge in the hifi descriptor
-ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
-psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
-websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
+if bladeInput == "aluminum":
+    #from TE_SS to TE_PS: list of the structural zones
+    skinLoFi = ["DP17_DP15","DP15_DP13","DP13_DP10_uniax","DP10_DP09","DP09_DP08","DP08_DP07","DP07_DP04_uniax","DP04_DP02","DP02_DP00",]
+    websLoFi = ["Web_fore_panel","Web_aft_panel","Web_te_panel"] #the name they have in the LAYER section **NOT** the WEB section!
+    leHiFi = "SPAR.04" #identifier of the leading edge in the hifi descriptor
+    ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
+    psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
+    websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
+elif bladeInput == "composite":
+    #from TE_SS to TE_PS: list of the structural zones
+    skinLoFi = ["DP17_DP15_triax",
+                "DP15_DP13_triax",
+                "DP13_DP10_uniax",
+                "DP10_DP09_triax",
+                "DP09_DP08_uniax",
+                "DP08_DP07_triax",
+                "DP07_DP04_uniax",
+                "DP04_DP02_uniax",
+                "DP02_DP00_triax",]
+    websLoFi = ["Web_fore_biax","Web_aft_biax","Web_te_biax"] #the name they have in the LAYER section **NOT** the WEB section!
+    leHiFi = "SPAR.04" #identifier of the leading edge in the hifi descriptor
+    ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
+    psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
+    websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
+
+    #WHAT TO DO WITH THE TE SPAR? We can probably neglect it because it is almost the same as connecting the skin with the same properties in DP00
+else:
+    ValueError("I don't know this blade.")
 
 
 ncPanelHiFi = 9 #number of panels over the airfoil in hifi model
 
-TE_width_percentage = .05 #assuming a constant percentage along the chord: this is just to avoid having to compute the chord length corresponding to the width measured along the airfoil
+# TE_width_percentage = .05 #assuming a constant percentage along the chord: this is just to avoid having to compute the chord length corresponding to the width measured along the airfoil
 
 span_dir = 1 #0=x,1=y,2=z
 chord_dir = 2 #0=x,1=y,2=z
@@ -116,12 +141,13 @@ trans_len = 0.002 #length of the transition between panels in the lofi model, in
 ## ======================= More script options =================================================
 
 doPlots = True
-debug = False
+debug = True
 writeDVGroupForColor = False 
 writeDVGroupMapping = True
 
 # for plots:
-spars = ["DP07_DP04_uniax","DP13_DP10_uniax"]  #names of the spars in the lofi model
+spars = ["DP07_DP04_uniax",
+         "DP13_DP10_uniax"]  #names of the spars in the lofi model
 spars_legend = ["PS","SS"]  #corresponding name that will be displayed on the plots
 
 # for DVGoupMapping
@@ -155,9 +181,9 @@ with open(DV_file, 'r') as f:
     for line in lines:
         buff = line.split(" ")
         HiFiDVs_idx[i]  = float(buff[0])
-        HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ]
-        HiFiDVs_thi[i] = float(buff[4]) 
-        HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] 
+        HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ] #pos
+        HiFiDVs_thi[i] = float(buff[4]) #dv
+        HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] #constraints
         HiFiDVs_des[i] = buff[-1]
         i+=1
 
@@ -166,7 +192,7 @@ with open(DV_file, 'r') as f:
 # assuming they are organized in sections
 
 nid = np.size(HiFiDVs_pos,0)
-thr = 1e-3 #distance threshorld. If closer than that in 
+thr = 1e-3 #distance threshorld.
 yhf_web = []
 yhf_skn = []
 
@@ -402,6 +428,31 @@ def compute_edges(yhf_oR):
     return mids
 
 
+def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layers):
+    values = np.zeros(len(ylf_oR))
+
+    cnt = 0
+    for layer in lofi_layers:
+        #based on the name, detect the index 
+        try:
+            ilay = lofi_regions.index(layer["name"])
+            if debug:
+                print(f"Filling skin zone n# {ilay}: {layer['name']}")
+        except ValueError:
+            #skip this: might be a web that I don't want here
+            continue
+        
+        for j in range(nhf_skn):
+            values[2*j] = hifi_regions[j,ilay,1]
+            values[2*j+1] = hifi_regions[j,ilay,1]
+
+        layer["thickness"]["grid"] = ylf_oR.tolist()
+        layer["thickness"]["values"] = values.tolist()
+        cnt += 1
+
+    if cnt != len(lofi_regions):
+        print(f"WARNING: I did only fill {cnt} skin/web layers, but the expected number is {len(lofi_regions)}.")
+
 
 #because the Hifi has panels, let's try to mimic that in lofi and do a piecewise defined thickness
 yhf_web_mids = compute_edges(yhf_web_oR)   
@@ -426,56 +477,58 @@ if any(np.diff(ylf_skn_oR) <= 0):
 
 
 # --------- skin ------------
-values = np.zeros(len(ylf_skn_oR))
+fill_lofi_layers(ylf_skn_oR,skinLoFi,skin_hifi,lay_ls)
+# values = np.zeros(len(ylf_skn_oR))
 
-cnt = 0
-for layer in lay_ls:
-    #based on the name, detect the index 
-    try:
-        ilay = skinLoFi.index(layer["name"])
-        if debug:
-            print(f"Filling skin zone n# {ilay}: {layer['name']}")
-    except ValueError:
-        #skip this: might be a web that I don't want here
-        continue
+# cnt = 0
+# for layer in lay_ls:
+#     #based on the name, detect the index 
+#     try:
+#         ilay = skinLoFi.index(layer["name"])
+#         if debug:
+#             print(f"Filling skin zone n# {ilay}: {layer['name']}")
+#     except ValueError:
+#         #skip this: might be a web that I don't want here
+#         continue
     
-    for j in range(nhf_skn):
-        values[2*j] = skin_hifi[j,ilay,1]
-        values[2*j+1] = skin_hifi[j,ilay,1]
+#     for j in range(nhf_skn):
+#         values[2*j] = skin_hifi[j,ilay,1]
+#         values[2*j+1] = skin_hifi[j,ilay,1]
 
-    layer["thickness"]["grid"] = ylf_skn_oR.tolist()
-    layer["thickness"]["values"] = values.tolist()
-    cnt += 1
+#     layer["thickness"]["grid"] = ylf_skn_oR.tolist()
+#     layer["thickness"]["values"] = values.tolist()
+#     cnt += 1
 
-if cnt != len(skinLoFi):
-    print(f"WARNING: I did only fill {cnt} skin layers, but the expected number is {len(skinLoFi)}.")
+# if cnt != len(skinLoFi):
+#     print(f"WARNING: I did only fill {cnt} skin layers, but the expected number is {len(skinLoFi)}.")
 
 
 # --------- webs ------------
-values = np.zeros(len(ylf_web_oR))
+fill_lofi_layers(ylf_web_oR,websLoFi,webs_hifi,lay_ls)
+# values = np.zeros(len(ylf_web_oR))
 
-cnt = 0
-for layer in lay_ls:
-    #based on the name, detect the index 
-    try:
-        ilay = websLoFi.index(layer["name"])
-        if debug:
-            print(f"Filling web n# {ilay}: {layer['name']}")
-    except ValueError:
-        #skip this: might be a web that I don't want here
-        continue
+# cnt = 0
+# for layer in lay_ls:
+#     #based on the name, detect the index 
+#     try:
+#         ilay = websLoFi.index(layer["name"])
+#         if debug:
+#             print(f"Filling web n# {ilay}: {layer['name']}")
+#     except ValueError:
+#         #skip this: might be a skin that I don't want here
+#         continue
     
-    for j in range(nhf_web):
-        #the thickness is 0 where the web is not defined.
-        values[2*j] = max(webs_hifi[j,ilay,0],0.0)
-        values[2*j+1] = max(webs_hifi[j,ilay,0],0.0)
+#     for j in range(nhf_web):
+#         #the thickness is 0 where the web is not defined.
+#         values[2*j] = max(webs_hifi[j,ilay,0],0.0)
+#         values[2*j+1] = max(webs_hifi[j,ilay,0],0.0)
 
-    layer["thickness"]["grid"] = ylf_web_oR.tolist()
-    layer["thickness"]["values"] = values.tolist()
-    cnt += 1
+#     layer["thickness"]["grid"] = ylf_web_oR.tolist()
+#     layer["thickness"]["values"] = values.tolist()
+#     cnt += 1
 
-if cnt != nwebs:
-    print(f"WARNING: I did only fill {cnt} webs, but the expected number is {nwebs}.")
+# if cnt != nwebs:
+#     print(f"WARNING: I did only fill {cnt} webs, but the expected number is {nwebs}.")
 
 
 
@@ -743,7 +796,7 @@ if doPlots:
 if (writeDVGroupForColor or writeDVGroupMapping):
 
     #Read the group component file
-    with open(DVGroup_input, 'r') as f:
+    with open(os.path.join(DV_folder,DVGroup_input), 'r') as f:
         lines = f.readlines()
 
 

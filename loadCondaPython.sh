@@ -21,5 +21,10 @@ unset __conda_setup
 # <<< conda initialize <<<
 
 
+# Making hifi setup available so that we can use it when projecting HiFi DVs onto LoFi yaml
+export PYTHONPATH=$PYTHONPATH:/Users/dcaprace/OneDrive\ -\ BYU/BYU_ATLANTIS/ATLANTIS_UM-BYU_utils/SETUP
+
+
 #conda activate weis-env
-conda activate weis-env-v1
+#conda activate weis-env-v1
+conda activate weis-env-v1.0
