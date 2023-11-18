@@ -105,16 +105,18 @@ if bladeInput == "aluminum":
     websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
 elif bladeInput == "composite":
     #from TE_SS to TE_PS: list of the structural zones
-    skinLoFi = ["DP17_DP15_triax",
-                "DP15_DP13_triax",
-                "DP13_DP10_uniax",
-                "DP10_DP09_triax",
-                "DP09_DP08_uniax",
-                "DP08_DP07_triax",
-                "DP07_DP04_uniax",
-                "DP04_DP02_uniax",
-                "DP02_DP00_triax",]
-    websLoFi = ["Web_fore_biax","Web_aft_biax","Web_te_biax"] #the name they have in the LAYER section **NOT** the WEB section!
+    skinLoFi = [["DP17_DP15_triax","DP17_DP15_uniax","DP17_DP15_balsa"],
+                ["DP15_DP13_triax","DP15_DP13_uniax","DP15_DP13_balsa"],
+                ["DP13_DP10_uniax","DP13_DP10_triax"],
+                ["DP10_DP09_triax","DP10_DP09_triax","DP10_DP09_balsa"],
+                ["DP09_DP08_uniax","DP09_DP08_triax","DP09_DP08_balsa"],
+                ["DP08_DP07_triax","DP08_DP07_triax","DP08_DP07_balsa"],
+                ["DP07_DP04_uniax","DP07_DP04_triax"],
+                ["DP04_DP02_uniax","DP04_DP02_uniax","DP04_DP02_balsa"],
+                ["DP02_DP00_triax","DP02_DP00_uniax","DP02_DP00_balsa"]]
+    websLoFi = [["Web_fore_biax","Web_fore_balsa",],
+                ["Web_aft_biax","Web_aft_balsa",],
+                ["Web_te_triax","Web_te_balsa",]] #the name they have in the LAYER section **NOT** the WEB section!
     leHiFi = "SPAR.04" #identifier of the leading edge in the hifi descriptor
     ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
     psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
@@ -180,7 +182,7 @@ with open(DV_file, 'r') as f:
     i = 0
     for line in lines:
         buff = line.split(" ")
-        HiFiDVs_idx[i]  = float(buff[0])
+        HiFiDVs_idx[i]  = int(buff[0])
         HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ] #pos
         HiFiDVs_thi[i] = float(buff[4]) #dv
         HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] #constraints
@@ -307,13 +309,14 @@ lay_ls = turbine["components"]["blade"]["internal_structure_2d_fem"]["layers"]
 if len(skinLoFi) != ncPanelHiFi:
     raise ValueError("Can't match lofi and hifi representations because they use different number of panels.")
 
-skin_hifi = np.nan*np.empty((nhf_skn,ncPanelHiFi,3))
+skin_hifi = np.nan*np.empty((nhf_skn,ncPanelHiFi,4))
 skin_hifi[:,0,1] = 0 #the thickness
 skin_hifi[:,0,2] = 0 #the index of the component mapped to this specific panel
+skin_hifi[:,0,3] = 0.
 
 skin_hifi_con = np.nan*np.empty((nhf_skn,ncPanelHiFi,ncon))
 
-for i in range(nid):
+for i in range(nid): #looping over the groups
     if HiFiDVs_pos[i,span_dir] >= R0: #only do blade 1
         #determine my index along the span
         iz = np.where(yhf_skn >= HiFiDVs_pos[i,span_dir] - thr)[0][0]
@@ -348,6 +351,7 @@ for i in range(nid):
         skin_hifi[iz,ic,0] = loc_s
         skin_hifi[iz,ic,1] = HiFiDVs_thi[i]
         skin_hifi[iz,ic,2] = HiFiDVs_idx[i]
+        skin_hifi[iz,ic,3] = HiFiDVs_pos[i,span_dir]
 
         if ncon>0:
             skin_hifi_con[iz,ic,:] = HiFiDVs_con[i,:]
@@ -375,7 +379,7 @@ if len(websLoFi) != len(websHiFi):
 
 nwebs = len(websHiFi)
 
-webs_hifi = -np.ones((nhf_web,nwebs,2))
+webs_hifi = -np.ones((nhf_web,nwebs,4))
 webs_hifi_con = np.nan*np.empty((nhf_web,nwebs,ncon))
 
 for i in range(nid):
@@ -392,8 +396,10 @@ for i in range(nid):
             #unrecognized component, skip it
             continue
 
-        webs_hifi[iz,iw,0] = HiFiDVs_thi[i]
-        webs_hifi[iz,iw,1] = HiFiDVs_idx[i]
+        #leave [0] as is
+        webs_hifi[iz,iw,1] = HiFiDVs_thi[i]
+        webs_hifi[iz,iw,2] = HiFiDVs_idx[i]
+        webs_hifi[iz,iw,3] = HiFiDVs_pos[i,span_dir]
 
         if ncon>0:
             webs_hifi_con[iz,iw,:] = HiFiDVs_con[i,:]
@@ -428,30 +434,81 @@ def compute_edges(yhf_oR):
     return mids
 
 
-def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layers):
+def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layup):
     values = np.zeros(len(ylf_oR))
 
     cnt = 0
-    for layer in lofi_layers:
-        #based on the name, detect the index 
-        try:
-            ilay = lofi_regions.index(layer["name"])
+    for ireg,regions in enumerate(lofi_regions):
+        for region in np.atleast_1d(regions):
+            #based on the name, detect the index 
+            layer = []
+            for lay in lofi_layup:
+                if region in lay["name"]:
+                    layer = lay
+                    break
+            if not layer:
+                #skip this: might be a web that I don't want here
+                continue
+
             if debug:
-                print(f"Filling skin zone n# {ilay}: {layer['name']}")
-        except ValueError:
-            #skip this: might be a web that I don't want here
-            continue
-        
-        for j in range(nhf_skn):
-            values[2*j] = hifi_regions[j,ilay,1]
-            values[2*j+1] = hifi_regions[j,ilay,1]
+                print(f"Filling skin zone n# {ireg}: {region}")
 
-        layer["thickness"]["grid"] = ylf_oR.tolist()
-        layer["thickness"]["values"] = values.tolist()
-        cnt += 1
+            if bladeInput == 'composite':
+                
+                #look for the first non-0 index along the span. Some might be negative if, eg, a given spar only spans part of the span
+                idspan = np.where(hifi_regions[:,ireg,2]>=0,)[0]
+                if len(idspan)==0:
+                    raise ValueError(f"something unexpected happened: region {ireg} has no assignment. Isnt there a extra spar in the LoFi?")
+                idspan = idspan[0]
 
-    if cnt != len(lofi_regions):
-        print(f"WARNING: I did only fill {cnt} skin/web layers, but the expected number is {len(lofi_regions)}.")
+                #find which part of the hifi we are in for materials
+                i_glo = np.where(HiFiDVs_idx==hifi_regions[idspan,ireg,2])[0]
+                if len(i_glo)==0:
+                    raise ValueError(f"Could not find {hifi_regions[0,ireg,2]}")
+                i_glo = i_glo[0] #find the index in the global list of descriptors for the current layer (we use the dedcriptor at the root, 0, assuming its all the same along the span)
+                descipt_splt = HiFiDVs_des[i_glo].split("/",1)
+                compDescript = descipt_splt[1]
+                #inferring the userDescript (see how it's done in setup_tacs)                
+                if 'SPAR' in compDescript:
+                    userDescript = "SPARS" 
+                    compDescript = compDescript.replace("SPAR","SPARS")
+                else:
+                    userDescript = "CHORD_%d"%int(compDescript.split(".")[-1])
+   
+                _, part, _ = material_info.getPanelCoord(userDescript, [compDescript,])
+                if debug:
+                    print(f">>> {part}")
+
+                #get the relative layer thickness
+                #interpolate the thickness ratio at the correct radius for this region.
+                #   (caution: multiple layers may be made of the same material)
+                layup, _, _ = material_info.materials_spline(part)
+
+                r_glo = hifi_regions[:,ireg,3]
+                weight = np.zeros(nhf_skn)
+
+                my_material = region.split("_")[-1].upper()
+                mykey = "frac_"+my_material
+                for hifi_layer in layup:
+                    if mykey in hifi_layer:
+                        weight += np.interp(r_glo,layup["r_start"],layup[hifi_layer])
+            else: 
+                weight = np.ones(nhf_skn)        
+
+            for j in range(nhf_skn):
+                values[2*j] = hifi_regions[j,ireg,1] * weight[j]
+                values[2*j+1] = hifi_regions[j,ireg,1] * weight[j]
+
+            layer["thickness"]["grid"] = ylf_oR.tolist()
+            layer["thickness"]["values"] = values.tolist()
+            cnt += 1
+
+    if type(lofi_regions[0]) is list:
+        expected_regions = len([x for sl in lofi_regions for x in sl])
+    else:
+        expected_regions = len(lofi_regions)
+    if cnt != expected_regions:
+        print(f"WARNING: I did fill {cnt} skin/web layers, but the expected number is {expected_regions}.")
 
 
 #because the Hifi has panels, let's try to mimic that in lofi and do a piecewise defined thickness
@@ -665,7 +722,7 @@ fill_lofi_layers(ylf_web_oR,websLoFi,webs_hifi,lay_ls)
 if debug:
     print("Planform distro:")
     print(skin_hifi[:,:,2])
-    print(webs_hifi[:,:,1])
+    print(webs_hifi[:,:,2])
 
 
 # ==================== SAVE NEW TURBINE =====================================
@@ -691,7 +748,9 @@ if doPlots:
             values[2*j] = skin_hifi[j,isk,1]
             values[2*j+1] = skin_hifi[j,isk,1]
 
-        hp = ax.plot(ylf_skn_oR,values, '-', label=skinLoFi[isk])
+        lab = "_".join(np.atleast_1d(skinLoFi[isk])[0].split("_")[0:1])
+
+        hp = ax.plot(ylf_skn_oR,values, '-', label=lab)
             
     ax.set_ylabel("thickness [mm]")
     ax.set_xlabel("r/R")
@@ -707,8 +766,8 @@ if doPlots:
         values = np.zeros(len(ylf_web_oR))
         for j in range(nhf_web):
             #the thickness is 0 where the web is not defined.
-            values[2*j] = max(webs_hifi[j,isk,0],0.0)
-            values[2*j+1] = max(webs_hifi[j,isk,0],0.0)
+            values[2*j] = max(webs_hifi[j,isk,1],0.0)
+            values[2*j+1] = max(webs_hifi[j,isk,1],0.0)
             
         hp = ax.plot(ylf_web_oR,values, '-', label=websLoFi[isk])
             
@@ -734,17 +793,25 @@ if doPlots:
                     values[2*j,c] = skin_hifi_con[j,isk,c]
                     values[2*j+1,c] = skin_hifi_con[j,isk,c]
 
-            hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=skinLoFi[isk])
+            lab = "_".join(np.atleast_1d(skinLoFi[isk])[0].split("_")[0:1])
+
+            hp = ax.plot(ylf_skn_oR,values[:,0], '-', label=lab)
             if ncon>1:
                 ax.plot(ylf_skn_oR,values[:,1], '--', color=hp[0].get_color())
 
             if len(spars)>0:
-                if any( [ skinLoFi[isk] in sp for sp in spars ]):
-                    isp = spars.index(skinLoFi[isk])
-                    hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
-                    if ncon>1:
-                        ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
-                
+                # if any( [ sp in skinLoFi[isk] for sp in spars ]):
+                #     isp = spars.index(skinLoFi[isk])
+                #     hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
+                #     if ncon>1:
+                #         ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
+                for isp,sp in enumerate(spars):
+                    for skins in np.atleast_1d(skinLoFi[isk]):
+                        if sp in skins:
+                            hp = ax2.plot(ylf_skn_oR,values[:,0], '-', label=spars_legend[isp], color=hp[0].get_color())
+                            if ncon>1:
+                                ax2.plot(ylf_skn_oR,values[:,0], '--', label=spars_legend[isp], color=hp[0].get_color())
+                                    
         ax.set_ylabel(ylab)
         ax.set_xlabel("r/R")
         ax.legend()
@@ -849,7 +916,7 @@ if writeDVGroupForColor:
                 msk = np.where(skin_hifi[:,:,2] == comp)
                 id = msk[1] #index along the 2nd dim (chordwise)
                 if len(id) ==0: #this might be a spar
-                    msk = np.where(webs_hifi[:,:,1] == comp)
+                    msk = np.where(webs_hifi[:,:,2] == comp)
                     id = msk[1] + len(skinLoFi) #web index
                     if len(id) !=0: 
                         break
@@ -888,15 +955,15 @@ if writeDVGroupMapping:
                     skin_DV[i][j] = ig
 
     # webs
-    ni = len(webs_hifi)
-    nj = len(webs_hifi[0])
+    ni = webs_hifi.shape[0]
+    nj = webs_hifi.shape[1]
     webs_DV = [ [-1]*nj for i in range(ni)]
 
     for i in range(ni):
         for j in range(nj):
             # find what DV (i.e. panel group) the current panel belongs to            
             for ig,group in enumerate(HiFiDVs_mapping):
-                if webs_hifi[i,j,1] in group:
+                if webs_hifi[i,j,2] in group:
                     webs_DV[i][j] = ig
 
     print("COPY THIS TO dv2planform")
@@ -914,7 +981,7 @@ if writeDVGroupMapping:
     mappingDict = {}
 
     mappingDict["panels2planform"] = np.intc(skin_hifi[:,:,2]).tolist()
-    mappingDict["panels2webs"] = np.intc(webs_hifi[:,:,1]).tolist()
+    mappingDict["panels2webs"] = np.intc(webs_hifi[:,:,2]).tolist()
 
     mappingDict["dv2planform"] = skin_DV
     mappingDict["dv2webs"] = webs_DV
