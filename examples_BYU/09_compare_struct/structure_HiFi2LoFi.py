@@ -407,12 +407,11 @@ def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layup):
                 if len(i_glo)==0:
                     raise ValueError(f"Could not find {hifi_regions[0,ireg,2]}")
                 i_glo = i_glo[0] #find the index in the global list of descriptors for the current layer (we use the dedcriptor at the root, 0, assuming its all the same along the span)
-                descipt_splt = HiFiDVs_des[i_glo].split("/",1)
-                compDescript = descipt_splt[1]
+                
                 #inferring the userDescript (see how it's done in setup_tacs)                
+                compDescript = HiFiDVs_des[i_glo]
                 if 'SPAR' in compDescript:
                     userDescript = "SPARS" 
-                    compDescript = compDescript.replace("SPAR","SPARS")
                 else:
                     userDescript = "CHORD_%d"%int(compDescript.split(".")[-1])
    
