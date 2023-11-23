@@ -2,6 +2,55 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import curve_fit
 
+def __choose_which_side(mymin,mymax):
+    side = np.sign(abs(mymax)-abs(mymin))
+    extr = mymax if side>0 else mymin  #the max of the absolute value, but keep the sign
+    return extr, side
+
+def __compute_avg_std(mat,x):
+    avg = np.sum( mat * x ) / np.sum(mat)
+    std = np.sqrt( np.sum( mat * x**2 ) / np.sum(mat) - avg**2 )
+    return avg, std
+
+def __list_to_val(truncThr,k):
+    if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
+        threshold = None
+    elif hasattr(truncThr,"__len__"):
+        threshold = truncThr[k]
+    else:
+        threshold = truncThr
+    return threshold
+
+def __truncate_distro(x, mat, truncThr, avg, std, keepAtLeast, side, distr):
+    #compute the range over which the fit must be done, if user asked to reduce the dataset
+    if truncThr is None:
+        #don't trash or truncate anything
+        spn = np.array(range(len(mat)))
+        if distr in ['norm','gumbel_l','gumbel_r']:
+            p0 = [avg,std] #initial search point
+        else:
+            p0=[20,-avg/2,std/2]  #empirical way of determining initial condition, works ok with chi2
+    else:
+        if side>0:
+            spn = np.where(x>=avg+truncThr*std)[0]
+            if distr in ['norm','gumbel_l','gumbel_r']:
+                p0 = [avg+truncThr*std,std/truncThr] #move initial search point towards the tail
+            else:
+                p0=[5,avg,std/2]
+        else:
+            spn = np.where(x<=avg-truncThr*std)[0]
+            if distr in ['norm','gumbel_l','gumbel_r']:
+                p0 = [avg-truncThr*std,std/truncThr] #move initial search point towards the tail
+            else:
+                p0=[5,avg,std/2] #NOTE: not quite sure here
+    if keepAtLeast>0:
+        if len(spn) == 0:
+            print("Warning: empty set. Reintroduce the whole dataset.")
+            spn = range(len(mat))
+        elif len(spn)<keepAtLeast:
+            spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
+    
+    return spn, p0
 
 def extrapolate_extremeLoads_hist(rng,mat,extr_prob):
     nbins = np.shape(mat)[2]
@@ -20,7 +69,9 @@ def extrapolate_extremeLoads_hist(rng,mat,extr_prob):
     n_std_extreme = stats.norm.ppf(extr_prob)
     EXTR_life_B1 = p[:,:,0] + n_std_extreme * p[:,:,1]
 
-    return EXTR_life_B1, p
+    side = 1 #TODO
+
+    return EXTR_life_B1, p, side
     
 
 def extrapolate_extremeLoads(mat, distr_list, extr_prob):
@@ -50,10 +101,14 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
                 p[i,k,1] = params[1] #can I do something better than this?
                 p[i,k,2] = params[2] #can I do something better than this?
             
-    return extr, p
+    side = 1 #TODO
+                
+    return extr, p, side
 
-
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5, logfit=False, killUnder=1e-14,rng_mod=[]):
+"""
+Tool to extrapolate the extreme loads based on a fitting of the pdf.
+"""
+def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=15, logfit=False, killUnder=1e-14,rng_mod=[]):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
@@ -65,8 +120,10 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
     p = np.nan*np.zeros((n1,n2,3)) #not very general ...
 
     if len(rng_mod)==0:
-        rng_mod = np.ones((n1,n2))
+        rng_mod = np.ones((n2,n1))
         
+    side = np.ones((n2,n1)) #assuming all the quantities are extrapolated to the right
+
     for k in range(n2):
         stp_ = (rng[k][1]-rng[k][0])/(nbins)
         x_ = np.arange(rng[k][0]+stp_/2.,rng[k][1],stp_)
@@ -79,12 +136,10 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 imax = np.where(mat[i,k,:] >= 1e-16)
                 mymax = x[imax[0][-1]] if len(imax[0])>0 else 0.0
                 mymin = x[imax[0][0]] if len(imax[0])>0 else 0.0
-                extr[i,k] = mymax if abs(mymax)>abs(mymin) else mymin  #the max of the absolute value, but keep the sign
+                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
 
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                # std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
+                avg, _ = __compute_avg_std(mat[i,k,:], x)
                 p[i,k,0] = avg
-                # p[i,k,1] = std
                 p[i,k,1] = mymax - avg
                 p[i,k,2] = mymin - avg
 
@@ -94,10 +149,11 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 stp = stp_ * rng_mod[k,i]
 
                 imax = np.where(mat[i,k,:] >= thr)
-                extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
+                mymax = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
+                mymin = 2.*x[imax[0][0]] if len(imax[0])>0 else 0.0
+                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
 
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
+                avg, std = __compute_avg_std(mat[i,k,:], x)
                 p[i,k,0] = avg
                 p[i,k,1] = std #could do min/max instead, as above
                 
@@ -109,159 +165,133 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 #Curve fitting is a bit sensitive... we could also simply use the good old way.
                 # However, it curvefit does not succeed, maybe it is because the distro does not look like a normal at all... 
                 #   and would be a good idea not to force that and use a fallback condition instead.
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
+                avg, std = __compute_avg_std(mat[i,k,:], x)
                 params = (avg,std)
 
-                extr[i,k] = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
+                mymax = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
+                mymin = stats.norm.ppf(1.-extr_prob, loc = params[0], scale = params[1])
+
+                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
                 p[i,k,0] = params[0] #can I do something better than this?
                 p[i,k,1] = params[1] #can I do something better than this?
-        elif 'norm' in distr_list[k] or 'gumbel' in distr_list[k]: #--> 2 parameters distributions 
-            distr = getattr(stats,distr_list[k])
-            for i in range(n1):
-                x = x_ * rng_mod[k,i]
-                stp = stp_ * rng_mod[k,i]
-
-                failed = False
-
-                #compute average and std of entire dataset
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
-                #compute the range over which the fit must be done, if user asked to reduce the dataset
-                if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
-                    #don't trash or truncate anything
-                    spn = np.array(range(len(mat[i,k,:])))
-                    p0 = [avg,std] #initial search point
-                elif hasattr(truncThr,"__len__"):
-                    spn = np.where(x>=avg+truncThr[k]*std)[0]
-                    p0 = [avg+truncThr[k]*std,std/truncThr[k]] #move initial search point towards the tail
-                else:
-                    spn = np.where(x>=avg+truncThr*std)[0]
-                    p0 = [avg+truncThr*std,std/truncThr] #move initial search point towards the tail
-                if keepAtLeast>0:
-                    if len(spn) == 0:
-                        print("Warning: empty set. Reintroduce the whole dataset.")
-                        spn = range(len(mat[i,k,:]))
-                    elif len(spn)<keepAtLeast:
-                        spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
-
-                try: 
-                    if logfit:
-                        excData = 1.0 - np.cumsum(mat[i,k,:])*stp
-                        excData = excData[spn] #truncate 
-                        spn2 = np.where(excData>killUnder)[0] #further remove 0.0 and 1e-16 so that we can take the log safely
-                        logExcData = np.log( excData[spn2] ) 
-                        def logExc(x,b,c):
-                            return np.log(distr.sf(x,loc=b,scale=c))
-                        params, covf = curve_fit(logExc, x[spn[spn2]], logExcData, p0 = p0)  #best possible starting point
-                    else:
-                        params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = p0)  #best possible starting point
-                    perr = np.sqrt(np.diag(covf))
-                    if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
-                        failed = True
-                    extr[i,k] = distr.ppf(extr_prob, loc = params[0], scale = params[1])
-                except Exception:   
-                    failed = True
-
-                if failed:
-                    print(f"Could not determine params for a {distr_list[k]} at {k},{i}. Will just double the max load.")
-                    imax = np.where(mat[i,k,:] >= thr)
-                    extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
-                    params = (np.nan,0,1)
-                
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-        else: #--> 3 parameters distributions: chi2, weibul
-            distr = getattr(stats,distr_list[k])
-            for i in range(n1):
-                x = x_ * rng_mod[k,i]
-                stp = stp_ * rng_mod[k,i]
-
-                failed = False
-
-                #compute average and std of entire dataset
-                avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
-                #compute the range over which the fit must be done, if user asked to reduce the dataset
-                if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
-                    spn = np.array(range(len(mat[i,k,:])))
-                    #initial search point -- black magic
-                    # p0=[5,0,1000]  
-                    # p0=[50,0,50]    #init conditions: works well but not all the time
-                    p0=[20,-avg/2,std/2]  #empirical way of determining initial condition, works ok with chi2
-                elif hasattr(truncThr, "__len__"):
-                    spn = np.where(x>=avg+truncThr[k]*std)[0]
-                    p0=[5,avg,std/2]  #initial search point -- black magic. Works well for aero loads and moderate truncation.
-                else:
-                    spn = np.where(x>=avg+truncThr*std)[0]
-                    p0=[5,avg,std/2]  #initial search point -- black magic. Works well for aero loads and moderate truncation.
-
-                if keepAtLeast>0:
-                    if len(spn) == 0:
-                        print("Warning: empty set. Reintroduce the whole dataset.")
-                        spn = range(len(mat[i,k,:]))
-                    elif len(spn)<keepAtLeast:
-                        spn = range(spn[-1]-keepAtLeast,spn[-1]+1)
-
-                try:
-                    if logfit:
-                        excData = 1.0 - np.cumsum(mat[i,k,:])*stp
-                        excData = excData[spn] #truncate 
-                        spn2 = np.where(excData>killUnder)[0] #further remove 0.0 and 1e-16 so that we can take the log safely
-                        logExcData = np.log( excData[spn2] ) 
-                        def logExc(x,a,b,c):
-                            return np.log(distr.sf(x,a,loc=b,scale=c))
-                        params, covf = curve_fit(logExc, x[spn[spn2]], logExcData, p0 = p0)  #best possible starting point
-                    else:
-                        params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0=p0) 
-                    
-                    perr = np.sqrt(np.diag(covf))
-                    if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
-                        failed = True
-                    #     raise RuntimeError("")
-                    # print(f"{k},{i}: {perr}")
-                    extr[i,k] = distr.ppf(extr_prob, params[0], loc=params[1], scale=params[2])
-                except Exception:
-                    failed = True
-                    
-                if failed:
-                    print(f"Could not determine params for a {distr_list[k]} at {k},{i}. Will just double the max load.")
-                    imax = np.where(mat[i,k,:] >= thr)
-                    extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
-                    params = (np.nan,0,1)
-
-                p[i,k,0] = params[0] #can I do something better than this?
-                p[i,k,1] = params[1] #can I do something better than this?
-                p[i,k,2] = params[2] #can I do something better than this?
-
-    return extr, p
-
-
-
-
-# def determine_max(rng, mat):
-#     nbins = np.shape(mat)[2]
-#     n1 = np.shape(mat)[0]
-#     n2 = np.shape(mat)[1]
-
-#     thr = 1e-12 #threshold (normalized frequency)
-
-#     extr = np.zeros((n1,n2))
-
-#     p = np.nan*np.zeros((n1,n2,3)) 
-
-#     for k in range(n2):
-#         stp = (rng[k][1]-rng[k][0])/(nbins)
-#         x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
         
-#         for i in range(n1):
-#             imax = np.where(mat[i,k,:] >= thr)
-#             extr[i,k] = x[imax[0][-1]] if len(imax[0])>0 else 0.0
+        else: 
+            distr = getattr(stats,distr_list[k])
 
-#             #compute average and std of entire dataset
-#             avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-#             std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
-#             p[i,k,0] = avg
-#             p[i,k,1] = std
+            # Preparing my callbacks for various kinds of distributions, so we can handle 2-params and 3-params distribution fits
+            if distr_list[k] in ['norm', 'gumbel_r', 'gumbel_l',]: #--> 2 parameters distributions 
+                #the log of the survival function is used for logfit on the right, while the log of the cfd=1-sf is used on thr left
+                def logExc_left(x,b,c):
+                    return distr.logcdf(x,loc=b,scale=c)     
+                def logExc_right(x,b,c):
+                    # return np.log(distr.sf(x,loc=b,scale=c))
+                    return distr.logsf(x,loc=b,scale=c)                    
 
-#     return extr, p
+                # The percent point function on the left is 1 minus ppf on the right
+                def ppf_left(p,a):
+                    return distr.ppf(1.-p,loc=a[0],scale=a[1])
+                def ppf_right(p,a):
+                    return distr.ppf(p,loc=a[0],scale=a[1])
+                    
+            elif distr_list[k] in ['chi','chi2','weibull_min','weibull_max']: #--> 3 parameters distributions 
+                def logExc_left(x,a,b,c):
+                    return distr.logcdf(x,a,loc=b,scale=c)     
+                def logExc_right(x,a,b,c):
+                    return distr.logsf(x,a,loc=b,scale=c)                    
+
+                # The percent point function on the left is 1 minus ppf on the right
+                def ppf_left(p,a):
+                    return distr.ppf(1.-p,a[0],loc=a[1],scale=a[2])
+                def ppf_right(p,a):
+                    return distr.ppf(p,a[0],loc=a[1],scale=a[2])
+            
+            else:
+                raise ValueError("I don''t know this distribution. If it's a 2 or a 3 parameter distribution, it should be easy to add it.")
+                # To add a distrubution, add its name to the list above in this if clause.
+
+            def ExcDiscr_left(x,stp):
+                return np.cumsum(x)*stp
+            def ExcDiscr_right(x,stp):
+                return 1. - np.cumsum(x)*stp
+
+            logExc = [logExc_left, logExc_right]
+            percentile = [ppf_left, ppf_right]
+            ExcDiscr = [ExcDiscr_left, ExcDiscr_right]
+                   
+            # Actually fitting the stuff
+            for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
+
+                #compute average and std of entire dataset
+                avg, std = __compute_avg_std(mat[i,k,:], x)
+
+                #get the threshold, no matter if truncThr is a list or a value or None
+                threshold = __list_to_val(truncThr,k)
+
+
+                #fit and extrapolate for the left and right side separately
+                extr_lr = [0,]*2
+                params_lr = [(),()]
+                for si,leftright in enumerate([-1,1]):
+                    failed = False
+                    spn, p0 = __truncate_distro(x, mat[i,k,:], threshold, avg, std, keepAtLeast, leftright, distr_list[k])
+
+                    try: 
+                        if logfit:
+                            excData = ExcDiscr[si](mat[i,k,:],stp)
+                            # print(excData)
+                            excData = excData[spn] #truncate 
+                            spn2 = np.where(excData>killUnder)[0] #further remove 0.0 and 1e-16 so that we can take the log safely
+
+                            if len(spn2) <= 1:
+                                if len(spn2) == 1:
+                                    extr_lr[si] = x[spn[spn2]]
+                                    print(f"There was only one bin left for a {distr_list[k]} at {k},{i} on the {leftright} side. Will consider the extreme as that value.")
+                                elif len(spn2) == 0:
+                                    extr_lr[si] = 0.0
+                                    print(f"There was no bin left for a {distr_list[k]} at {k},{i} on the {leftright} side. Will consider the extreme as 0.0.")
+                                params = (np.nan,0,1)
+                                params_lr[si] = params
+                                continue
+
+                            logExcData = np.log( excData[spn2] ) 
+                            
+                            params, covf = curve_fit(logExc[si], x[spn[spn2]], logExcData, p0 = p0)  #best possible starting point
+                        else:
+                            params, covf = curve_fit(distr.pdf, x[spn], mat[i,k,spn], p0 = p0)  #best possible starting point
+
+                        perr = np.sqrt(np.diag(covf))
+                        if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
+                            failed = True
+
+                        extr_lr[si] = percentile[si](extr_prob, params)
+
+                    except TypeError:   
+                        # most likely due to the data restriction from spn[spn2] leads to fewer bins than the number of parameters to fit
+                        failed = True
+                    except RuntimeError:   
+                        # most likely failure of the optimization after too many calls
+                        failed = True
+
+                    if failed:
+                        print(f"Could not determine params for a {distr_list[k]} at {k},{i} on the {leftright} side. Will just double the max load.")
+                        imax = np.where(mat[i,k,:] >= thr)
+
+                        if leftright>0:
+                            extr_lr[si] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
+                        else:
+                            extr_lr[si] = 2.*x[imax[0][0]] if len(imax[0])>0 else 0.0                
+                        params = (np.nan,0,1)
+
+                    params_lr[si] = params
+                
+                extr[i,k], side[k,i] = __choose_which_side(extr_lr[0],extr_lr[1])
+                si = 0 if side[k,i]<0 else 1
+
+                l = len(params_lr[si])
+                p[i,k,0:l] = params_lr[si][0:l] 
+
+    return extr, p, side
+
+

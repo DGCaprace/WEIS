@@ -923,8 +923,6 @@ if __name__ == '__main__':
                                         # if extremeExtrapMeth ==2:
                                         #     EXTR_data_B1[i,j,:] = fulldata[lab%(i+1)]
 
-                                    if "BladeSparU" in lab:
-                                        k_SU = k
                                     k+=1
 
                                 del(fulldata)
@@ -939,11 +937,6 @@ if __name__ == '__main__':
                                 dx = (rng[k][1]-rng[k][0])/(nbins) * rng_mod[k,i]
                                 for j in range(n_aggr):
                                     EXTR_distro_B1[i,k,:,j] /= np.sum(EXTR_distro_B1[i,k,:,j]*dx)
-                                    if k == k_SU:
-                                        #CHANGE SIGN ASSUNING SUCTION SIDE WILL BE COMPRESSED
-                                        #  this is beacuse we identify the tail of the distribution on the positive side
-                                        EXTR_distro_B1[i,k,:,j] = -EXTR_distro_B1[i,k,:,j] 
-                                    
 
                         dlc["binned_loads"] = EXTR_distro_B1
 
@@ -971,43 +964,41 @@ if __name__ == '__main__':
                         # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
                         # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
                         # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
-                        distr = ["weibull_min","weibull_min","norm","norm","norm"]
-                        distr = ["chi2","chi2","chi2","chi2","chi2"]
-                        distr = ["chi2","chi2","twiceMaxForced","norm","norm"] #chi2 curve fitting may lead to oscillations in the output loading
-                        # distr = ["norm","norm","norm","norm","norm"] #safer from a numerical perspective
-                        # distr = ["gumbel_r","gumbel_r","gumbel_r","gumbel_r","gumbel_r",]
-                        # distr = ["weibull_min","weibull_min","weibull_min","weibull_min","weibull_min"]
-                        # distr = ["normForced","normForced","normForced","normForced","normForced"]
+                        
+
                         # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
                         truncThr = None #no restriction
 
                         # new recommended setup:
-                        distr = ["norm","norm","twiceMaxForced","norm","norm","norm","norm","norm"] 
-                        # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
-                        # truncThr = [0.5,1.0,None,0.5,0.5,0.5,0.5,0.5] 
+                        distr = ["norm","norm","norm","norm","norm","norm","norm","norm"] 
+                        truncThr = [0.5,1.0,1.0,0.5,1.0,0.5,0.5,1.0] 
+                        #NOTE:
+                        # [norm and 1.0] seems to be working well for bimodal distributions. That's the case for MLx,FLz,StrainTE.
+                        # Fn and Ft are skewed distributions, but their tail is actually well fitted by a normal. Ft could work with a gumbel_r
+                        # FLz has a super weird tri-modal shape
+                        # MLx is super symmetric wrt 0
+                        # MLy is super weird: the distribution is towards >0 but the tail is actually long towards the negative numbers, leading to an overall <0 extreme load...!
+                        #NOTE general:
+                        # weibull is a good distribution but it's not easy to use it for both left and right tails since it's skewed...
+                        # norm is definitely the easiest to use and gives the best fits anyway
 
-                        #TODO: check which distr is appropriate for strain?
                         # ------------
 
 
                         for j in range(n_aggr):
                             if extr_meth ==0:
-                                # EXTR_life_B1, EXTR_distr_p = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
+                                # EXTR_life_B1, EXTR_distr_p, sice = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
                                 EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*n_processed, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
+                                raise ValueError("DEPRECATED EXTREME LOAD EXTRAPOLATION METHOD.")
                             elif extr_meth ==1:
                                 #assumes only normal
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob) #TODO: rng_mod
+                                EXTR_life_B1, EXTR_distr_p, side = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob) #TODO: rng_mod
+                                raise ValueError("DEPRECATED EXTREME LOAD EXTRAPOLATION METHOD.")
                             # elif extremeExtrapMeth ==2: #DEPREC
                             #     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1[:,:,:,j], distr, IEC_50yr_prob)
                             elif extr_meth ==3:
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
+                                EXTR_life_B1, EXTR_distr_p, side = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
-                            
-                            #PUTTING BACK THE CORRECT SIGN
-                            EXTR_life_B1[:,k_SU] = -EXTR_life_B1[:,k_SU] 
-                            EXTR_distro_B1[:,k_SU,:,:] = -EXTR_distro_B1[:,k_SU,:,:] 
-                            #WHAT TO DO WITH params???
-                            
                             # save data to the dict.
                             dlc["extr_loads"].append(EXTR_life_B1)
                             dlc["extr_params"].append(EXTR_distr_p)
@@ -1019,7 +1010,7 @@ if __name__ == '__main__':
 
                     # ------------ DUMPING RESULTS ------------    
                     if saveExtrNpy:
-                        np.savez(saveExtrNpy, rng=rng, rng_mod=rng_mod, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, truncThr=truncThr, dt=dt)
+                        np.savez(saveExtrNpy, rng=rng, rng_mod=rng_mod, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, truncThr=truncThr, dt=dt, side=side)
                 
                     # ------------ PLOTTING ------------    
                     for k in range(n_processed):
@@ -1050,7 +1041,17 @@ if __name__ == '__main__':
                                 c1 = ss1[0].get_color()
                                 ax1.plot(dlc["extr_loads"][j][i,k] , 0, 'x' , color=c1)
                             
-                                dsf1= 1.-np.cumsum(dlc["binned_loads"][i,k,:,j] )*dx 
+                                if side[k,i]>0: 
+                                    #right extrap
+                                    dsf1= 1.-np.cumsum(dlc["binned_loads"][i,k,:,j] )*dx 
+                                    cpl = 0. #survaval function.
+                                    cplf = 1. #survival function. 
+                                else:
+                                    #left extrap
+                                    dsf1= np.cumsum(dlc["binned_loads"][i,k,:,j] )*dx 
+                                    cpl = 1. #cdf function
+                                    cplf = -1. #cdf function
+
                                 dsf1[(dsf1>=1.-1E-16) | (dsf1<=1E-16)] = np.nan
                                 ax2.plot(xbn,dsf1)
                                 ax2.plot(dlc["extr_loads"][j][i,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
@@ -1064,15 +1065,15 @@ if __name__ == '__main__':
                                         pass
                                     elif "normForced" in distr[k]:
                                         ax1.plot(xx, stats.norm.pdf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
-                                        ax2.plot(xx, stats.norm.sf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
+                                        ax2.plot(xx, cpl+cplf*stats.norm.sf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
                                     elif "norm" in distr[k] or "gumbel" in distr[k]: #2params models
                                         this = getattr(stats,distr[k])
                                         ax1.plot(xx, this.pdf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
-                                        ax2.plot(xx, this.sf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
+                                        ax2.plot(xx, cpl+cplf*this.sf(xx, loc = dlc["extr_params"][j][i,k,0], scale = dlc["extr_params"][j][i,k,1]),'--', alpha=0.6 , color=c1)
                                     else: #3params models
                                         this = getattr(stats,distr[k])
                                         ax1.plot(xx, this.pdf(xx, dlc["extr_params"][j][i,k,0], loc = dlc["extr_params"][j][i,k,1], scale = dlc["extr_params"][j][i,k,2]),'--', alpha=0.6 , color=c1)
-                                        ax2.plot(xx, this.sf(xx, dlc["extr_params"][j][i,k,0], loc = dlc["extr_params"][j][i,k,1], scale = dlc["extr_params"][j][i,k,2]),'--', alpha=0.6 , color=c1)
+                                        ax2.plot(xx, cpl+cplf*this.sf(xx, dlc["extr_params"][j][i,k,0], loc = dlc["extr_params"][j][i,k,1], scale = dlc["extr_params"][j][i,k,2]),'--', alpha=0.6 , color=c1)
                         f1.savefig(f"fit_{labs[k].split(' ')[0]}_{distr[k]}.png")
                         f2.savefig(f"fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.png")
 

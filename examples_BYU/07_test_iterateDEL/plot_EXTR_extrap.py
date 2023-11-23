@@ -40,11 +40,18 @@ ls = 12
 mydistr = [] #use the one coming from the file 
 mytruncThr = [] #We discard all data on the left of the distro `avg + truncThr * std` for the fit. If None, keep everything.
 
-mydistr = ["norm","norm","norm","norm","norm","maxForced","norm","norm"] 
-mytruncThr = [0.5,1.0,1.0,0.5,0.5,None,1.0,0.5] 
-#[norm and 1.0] seems to be working well for bimodal distributions
+# mydistr = ["norm","norm","norm","norm","norm","norm","norm","norm"] 
+# mytruncThr = [0.5,1.0,1.0,0.5,1.0,0.5,0.5,1.0] 
+# #NOTE:
+# # [norm and 1.0] seems to be working well for bimodal distributions. That's the case for MLx,FLz,StrainTE.
+# # Fn and Ft are skewed distributions, but their tail is actually well fitted by a normal. Ft could work with a gumbel_r
+# # FLz has a super weird tri-modal shape
+# # MLx is super symmetric wrt 0
+# # MLy is super weird: the distribution is towards >0 but the tail is actually long towards the negative numbers, leading to an overall <0 extreme load...!
+# #NOTE general:
+# # weibull is a good distribution but it's not easy to use it for both left and right tails since it's skewed...
+# # norm is definitely the easiest to use and gives the best fits anyway
 
-k_SU = 5 #revert the upper spar strain when computing the tail of the distribution so that it's on the right (>0)
 
 # ========================================
 
@@ -84,6 +91,11 @@ if not( mytruncThr is None or len(mytruncThr)!=0 ):
 else:
     truncThr = mytruncThr
 
+if "side" not in f:
+    side = np.ones(EXTR_distro_B1.shape[1]) #assuming all the quantities are extrapolated to the right
+else:
+    side = f["side"]
+
 dt = f["dt"]
 
 rng = f["rng"] #can't change range and bins without recomputing the whole binning, i.e. rerunning the complete postpro
@@ -113,12 +125,7 @@ for k in range(n2):
                 print(f'WARNING: member [{i},{k},:] of the distro matrix does not sum to 1 ({dsum}). Recommend turning reNormalize=True.')
 
 
-if reProcess:
-    distr = mydistr
-
-    #CHANGE SIGN ASSUNING SUCTION SIDE WILL BE COMPRESSED
-    EXTR_distro_B1[:,k_SU,:] = -EXTR_distro_B1[:,k_SU,:]                                
-                                    
+if reProcess:                                    
     #TODO: instead of copy pasting from driver, should do this a little better
     # if extremeExtrapMeth ==1:
     #     #assumes only normal
@@ -126,14 +133,10 @@ if reProcess:
     # elif extremeExtrapMeth ==2:
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
     # elif extremeExtrapMeth ==3:
-    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
-
-    #REVERTING
-    EXTR_life_B1[:,k_SU] = -EXTR_life_B1[:,k_SU] 
-    EXTR_distro_B1[:,k_SU,:] = -EXTR_distro_B1[:,k_SU,:] 
+    EXTR_life_B1, EXTR_distr_p, side = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
 
-for k in range(8):
+for k in range(EXTR_life_B1.shape[1]):
     f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     f2,ax2 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
 
@@ -170,8 +173,22 @@ for k in range(8):
         ax2.set_xlabel(legs[k],fontsize=fs)
         ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])                
 
-        dsf1= 1.-np.cumsum(EXTR_distro_B1[i,k,:] )*dx 
+        if side[k,i]>0: 
+            #right extrap
+            x_upper = np.min([EXTR_life_B1[i,k],rng[k][1]*100])
+            xx = np.arange(rng[k][0]+dx/2.,x_upper,dx)
+            dsf1= 1.-np.cumsum(EXTR_distro_B1[i,k,:] )*dx 
+            cpl = 0. #survaval function.
+            cplf = 1. #survival function. 
+        else:
+            #left extrap
+            x_lower = np.max([EXTR_life_B1[i,k],rng[k][0]*100])
+            xx = np.arange(x_lower+dx/2,rng[k][1],dx)
+            dsf1= np.cumsum(EXTR_distro_B1[i,k,:] )*dx 
+            cpl = 1. #cdf function
+            cplf = -1. #cdf function
         dsf1[(dsf1>=1.-killUnder) | (dsf1<=killUnder)] = np.nan
+        
         ax2.plot(xbn,dsf1)
         ax2.plot(EXTR_life_B1[i,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
         
@@ -182,21 +199,21 @@ for k in range(8):
             pass
         elif "normForced" in distr[k]:
             ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
-            ax2.plot(xx, stats.norm.sf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
+            ax2.plot(xx, cpl+cplf*stats.norm.sf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
         elif "norm" in distr[k] or "gumbel" in distr[k]: #2params models
             this = getattr(stats,distr[k])
             ax1.plot(xx, this.pdf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
-            ax2.plot(xx, this.sf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
+            ax2.plot(xx, cpl+cplf*this.sf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
         else: #3params models
             this = getattr(stats,distr[k])
             ax1.plot(xx, this.pdf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
-            ax2.plot(xx, this.sf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
+            ax2.plot(xx, cpl+cplf*this.sf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
 
         if not truncThr is None and not truncThr[k] is None:
             avg = np.sum( EXTR_distro_B1[i,k,:] * xbn ) / np.sum(EXTR_distro_B1[i,k,:])
             std = np.sqrt( np.sum( EXTR_distro_B1[i,k,:] * xbn**2 ) / np.sum(EXTR_distro_B1[i,k,:]) - avg**2 )
             print(f"AVG and STD:",avg,std)
-            ax1.plot([avg+truncThr[k]*std,]*2, [0.,2*np.max(EXTR_distro_B1[i,k,:])],'.-', color=c1)
+            ax1.plot([avg+truncThr[k]*side[k,i]*std,]*2, [0.,2*np.max(EXTR_distro_B1[i,k,:])],'.-', color=c1)
 
         
         # ax2.plot([xx[0],xx[-1]],[1.-IEC_50yr_prob,1.-IEC_50yr_prob],'-k',linewidth=0.5 )
@@ -216,7 +233,7 @@ ls = 15
 nx=np.size(EXTR_life_B1,axis=0)
 locs = np.linspace(0.,1.,nx)
 
-for k in range(5):
+for k in range(EXTR_life_B1.shape[1]):
     f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     ax1.tick_params(labelsize=ls)
 
