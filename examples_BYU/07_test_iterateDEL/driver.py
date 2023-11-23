@@ -11,7 +11,7 @@ from weis.inputs import load_modeling_yaml
 
 import sys, shutil
 import numpy as np
-from scipy import stats
+from scipy import stats, interpolate as scItrp
 from time import time
 import extrapolate_utils as exut  #TODO make this a module or something
 import matplotlib.pyplot as plt
@@ -159,19 +159,32 @@ if __name__ == '__main__':
     #XXX: CAUTION: this required some manual tuning, and will need retuning for another turbine...
 
     # total number of bins
-    nbins = 500        
+    nbins = 1000        
     
     # total range over which we bin, for each quantity monitored.
     #   The range should span the entire range of values we can get from the simultaion (from min to max)
     rng = [ (-2.e4,2.e4), #Fx [N/m]
             (-2.e4,2.e4),  #Fy [N/m]
-            (-2.e4,2.e4),  #MLx [kNm]
+            (-5.e4,5.e4),  #MLx [kNm]
             (-5.e4,5.e4),  #MLy [kNm]
             (-5.e3,5.e3),  #FLz [kN]
             (-6.e-3,6.e-3),  #StrainU [-]
             (-6.e-3,6.e-3),  #StrainL [-]
             (-6.e-3,6.e-3),  #StrainTE [-]
             ]
+    # Since this range may be too large in some regions of the blades (e.g. at the tip, where the loads are smaller)
+    #  we allow to modulate the range. rng will be scaled by a factor interpolated from rng_modulation based on
+    #  the spanwise location.
+    rng_modulation_x   = [0,.75,1]
+    rng_modulation_val = [ [1,]*3 ,
+                           [1,]*3 ,
+                           [1,1,.25] ,
+                           [1,1,.25] ,
+                           [1,1,.25] ,
+                           [1,1,.1] ,
+                           [1,1,.1] ,
+                           [1,1,.1] ,
+                         ]
 
 
     #-Extreme load extrapolation-:
@@ -842,6 +855,10 @@ if __name__ == '__main__':
                     # common values
                     dt = modeling_options["Level3"]["simulation"]["DT"]
                     
+                    # Computing modulation of the range
+                    locs = np.linspace(0.,1.,nx)
+                    itrp_kern = scItrp.interp1d( rng_modulation_x, rng_modulation_val, )
+                    rng_mod = itrp_kern(locs)                         
 
                     for dlc_num in DLCs_extr: 
                         dlc = DLCs_extr[dlc_num]
@@ -914,12 +931,12 @@ if __name__ == '__main__':
 
                         #normalizing the distributions
                         for k in range(n_processed):
-                            dx = (rng[k][1]-rng[k][0])/(nbins)
-                            x = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)
+                            # dx = (rng[k][1]-rng[k][0])/(nbins)
                             # normFac = 1 / (nt * dx) #normalizing factor, to bring the EXTR_distro count into non-dimensional proability
                             # EXTR_distro_B1[:,k,:] *= normFac 
                             #--> there might be missing timesteps or anything... let's just make sure the distro sum to 1.00
                             for i in range(nx):
+                                dx = (rng[k][1]-rng[k][0])/(nbins) * rng_mod[k,i]
                                 for j in range(n_aggr):
                                     EXTR_distro_B1[i,k,:,j] /= np.sum(EXTR_distro_B1[i,k,:,j]*dx)
                                     if k == k_SU:
@@ -967,6 +984,7 @@ if __name__ == '__main__':
                         # new recommended setup:
                         distr = ["norm","norm","twiceMaxForced","norm","norm","norm","norm","norm"] 
                         # truncThr = [0.5,1.0,None,0.5,0.5] #recommend using None if logfit=true
+                        # truncThr = [0.5,1.0,None,0.5,0.5,0.5,0.5,0.5] 
 
                         #TODO: check which distr is appropriate for strain?
                         # ------------
@@ -975,14 +993,14 @@ if __name__ == '__main__':
                         for j in range(n_aggr):
                             if extr_meth ==0:
                                 # EXTR_life_B1, EXTR_distr_p = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*n_processed, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
+                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], ["maxForced",]*n_processed, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
                             elif extr_meth ==1:
                                 #assumes only normal
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob)
+                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_hist(rng, EXTR_distro_B1[:,:,:,j],IEC_50yr_prob) #TODO: rng_mod
                             # elif extremeExtrapMeth ==2: #DEPREC
                             #     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1[:,:,:,j], distr, IEC_50yr_prob)
                             elif extr_meth ==3:
-                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
+                                EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
                             
                             #PUTTING BACK THE CORRECT SIGN
@@ -1001,12 +1019,12 @@ if __name__ == '__main__':
 
                     # ------------ DUMPING RESULTS ------------    
                     if saveExtrNpy:
-                        np.savez(saveExtrNpy, rng=rng, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, dt=dt)
+                        np.savez(saveExtrNpy, rng=rng, rng_mod=rng_mod, nbins=nbins, DLCs_extr=DLCs_extr, distr=distr, truncThr=truncThr, dt=dt)
                 
                     # ------------ PLOTTING ------------    
                     for k in range(n_processed):
                         stp = (rng[k][1]-rng[k][0])/(nbins)
-                        xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
+                        xbn_ = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
                         dx = (rng[k][1]-rng[k][0])/(nbins)
                         
                         f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
@@ -1017,7 +1035,7 @@ if __name__ == '__main__':
                         ax2.set_xlabel(labs[k])
                         ax2.set_ylim([ (1.-IEC_50yr_prob)/2. , 2.])         
 
-                        xx = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)       
+                        xx_ = np.arange(rng[k][0]+dx/2.,rng[k][1],dx)       
   
                         for dlc_num in DLCs_extr: 
                             dlc = DLCs_extr[dlc_num] 
@@ -1025,6 +1043,9 @@ if __name__ == '__main__':
                             j = 0 #just plot the first timeseries or the aggregated one
 
                             for i in [5,15,25]: #arbiratry number spanwise stations
+                                xx=xx_*rng_mod[k,i]
+                                xbn=xbn_*rng_mod[k,i]
+
                                 ss1 = ax1.plot(xbn,dlc["binned_loads"][i,k,:,j] )
                                 c1 = ss1[0].get_color()
                                 ax1.plot(dlc["extr_loads"][j][i,k] , 0, 'x' , color=c1)

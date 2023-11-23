@@ -53,7 +53,7 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
     return extr, p
 
 
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5, logfit=False, killUnder=1e-14):
+def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=5, logfit=False, killUnder=1e-14,rng_mod=[]):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
@@ -64,12 +64,17 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
 
     p = np.nan*np.zeros((n1,n2,3)) #not very general ...
 
+    if len(rng_mod)==0:
+        rng_mod = np.ones((n1,n2))
+        
     for k in range(n2):
-        stp = (rng[k][1]-rng[k][0])/(nbins)
-        x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
+        stp_ = (rng[k][1]-rng[k][0])/(nbins)
+        x_ = np.arange(rng[k][0]+stp_/2.,rng[k][1],stp_)
 
         if 'maxForced'  in distr_list[k]:
             for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
                 #ABSOLUTE MAX: even if it only occurs once (using double precision threshold)
                 imax = np.where(mat[i,k,:] >= 1e-16)
                 mymax = x[imax[0][-1]] if len(imax[0])>0 else 0.0
@@ -85,6 +90,9 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
 
         elif 'twiceMaxForced'  in distr_list[k]:
             for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
+
                 imax = np.where(mat[i,k,:] >= thr)
                 extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
 
@@ -95,6 +103,9 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 
         elif 'normForced' in distr_list[k]:
             for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
+
                 #Curve fitting is a bit sensitive... we could also simply use the good old way.
                 # However, it curvefit does not succeed, maybe it is because the distro does not look like a normal at all... 
                 #   and would be a good idea not to force that and use a fallback condition instead.
@@ -108,17 +119,20 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
         elif 'norm' in distr_list[k] or 'gumbel' in distr_list[k]: #--> 2 parameters distributions 
             distr = getattr(stats,distr_list[k])
             for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
+
                 failed = False
 
                 #compute average and std of entire dataset
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
-                if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
+                if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     #don't trash or truncate anything
                     spn = np.array(range(len(mat[i,k,:])))
                     p0 = [avg,std] #initial search point
-                elif isinstance(truncThr,list):
+                elif hasattr(truncThr,"__len__"):
                     spn = np.where(x>=avg+truncThr[k]*std)[0]
                     p0 = [avg+truncThr[k]*std,std/truncThr[k]] #move initial search point towards the tail
                 else:
@@ -160,19 +174,22 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
         else: #--> 3 parameters distributions: chi2, weibul
             distr = getattr(stats,distr_list[k])
             for i in range(n1):
+                x = x_ * rng_mod[k,i]
+                stp = stp_ * rng_mod[k,i]
+
                 failed = False
 
                 #compute average and std of entire dataset
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
                 std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
-                if truncThr is None or (isinstance(truncThr,list) and ( (len(truncThr)==0) or (truncThr[k] is None) )):
+                if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     spn = np.array(range(len(mat[i,k,:])))
                     #initial search point -- black magic
                     # p0=[5,0,1000]  
                     # p0=[50,0,50]    #init conditions: works well but not all the time
                     p0=[20,-avg/2,std/2]  #empirical way of determining initial condition, works ok with chi2
-                elif isinstance(truncThr, list):
+                elif hasattr(truncThr, "__len__"):
                     spn = np.where(x>=avg+truncThr[k]*std)[0]
                     p0=[5,avg,std/2]  #initial search point -- black magic. Works well for aero loads and moderate truncation.
                 else:

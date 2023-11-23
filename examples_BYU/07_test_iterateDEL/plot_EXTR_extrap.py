@@ -35,12 +35,14 @@ pltSize = (6, 3)
 fs = 14
 ls = 12
 
-truncThr = None #We discard all data on the left of the distro `avg + truncThr * std` for the fit. If None, keep everything.
-# truncThr = 0.5
+#CAUTION: we assume extremeExtrapMeth=3
 
-# # new recommended setup:
-# mydistr = ["norm","norm","twiceMaxForced","norm","norm"] 
-# # truncThr = [0.5,1.0,None,0.5,0.5]
+mydistr = [] #use the one coming from the file 
+mytruncThr = [] #We discard all data on the left of the distro `avg + truncThr * std` for the fit. If None, keep everything.
+
+mydistr = ["norm","norm","norm","norm","norm","maxForced","norm","norm"] 
+mytruncThr = [0.5,1.0,1.0,0.5,0.5,None,1.0,0.5] 
+#[norm and 1.0] seems to be working well for bimodal distributions
 
 k_SU = 5 #revert the upper spar strain when computing the tail of the distribution so that it's on the right (>0)
 
@@ -50,8 +52,6 @@ killUnder = 1E-14 #remove all values in the experimental distribution under this
 
 f= np.load(folder + os.sep + saveExtrNpy, allow_pickle=True)
 
-rng = f["rng"]
-nbins = f["nbins"]
 
 # #For new files:
 # dlcs = f["iec_extr"]  
@@ -69,10 +69,29 @@ EXTR_distro_B1 = dlc["binned_loads"]
 EXTR_life_B1 = dlc["extr_loads"][0]
 EXTR_distr_p = dlc["extr_params"][0]
 EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0]
-mydistr = f["distr"]
 
-distr = f["distr"]
+if len(mydistr)==0:
+    distr = f["distr"]
+else: 
+    distr = mydistr
+    
+if not( mytruncThr is None or len(mytruncThr)!=0 ):
+    if "truncThr" in f:
+        truncThr = f["truncThr"]
+    else:
+        print("WARNING: truncThr not in the npz file. I am assuming =None.")
+    truncThr = None
+else:
+    truncThr = mytruncThr
+
 dt = f["dt"]
+
+rng = f["rng"] #can't change range and bins without recomputing the whole binning, i.e. rerunning the complete postpro
+nbins = f["nbins"]
+if "rng_mod" in f:
+    rng_mod = f["rng_mod"]
+else:
+    rng_mod = np.ones((EXTR_distro_B1.shape[1],EXTR_distro_B1.shape[0]))
 
 IEC_50yr_prob = 1. - dt / (Textrm*3600*24*365)
 
@@ -108,7 +127,7 @@ if reProcess:
     # elif extremeExtrapMeth ==2:
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
     # elif extremeExtrapMeth ==3:
-    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder)
+    EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
     #REVERTING
     EXTR_life_B1[:,k_SU] = -EXTR_life_B1[:,k_SU] 
@@ -132,7 +151,9 @@ for k in range(8):
     for i in iplt:
         stp = (rng[k][1]-rng[k][0])/(nbins)
         xbn = np.arange(rng[k][0]+stp/2.,rng[k][1],stp) #(bns[:-1] + bns[1:])/2.
-        dx = (rng[k][1]-rng[k][0])/(nbins)
+        stp *= rng_mod[k,i]
+        xbn *= rng_mod[k,i]
+        dx = stp
         
         
         ax1.set_xlabel(legs[k],fontsize=fs)
@@ -155,12 +176,10 @@ for k in range(8):
         ax2.plot(xbn,dsf1)
         ax2.plot(EXTR_life_B1[i,k] , 1.-IEC_50yr_prob, 'x' , color=c1)
         
-        
-        x_upper = np.min([EXTR_life_B1[i,k],rng[k][1]*100])
-        xx = np.arange(rng[k][0]+dx/2.,x_upper,dx)
-
 
         if "twiceMaxForced" in distr[k]:
+            pass
+        if "maxForced" in distr[k]:
             pass
         elif "normForced" in distr[k]:
             ax1.plot(xx, stats.norm.pdf(xx, loc = EXTR_distr_p[i,k,0], scale = EXTR_distr_p[i,k,1]),'--', alpha=0.6 , color='black')
@@ -173,6 +192,14 @@ for k in range(8):
             this = getattr(stats,distr[k])
             ax1.plot(xx, this.pdf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
             ax2.plot(xx, this.sf(xx, EXTR_distr_p[i,k,0], loc = EXTR_distr_p[i,k,1], scale = EXTR_distr_p[i,k,2]),'--', alpha=0.6 , color='black')
+
+        if not truncThr is None and not truncThr[k] is None:
+            avg = np.sum( EXTR_distro_B1[i,k,:] * xbn ) / np.sum(EXTR_distro_B1[i,k,:])
+            std = np.sqrt( np.sum( EXTR_distro_B1[i,k,:] * xbn**2 ) / np.sum(EXTR_distro_B1[i,k,:]) - avg**2 )
+            print(f"AVG and STD:",avg,std)
+            ax1.plot([avg+truncThr[k]*std,]*2, [0.,2*np.max(EXTR_distro_B1[i,k,:])],'.-', color=c1)
+
+        
         # ax2.plot([xx[0],xx[-1]],[1.-IEC_50yr_prob,1.-IEC_50yr_prob],'-k',linewidth=0.5 )
     f1.tight_layout()
     f2.tight_layout()
