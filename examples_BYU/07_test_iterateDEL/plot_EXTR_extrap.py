@@ -101,14 +101,13 @@ n1 = np.shape(EXTR_distro_B1)[0]
 n2 = np.shape(EXTR_distro_B1)[1]
 
 for k in range(n2):
-    stp = (rng[k][1]-rng[k][0])/(nbins)
-    x = np.arange(rng[k][0]+stp/2.,rng[k][1],stp)
-
     if reNormalize:
         for i in range(n1):
+            stp = (rng[k][1]-rng[k][0])/(nbins) * rng_mod[k,i]
             EXTR_distro_B1[i,k,:] /= np.sum(EXTR_distro_B1[i,k,:]*stp)
     else:
         for i in range(n1):
+            stp = (rng[k][1]-rng[k][0])/(nbins) * rng_mod[k,i]
             dsum = np.sum(EXTR_distro_B1[i,k,:]*stp)
             if abs(dsum-1.0) > 1e-5 and not reNormalize:
                 print(f'WARNING: member [{i},{k},:] of the distro matrix does not sum to 1 ({dsum}). Recommend turning reNormalize=True.')
