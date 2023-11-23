@@ -82,7 +82,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 extr[i,k] = mymax if abs(mymax)>abs(mymin) else mymin  #the max of the absolute value, but keep the sign
 
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                # std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                # std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
                 p[i,k,0] = avg
                 # p[i,k,1] = std
                 p[i,k,1] = mymax - avg
@@ -97,7 +97,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 extr[i,k] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0 #max
 
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
                 p[i,k,0] = avg
                 p[i,k,1] = std #could do min/max instead, as above
                 
@@ -110,7 +110,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
                 # However, it curvefit does not succeed, maybe it is because the distro does not look like a normal at all... 
                 #   and would be a good idea not to force that and use a fallback condition instead.
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
                 params = (avg,std)
 
                 extr[i,k] = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
@@ -126,7 +126,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
 
                 #compute average and std of entire dataset
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
                 if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     #don't trash or truncate anything
@@ -181,7 +181,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=No
 
                 #compute average and std of entire dataset
                 avg = np.sum( mat[i,k,:] * x ) / np.sum(mat[i,k,:])
-                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg )
+                std = np.sqrt( np.sum( mat[i,k,:] * x**2 ) / np.sum(mat[i,k,:]) - avg**2 )
                 #compute the range over which the fit must be done, if user asked to reduce the dataset
                 if truncThr is None or (hasattr(truncThr,"__len__") and ( (len(truncThr)==0) or (truncThr[k] is None) )):
                     spn = np.array(range(len(mat[i,k,:])))
