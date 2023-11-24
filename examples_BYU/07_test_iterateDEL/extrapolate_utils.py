@@ -102,13 +102,45 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
                 p[i,k,2] = params[2] #can I do something better than this?
             
     side = 1 #TODO
-                
+
     return extr, p, side
 
 """
 Tool to extrapolate the extreme loads based on a fitting of the pdf.
+The func will try to fit both tails of the distro specified by the histogram passed in mat,
+for a number of K quantities over I span locations, which are distributed over L
+bins within the range rng. For each K quantity, the fitted distribution can be different,
+and is specified by K distr_list. Eventually, the function uses the fits to extrapolate
+the value corresponding to the residual probability extr_prob.
+
+The fitting can use some tricks. The binned data can be restricted to some extent so
+that the fitting occurs only on part of the histogram. `truncThr` allows to provide
+a truncation threshold to isolate the tail: e.g., for the right tail, we discard all
+the bins located in `x` such that `x < avg + threshol * std`, where avg is the average 
+of the historgram and std is the standard dev. Another way of discarding bins is 
+by looking at the corresponding probability. One may want to kill bins under a certain
+probability (when it becomes close to machine precision) with `killUnder`.
+The last trick is to perform the fit in log space. This is super powerful to emphasize the
+tail of the distribution and improve the match there.
+
+Inputs:
+- rng : a matrix of size K,2 of floats - the bounds of the 
+- mat : a matrix of size I,K,L of floats - the normalized probability of getting quantity K at spanwise station I in bin L (normalization should be done before!)
+- distr_list : a list of size L of str - the name of the distribution to be fitted for quantity K, among those available in the scipy.stats package. 
+        Currently supported are "norm","gumbel_l/r","chi","chi2","weibull_min/max". But technically any can be used as long as it's a 2 or 3 parameter distro.
+- extr_prob : 
+- truncThr=None : None or a float or a list of size K of None and floats -  The threshold for truncation of data. Only the data in bins such that x_bin > avg + truncThr*std
+        are considered for the right tail (x_bin < avg - truncThr*std for the left tail)
+- keepAtLeast=15 : Int - the minimum number of bins to keep after the threshold-based truncation. There should still be bins in the historgram to fit!
+- logfit=False : Bool - If True, perform the fit on the log of the probability. Otherwise, perform it on the probability itself.
+- killUnder=1e-14 : float - allows to kill all the bins which probability is under killUnder. This value should remain close to machine precision, but is necessary to
+        discard bins with probability of 0.0, which would otherwise disturb the fit.
+- rng_mod=[] : if not empty, a matrix of size [K,I] - a multiplication factor to adjust the range of the quantity K at station I. The actual bounds are just rng*rng_mod
+
+Outputs:
+extr, p, side
 """
-def extrapolate_extremeLoads_curveFit(rng,mat,distr_list, extr_prob, truncThr=None, keepAtLeast=15, logfit=False, killUnder=1e-14,rng_mod=[]):
+def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=None, keepAtLeast=15, logfit=False, killUnder=1e-14,rng_mod=[]):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
