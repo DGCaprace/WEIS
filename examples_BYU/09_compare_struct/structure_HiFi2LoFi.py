@@ -103,6 +103,8 @@ if bladeInput == "aluminum":
     ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
     psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
     websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
+    
+    nDVcopies = 1 #one DV per group of panels
 elif bladeInput == "composite":
     #from TE_SS to TE_PS: list of the structural zones
     skinLoFi = [["DP17_DP15_triax","DP17_DP15_uniax","DP17_DP15_balsa"],
@@ -121,6 +123,8 @@ elif bladeInput == "composite":
     ssHiFi = "U_" #identifier of the suction side in the hifi descriptor
     psHiFi = "L_" #identifier of the pressure side in the hifi descriptor
     websHiFi = ["SPAR.03","SPAR.02","SPAR.01"]
+
+    nDVcopies = 3 #one DV per three groups of panels, because we duplicate the DV to each blade
 
     #WHAT TO DO WITH THE TE SPAR? We can probably neglect it because it is almost the same as connecting the skin with the same properties in DP00
 else:
@@ -142,7 +146,7 @@ trans_len = 0.002 #length of the transition between panels in the lofi model, in
 
 ## ======================= More script options =================================================
 
-doPlots = True
+doPlots = False
 debug = True
 writeDVGroupForColor = False 
 writeDVGroupMapping = True
@@ -184,7 +188,7 @@ with open(DV_file, 'r') as f:
         buff = line.split(" ")
         HiFiDVs_idx[i]  = int(buff[0])
         HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ] #pos
-        HiFiDVs_thi[i] = float(buff[4]) #dv
+        HiFiDVs_thi[i] = 0.09 #float(buff[4]) #dv
         HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] #constraints
         HiFiDVs_des[i] = buff[-1]
         i+=1
@@ -631,7 +635,7 @@ if (writeDVGroupForColor or writeDVGroupMapping):
         HiFiGrp_pos = np.zeros((len(lines),3))
         HiFiGrp_thi = np.zeros(len(lines))
         # HiFiGrp_con = np.zeros((len(lines), ncon))
-        # HiFiGrp_des = [None]*len(lines)
+        HiFiGrp_des = [None]*len(lines)
         HiFiGrp_icmp = [None]*len(lines)
 
         i = 0
@@ -642,20 +646,26 @@ if (writeDVGroupForColor or writeDVGroupMapping):
             # HiFiGrp_thi[i] = float(buff[4]) 
             # HiFiGrp_con[i,:] = [ float(b) for b in buff[5:-1] ] 
             buff = line.split('"')
-            # HiFiGrp_des[i] = buff[1]
+            HiFiGrp_des[i] = buff[1]
             HiFiGrp_icmp[i] = buff[3]
             i+=1
 
     #Allocate a mapping object: 
     #  binds each group number to the list of constitutive elements it covers
-    HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx))]
+    HiFiDVs_mapping = [[] for i in range(len(HiFiGrp_idx)//nDVcopies)]
 
+    jDDL = 0
     for i in range(len(HiFiGrp_idx)):
-        tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
-        icmp = ast.literal_eval('['+tmp+']')
-        HiFiDVs_mapping[HiFiGrp_idx[i]] = icmp
+        if "SPARS1" in HiFiGrp_des[i] or "L_SKIN1" in HiFiGrp_des[i] or "U_SKIN1" in HiFiGrp_des[i]:
+            tmp = ",".join(HiFiGrp_icmp[i][1:-1].split())
+            icmp = ast.literal_eval('['+tmp+']')
+            HiFiDVs_mapping[jDDL] = icmp
+            # print(HiFiGrp_des[i])
+            # print(i, jDDL, i//nDVcopies)
+            jDDL+=1
 
-
+if debug:
+    print(HiFiDVs_mapping)
 
 # - Write the Group COlor output -
 
@@ -726,6 +736,7 @@ if writeDVGroupMapping:
                 if webs_hifi[i,j,2] in group:
                     webs_DV[i][j] = ig
 
+    print("WARNING: THE FOLLOWING is NOT correct for the composite model. ")
     print("COPY THIS TO dv2planform")
     print(skin_DV)
     print("COPY THIS TO dv2webs:")
