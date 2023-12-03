@@ -53,7 +53,7 @@ def my_write_yaml(instance, foutput):
 ## ======================= File management and inputs =================================================
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
-wt_input = "Madsen2019_composite_v01.yaml" # the reference turbine yaml
+wt_input = "Madsen2019_composite_v02.yaml" # the reference turbine yaml
 bladeInput = "composite"
 
 # --PART I-- 
@@ -109,12 +109,12 @@ elif bladeInput == "composite":
     #from TE_SS to TE_PS: list of the structural zones
     skinLoFi = [["DP17_DP15_triax","DP17_DP15_uniax","DP17_DP15_balsa"],
                 ["DP15_DP13_triax","DP15_DP13_uniax","DP15_DP13_balsa"],
-                ["DP13_DP10_uniax","DP13_DP10_triax"],
-                ["DP10_DP09_triax","DP10_DP09_triax","DP10_DP09_balsa"],
-                ["DP09_DP08_uniax","DP09_DP08_triax","DP09_DP08_balsa"],
-                ["DP08_DP07_triax","DP08_DP07_triax","DP08_DP07_balsa"],
-                ["DP07_DP04_uniax","DP07_DP04_triax"],
-                ["DP04_DP02_uniax","DP04_DP02_uniax","DP04_DP02_balsa"],
+                ["DP13_DP10_triax","DP13_DP10_uniax","DP13_DP10_balsa"],
+                ["DP10_DP09_triax","DP10_DP09_uniax","DP10_DP09_balsa"],
+                ["DP09_DP08_triax","DP09_DP08_uniax","DP09_DP08_balsa"],
+                ["DP08_DP07_triax","DP08_DP07_uniax","DP08_DP07_balsa"],
+                ["DP07_DP04_triax","DP07_DP04_uniax","DP07_DP04_balsa"],
+                ["DP04_DP02_triax","DP04_DP02_uniax","DP04_DP02_balsa"],
                 ["DP02_DP00_triax","DP02_DP00_uniax","DP02_DP00_balsa"]]
     websLoFi = [["Web_fore_biax","Web_fore_balsa",],
                 ["Web_aft_biax","Web_aft_balsa",],
