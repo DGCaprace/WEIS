@@ -65,23 +65,11 @@ DV_input = "FatigueWithTacs_DVCentresCon.dat" #the output of a hifi structural a
 DV_folder = "/Users/dcaprace/Documents/BYU/devel/Python/WEIS/examples_BYU/09_compare_struct/2pt_beam_structonly_6173636_1pt_beam/Solutions/FatigueWithTacs__0" #location where to find the DV)input file(s)
 wt_output = "tmp_composite_model" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
-# #Original constant thickness model, under nominal loads
-# ylab = "nominal" 
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_3/aeroload_DVCentresCon.dat"
-# DV_folder = ""
-# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
+# ylab = "test" #a descriptor of under what load condition the DV_input file was obtained.
+# DV_input = "RUN_DVCentres.dat" #the output of a hifi structural analysis.
+# DV_folder = "/Volumes/MySSD/Sim_data/ATLANTIS/Structural/2pt_beam_structonly_6258929_1pt_beam/" #location where to find the DV)input file(s)
+# wt_output = "tmp_composite_model" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
-# #Original constant thickness model, under nominal loads, WITH gravity in +y
-# ylab = "nominalg" 
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_nominal_iso_L2_4/aeroload_DVCentresCon.dat"
-# DV_folder = ""
-# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
-
-# #Original constant thickness model, under DEL
-# ylab = "damage" 
-# DV_input = "/Users/dg/Documents/BYU/simulation_data/ATLANTIS/MDAO/Structural/Struct_solutions_DEL1.1Scaled_L2_4/aeroload_DVCentresCon.dat"
-# DV_folder = ""
-# wt_output = "Madsen2019_10_forWEIS_isotropic_ED"
 
 # --PART II--
 # Optional plots and processing
@@ -91,6 +79,8 @@ wt_output = "tmp_composite_model" #name of the output turbine of this script (i.
 DVGroup_input = "FatigueWithTacs_DVGroupCentres.dat" #only used if writeDVGroupForColor or writeDVGroupMapping=True
 DVGroup_output = "HiFi_DVs" + os.sep + "generic_DVGroupCentres_colors.dat" #only used if writeDVGroupForColor=True
 
+# DVGroup_input = "RUN_DVGroupCentres.dat" #only used if writeDVGroupForColor or writeDVGroupMapping=True
+# DVGroup_output = "HiFi_DVs" + os.sep + "generic_DVGroupCentres_colors.dat" #only used if writeDVGroupForColor=True
 
 
 ## ======================= Modeling details =================================================
@@ -147,8 +137,8 @@ trans_len = 0.002 #length of the transition between panels in the lofi model, in
 ## ======================= More script options =================================================
 
 doPlots = False
-debug = True
-writeDVGroupForColor = False 
+debug = False
+writeDVGroupForColor = False  #this option is only to check that the passing back of information from lofi to hifi is consistent
 writeDVGroupMapping = True
 
 # for plots:
@@ -188,8 +178,8 @@ with open(DV_file, 'r') as f:
         buff = line.split(" ")
         HiFiDVs_idx[i]  = int(buff[0])
         HiFiDVs_pos[i,:] = [ float(b) for b in buff[1:4] ] #pos
-        HiFiDVs_thi[i] = 0.09 #float(buff[4]) #dv
-        HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] #constraints
+        HiFiDVs_thi[i] = float(buff[4]) #dv
+        HiFiDVs_con[i,:] = [ float(b) for b in buff[5:-1] ] #constraints (IF NOT PRESENT, THIS WILL BE SKIPPED)
         HiFiDVs_des[i] = buff[-1]
         i+=1
 
@@ -429,6 +419,7 @@ def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layup):
                 layup, _, _ = material_info.materials_spline(part)
 
                 r_glo = hifi_regions[:,ireg,3]
+                # ok, hifi_region is indeed measured from the center of rotation, not from blade cutout
                 weight = np.zeros(nhf_skn)
 
                 my_material = region.split("_")[-1].upper()
@@ -442,6 +433,8 @@ def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layup):
             for j in range(nhf_skn):
                 values[2*j] = hifi_regions[j,ireg,1] * weight[j]
                 values[2*j+1] = hifi_regions[j,ireg,1] * weight[j]
+                if debug:
+                    print(f"     >>> TH={hifi_regions[j,ireg,1]} w={weight[j]}")
 
             layer["thickness"]["grid"] = ylf_oR.tolist()
             layer["thickness"]["values"] = values.tolist()
