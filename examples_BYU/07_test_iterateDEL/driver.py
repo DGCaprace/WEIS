@@ -874,6 +874,7 @@ if __name__ == '__main__':
 
                         dlc["extr_loads"] = []
                         dlc["extr_params"] = []
+                        dlc["extr_loads_LR"] = []
                         
                         
                         # ----------------------------------------------------------------------------------------------
@@ -984,7 +985,7 @@ if __name__ == '__main__':
 
                         # ------------
 
-
+                        EXTR_life_LR = []
                         for j in range(n_aggr):
                             if extr_meth ==0:
                                 # EXTR_life_B1, EXTR_distr_p, sice = exut.determine_max(rng, EXTR_distro_B1[:,:,:,j])
@@ -997,11 +998,12 @@ if __name__ == '__main__':
                             # elif extremeExtrapMeth ==2: #DEPREC
                             #     EXTR_life_B1, EXTR_distr_p = exut.extrapolate_extremeLoads(EXTR_data_B1[:,:,:,j], distr, IEC_50yr_prob)
                             elif extr_meth ==3:
-                                EXTR_life_B1, EXTR_distr_p, side = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
+                                EXTR_life_B1, EXTR_distr_p, side, EXTR_life_LR = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1[:,:,:,j], distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
                             # save data to the dict.
                             dlc["extr_loads"].append(EXTR_life_B1)
                             dlc["extr_params"].append(EXTR_distr_p)
+                            dlc["extr_loads_LR"].append(EXTR_life_LR)
                         
 
                     # ------------ TIMIMGS ------------    
@@ -1087,15 +1089,16 @@ if __name__ == '__main__':
 
 
                     # ------------ MORE PROCESSING ------------
-                    #1) switch from IEC local blade frame to "AIRFOIL frame" with y positive towards TE
                   
                     for dlc_num in DLCs_extr: 
                         dlc = DLCs_extr[dlc_num] 
                         for j in range(len(dlc["extr_loads"])):
+                            # switch from IEC local blade frame to "AIRFOIL frame" with y positive towards TE
                             # dlc["extr_loads"][j][:,3] = -dlc["extr_loads"][j][:,3] #NOPE! the sign of y axis in ED and AIRFOIL frames is consistent
 
                             for k in range(n_processed):
                                     dlc["extr_loads"][j][:,k] *= fac[k]
+                                    dlc["extr_loads_LR"][j][:,k,:] *= fac[k]
 
 
                 # ----------------------------------------------------------------------------------------------
@@ -1265,7 +1268,11 @@ if __name__ == '__main__':
                         for dlc_num in DLCs_extr: 
                             dlc = DLCs_extr[dlc_num] 
                             for j in range(len(dlc["extr_loads"])):
-                                plt.plot(locs,dlc["extr_loads"][j][:,k], label=f'{dlc_num}')
+                                a = plt.plot(locs,dlc["extr_loads"][j][:,k], label=f'{dlc_num}')
+                                if len(dlc["extr_loads_LR"][j])>0:
+                                    plt.plot(locs,dlc["extr_loads_LR"][j][:,k,0], '--', color=a[0].get_color())
+                                    plt.plot(locs,dlc["extr_loads_LR"][j][:,k,1], '--', color=a[0].get_color())
+
                     if withDEL:
                         plt.plot(locs,DEL_life_B1[:,k] , label="DEL")
                     plt.ylabel(labs[k])

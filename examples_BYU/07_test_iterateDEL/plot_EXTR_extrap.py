@@ -20,6 +20,8 @@ legs = [r"$F_n \, [N/m]$",r"$F_t \, [N/m]$",
         r"$ML_x \, [kNm]$",r"$ML_y \, [kNm]$",r"$FL_z \, [kN]$",
         r"$\epsilon_U \, [-]$",r"$\epsilon_L \, [-]$",r"$\epsilon_{TE} \, [-]$",]
 
+ext = "png" #extension of the figs
+
 Textrm = 50 #return period of extreme event [years]
 
 iplt = [15] #spanwise stations to plot
@@ -76,6 +78,10 @@ EXTR_distro_B1 = dlc["binned_loads"]
 EXTR_life_B1 = dlc["extr_loads"][0]
 EXTR_distr_p = dlc["extr_params"][0]
 EXTR_distro_B1 = EXTR_distro_B1[:,:,:,0]
+if "extr_loads_lr" in dlc:
+    EXTR_life_LR = dlc["extr_loads_lr"][0]
+else:
+    EXTR_life_LR = []
 
 if len(mydistr)==0:
     distr = f["distr"]
@@ -133,7 +139,7 @@ if reProcess:
     # elif extremeExtrapMeth ==2:
     #     EXTR_life_B1, EXTR_distr_p = extrapolate_extremeLoads(EXTR_data_B1, distr, IEC_50yr_prob)
     # elif extremeExtrapMeth ==3:
-    EXTR_life_B1, EXTR_distr_p, side = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
+    EXTR_life_B1, EXTR_distr_p, side, EXTR_life_LR = exut.extrapolate_extremeLoads_curveFit(rng, EXTR_distro_B1, distr, IEC_50yr_prob, truncThr=truncThr, logfit=logfit, killUnder=killUnder, rng_mod=rng_mod)
 
 
 for k in range(EXTR_life_B1.shape[1]):
@@ -221,8 +227,8 @@ for k in range(EXTR_life_B1.shape[1]):
     f2.tight_layout()
     if not os.path.isdir(f"{folder}/figs"):
             os.makedirs(f"{folder}/figs")
-    f1.savefig(f"{folder}/figs/fit_{labs[k].split(' ')[0]}_{distr[k]}.eps")
-    f2.savefig(f"{folder}/figs/fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.eps")
+    f1.savefig(f"{folder}/figs/fit_{labs[k].split(' ')[0]}_{distr[k]}.{ext}")
+    f2.savefig(f"{folder}/figs/fit_sf_{labs[k].split(' ')[0]}_{distr[k]}.{ext}")
 
 plt.show()
 
@@ -237,12 +243,15 @@ for k in range(EXTR_life_B1.shape[1]):
     f1,ax1 = plt.subplots(nrows=1, ncols=1, figsize=pltSize)
     ax1.tick_params(labelsize=ls)
 
-    plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
+    a = plt.plot(locs,EXTR_life_B1[:,k], label="EXTR")
+    if len(EXTR_life_LR)>0:
+        plt.plot(locs,EXTR_life_LR[:,k,0], '--', color=a[0].get_color())
+        plt.plot(locs,EXTR_life_LR[:,k,1], '--', color=a[0].get_color())
     
     plt.ylabel(labs[k],fontsize=fs)
     plt.xlabel(r"$r/R$",fontsize=fs)
     # plt.legend()
 
     plt.tight_layout()
-    plt.savefig(f"{folder}/figs/{labs[k].split(' ')[0]}_{distr[k]}.eps")
+    plt.savefig(f"{folder}/figs/{labs[k].split(' ')[0]}_{distr[k]}.{ext}")
 plt.show()

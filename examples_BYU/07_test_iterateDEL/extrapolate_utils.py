@@ -101,7 +101,7 @@ def extrapolate_extremeLoads(mat, distr_list, extr_prob):
                 p[i,k,1] = params[1] #can I do something better than this?
                 p[i,k,2] = params[2] #can I do something better than this?
             
-    side = 1 #TODO
+    side = np.ones((n1,n2)) #TODO
 
     return extr, p, side
 
@@ -136,11 +136,14 @@ Inputs:
 - killUnder=1e-14 : float - allows to kill all the bins which probability is under killUnder. This value should remain close to machine precision, but is necessary to
         discard bins with probability of 0.0, which would otherwise disturb the fit.
 - rng_mod=[] : if not empty, a matrix of size [K,I] - a multiplication factor to adjust the range of the quantity K at station I. The actual bounds are just rng*rng_mod
+- choose_side_individually : whether to select the left or right tail of the distribution individually for each radial station. If not, we keep the entire left or right side, 
+        based on the integral of the value.
 
 Outputs:
 extr, p, side
 """
-def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=None, keepAtLeast=15, logfit=False, killUnder=1e-14,rng_mod=[]):
+def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=None, keepAtLeast=15, logfit=False, 
+                                      killUnder=1e-14, rng_mod=[], choose_side_individually=False):
     nbins = np.shape(mat)[2]
     n1 = np.shape(mat)[0]
     n2 = np.shape(mat)[1]
@@ -148,8 +151,10 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
     thr = 1e-5 #threshold (normalized frequency)
 
     extr = np.zeros((n1,n2))
+    extrLR = np.zeros((n1,n2,2))
+    paramsLR = np.empty((n1,n2,2),tuple)
 
-    p = np.nan*np.zeros((n1,n2,3)) #not very general ...
+    p = np.nan*np.zeros((n1,n2,3))
 
     if len(rng_mod)==0:
         rng_mod = np.ones((n2,n1))
@@ -168,8 +173,8 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
                 imax = np.where(mat[i,k,:] >= 1e-16)
                 mymax = x[imax[0][-1]] if len(imax[0])>0 else 0.0
                 mymin = x[imax[0][0]] if len(imax[0])>0 else 0.0
-                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
-
+                extrLR[i,k,0], extrLR[i,k,1] = mymin, mymax
+                
                 avg, _ = __compute_avg_std(mat[i,k,:], x)
                 p[i,k,0] = avg
                 p[i,k,1] = mymax - avg
@@ -183,13 +188,13 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
                 imax = np.where(mat[i,k,:] >= thr)
                 mymax = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
                 mymin = 2.*x[imax[0][0]] if len(imax[0])>0 else 0.0
-                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
+                extrLR[i,k,0], extrLR[i,k,1] = mymin, mymax
 
                 avg, std = __compute_avg_std(mat[i,k,:], x)
                 p[i,k,0] = avg
                 p[i,k,1] = std #could do min/max instead, as above
                 
-        elif 'normForced' in distr_list[k]:
+        elif 'normForced' in distr_list[k]: #a unique normal distribution for both left and right side
             for i in range(n1):
                 x = x_ * rng_mod[k,i]
                 stp = stp_ * rng_mod[k,i]
@@ -203,11 +208,11 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
                 mymax = stats.norm.ppf(extr_prob, loc = params[0], scale = params[1])
                 mymin = stats.norm.ppf(1.-extr_prob, loc = params[0], scale = params[1])
 
-                extr[i,k], side[k,i] = __choose_which_side(mymin,mymax)
+                extrLR[i,k,0], extrLR[i,k,1] = mymin, mymax
                 p[i,k,0] = params[0] #can I do something better than this?
                 p[i,k,1] = params[1] #can I do something better than this?
         
-        else: 
+        else:  #separate distributions for left and right
             distr = getattr(stats,distr_list[k])
 
             # Preparing my callbacks for various kinds of distributions, so we can handle 2-params and 3-params distribution fits
@@ -263,8 +268,6 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
 
 
                 #fit and extrapolate for the left and right side separately
-                extr_lr = [0,]*2
-                params_lr = [(),()]
                 for si,leftright in enumerate([-1,1]):
                     failed = False
                     spn, p0 = __truncate_distro(x, mat[i,k,:], threshold, avg, std, keepAtLeast, leftright, distr_list[k])
@@ -278,13 +281,13 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
 
                             if len(spn2) <= 1:
                                 if len(spn2) == 1:
-                                    extr_lr[si] = x[spn[spn2]]
+                                    extrLR[i,k,si] = x[spn[spn2]]
                                     print(f"There was only one bin left for a {distr_list[k]} at {k},{i} on the {leftright} side. Will consider the extreme as that value.")
                                 elif len(spn2) == 0:
-                                    extr_lr[si] = 0.0
+                                    extrLR[i,k,si] = 0.0
                                     print(f"There was no bin left for a {distr_list[k]} at {k},{i} on the {leftright} side. Will consider the extreme as 0.0.")
                                 params = (np.nan,0,1)
-                                params_lr[si] = params
+                                paramsLR[i,k,si] = params
                                 continue
 
                             logExcData = np.log( excData[spn2] ) 
@@ -297,7 +300,7 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
                         if any(np.isinf(params)) or any(np.isnan(params)) or np.isinf(covf[0][0]) or any(np.isnan(perr)):
                             failed = True
 
-                        extr_lr[si] = percentile[si](extr_prob, params)
+                        extrLR[i,k,si] = percentile[si](extr_prob, params)
 
                     except TypeError:   
                         # most likely due to the data restriction from spn[spn2] leads to fewer bins than the number of parameters to fit
@@ -311,19 +314,34 @@ def extrapolate_extremeLoads_curveFit(rng,mat, distr_list, extr_prob, truncThr=N
                         imax = np.where(mat[i,k,:] >= thr)
 
                         if leftright>0:
-                            extr_lr[si] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
+                            extrLR[i,k,si] = 2.*x[imax[0][-1]] if len(imax[0])>0 else 0.0
                         else:
-                            extr_lr[si] = 2.*x[imax[0][0]] if len(imax[0])>0 else 0.0                
+                            extrLR[i,k,si] = 2.*x[imax[0][0]] if len(imax[0])>0 else 0.0                
                         params = (np.nan,0,1)
 
-                    params_lr[si] = params
+                    paramsLR[i,k,si] = params
                 
-                extr[i,k], side[k,i] = __choose_which_side(extr_lr[0],extr_lr[1])
+        if choose_side_individually:
+            for i in range(n1):
+                extr[i,k], side[k,i] = __choose_which_side(extrLR[i,k,0],extrLR[i,k,1])
                 si = 0 if side[k,i]<0 else 1
 
-                l = len(params_lr[si])
-                p[i,k,0:l] = params_lr[si][0:l] 
+                l = len(paramsLR[i,k,si])
+                p[i,k,0:l] = paramsLR[i,k,si][0:l] 
 
-    return extr, p, side
+        else:
+            integ_left = np.sum(extrLR[:,k,0])
+            integ_right = np.sum(extrLR[:,k,1])
+            _, leftright = __choose_which_side(integ_left,integ_right)
+            si = int(leftright/2 + .5) #convert -1,1 to 0,1
+            
+            side[k,:] = leftright
+            extr[:,k] = extrLR[:,k,si]
+            for i in range(n1):
+                l = len(paramsLR[i,k,si])
+                p[i,k,0:l] = paramsLR[i,k,si][0:l] 
+            
+
+    return extr, p, side, extrLR
 
 
