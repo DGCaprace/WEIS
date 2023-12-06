@@ -34,11 +34,11 @@ if not MPI:
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 fname_wt_inputs = [
-    "Madsen2019_composite_v02_IC.yaml"
-    "Madsen2019_composite_v02_ICp01.yaml"
-    "Madsen2019_composite_v02_ICp02.yaml"
-    "Madsen2019_composite_v02_ICp03.yaml"
-    "Madsen2019_composite_v02_ICp04.yaml"
+    "Madsen2019_composite_v02_IC.yaml",
+    "Madsen2019_composite_v02_ICp01.yaml",
+    "Madsen2019_composite_v02_ICp02.yaml",
+    "Madsen2019_composite_v02_ICp03.yaml",
+    "Madsen2019_composite_v02_ICp04.yaml",
 ]
 
 
