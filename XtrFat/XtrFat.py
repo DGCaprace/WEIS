@@ -8,12 +8,12 @@ from pCrunch import PowerProduction, LoadsAnalysis, FatigueParams
 from pCrunch.io import OpenFASTAscii, OpenFASTBinary#, OpenFASTOutput
 from weis.dlc_driver.dlc_generator    import DLCGenerator
 from weis.inputs import load_modeling_yaml
+import XtrFat.processingTools.extrapolate_utils as exut
 
 import sys, shutil
 import numpy as np
 from scipy import stats, interpolate as scItrp
 from time import time
-import extrapolate_utils as exut  #TODO make this a module or something
 import matplotlib.pyplot as plt
 
 from wisdem.commonse.mpi_tools import MPI
@@ -1400,3 +1400,23 @@ def XtrFat(
 
     print(f"  ============== DONE AFTER {nGlobalIter} ITER ===================\n")
 
+
+
+if __name__ == '__main__':
+    # Running the script with default options
+
+    ## File management
+    mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
+
+    fname_wt_input = mydir + os.sep + "Madsen2019_composite_v02_IC.yaml"
+    fname_modeling_options = mydir + os.sep + "modeling_options.yaml"
+    fname_analysis_options = mydir + os.sep + "analysis_options_struct.yaml"
+    
+    XtrFat(
+        #folder and files
+        mydir, #folder where to find all the input files ()
+        fname_wt_input, #input file
+        fname_modeling_options, #input file
+        fname_analysis_options, #input file
+        showPlots = True,
+    )
