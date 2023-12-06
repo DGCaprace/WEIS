@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     fname_analysis_options_FORCED = "" #if this analysis file is provides (with EXTREME and FATIGUE loads), the whole preprocessing is bypassed and we jump directly to the lofi optimization
     
-    showPlots = True
+    showPlots = not MPI #only show plots for non-mpi runs
 
     # +++++++++++ Design choice in EXTREME loads +++++++++++
     #-Binning-:
@@ -108,8 +108,29 @@ if __name__ == '__main__':
     logfit = True #True: fit the log of the survival function. False: fit the pdf
     killUnder = 1E-14 #remove all values in the experimental distribution under this threshold (numerical noise)
 
-    #SEE ALSO `distr` and `truncThr` below in the code
+    #-- Assumed distr for each of the channels --
+    # Note: 
+    # - the longer the simulation window, the better (avoid at all cost to include the initial transient)
+    # - the beam residual moments are well approximated by Gaussian
+    # - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
+    # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
+    # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
+    # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
 
+    distr = ["norm","norm","norm","norm","norm","norm","norm","norm"]     # new recommended setup
+    #NOTE:
+    # [norm and 1.0] seems to be working well for bimodal distributions. That's the case for MLx,FLz,StrainTE.
+    # Fn and Ft are skewed distributions, but their tail is actually well fitted by a normal. Ft could work with a gumbel_r
+    # FLz has a super weird tri-modal shape
+    # MLx is super symmetric wrt 0
+    # MLy is super weird: the distribution is towards >0 but the tail is actually long towards the negative numbers, leading to an overall <0 extreme load...!
+    #NOTE general:
+    # weibull is a good distribution but it's not easy to use it for both left and right tails since it's skewed...
+    # norm is definitely the easiest to use and gives the best fits anyway
+
+    # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
+    truncThr = [0.5,1.0,1.0,0.5,1.0,0.5,0.5,1.0] 
+                            
     saveExtrNpy = "extrmDistro.npz"
     dontAggregateExtreme = False #EXPERIMENTAL: consider each velocity,seed in each extreme DLC separately. When True, exports average and min/max load for each. Should have a saveExtrNpy.
        #XXX: currently, the aggregation in Extreme is done considering only DLC1.3. TODO: handle aggregation accross several DLCs?
@@ -145,6 +166,8 @@ if __name__ == '__main__':
         rng = rng,
         Textr = Textr,
         # extremeExtrapMeth = 3,
+        truncThr = truncThr,
+        distr = distr,
         # logfit = True,  
         # killUnder = 1E-14, 
         rng_modulation_x = rng_modulation_x, 

@@ -142,6 +142,28 @@ See also the driver under examples_BYU/07_test_iterateDEL
 #3: curvefit the distributions to the histogramme - RECOMMENDED APPROACH
 
 
+#-- Assumed distr for each of the channels --
+# Note: 
+# - the longer the simulation window, the better (avoid at all cost to include the initial transient)
+# - the beam residual moments are well approximated by Gaussian
+# - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
+# - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
+# - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
+# - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
+
+#NOTE:
+# [norm and 1.0] seems to be working well for bimodal distributions. That's the case for MLx,FLz,StrainTE.
+# Fn and Ft are skewed distributions, but their tail is actually well fitted by a normal. Ft could work with a gumbel_r
+# FLz has a super weird tri-modal shape
+# MLx is super symmetric wrt 0
+# MLy is super weird: the distribution is towards >0 but the tail is actually long towards the negative numbers, leading to an overall <0 extreme load...!
+#NOTE general:
+# weibull is a good distribution but it's not easy to use it for both left and right tails since it's skewed...
+# norm is definitely the easiest to use and gives the best fits anyway
+                        
+
+                        
+
 #Note on the choice of f_eq:
 # - it has no influence at all on low fidelity optimization
 # - for high-fidelity, it may have some. However, the formulation that uses 1/Tlife ensures that the 
@@ -166,6 +188,8 @@ def XtrFat(
     rng = RNG_DEFAULT,
     Textr = FIFTY_YEARS,
     extremeExtrapMeth = 3,
+    distr = ["norm",] *8,
+    truncThr = None, #no restriction
     logfit = True,  #True: fit the log of the survival function. False: fit the pdf
     killUnder = 1E-14, #remove all values in the experimental distribution under this threshold (numerical noise)
     rng_modulation_x = [0,1], 
@@ -923,35 +947,6 @@ def XtrFat(
                         #   - So the prob should read: 50yr corresponds to 
                         #   - So the prob should read: 50yr corresponds to 
                         #   - What's conterintuitive to me: the smaller the dt, the larger the 50yr. load... but this might be ok: if dt increases, you have a better certainty on the distro.
-
-
-                        #-- Assumed distr for each of the channels --
-                        # Note: 
-                        # - the longer the simulation window, the better (avoid at all cost to include the initial transient)
-                        # - the beam residual moments are well approximated by Gaussian
-                        # - the aerodynamic loads should better correspond to chi2 or weibull_min, however the fit is very sensitive to initial conditions
-                        # - use "normForced" as a distribution for a failsafe normal fitting (in case too many warning). It reverts back to moment-based fit. This will likely overestimate the extreme loads.
-                        # - because of the compounded gravitational and aero loads, MLx is bimodal... not very practival for a fit! :-(
-                        # - use "twiceMaxForced" as a distribution for a failsafe extreme load that amounts to twice the max recorded load.
-                        
-
-                        # -- Restrict the portion of data considered for the fit (keep the tail only) ---------
-                        truncThr = None #no restriction
-
-                        # new recommended setup:
-                        distr = ["norm","norm","norm","norm","norm","norm","norm","norm"] 
-                        truncThr = [0.5,1.0,1.0,0.5,1.0,0.5,0.5,1.0] 
-                        #NOTE:
-                        # [norm and 1.0] seems to be working well for bimodal distributions. That's the case for MLx,FLz,StrainTE.
-                        # Fn and Ft are skewed distributions, but their tail is actually well fitted by a normal. Ft could work with a gumbel_r
-                        # FLz has a super weird tri-modal shape
-                        # MLx is super symmetric wrt 0
-                        # MLy is super weird: the distribution is towards >0 but the tail is actually long towards the negative numbers, leading to an overall <0 extreme load...!
-                        #NOTE general:
-                        # weibull is a good distribution but it's not easy to use it for both left and right tails since it's skewed...
-                        # norm is definitely the easiest to use and gives the best fits anyway
-
-                        # ------------
 
                         EXTR_life_LR = []
                         for j in range(n_aggr):
