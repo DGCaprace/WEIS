@@ -180,6 +180,7 @@ def XtrFat(
     fname_analysis_options, #input file
     fname_analysis_options_WEIS = "analysis_options_WEIS.yaml", #output file
     readOutputFrom = "",
+    readWindFrom = "",
     folder_arch='./results', #folder where to archive all the results
     fname_aggregatedEqLoads='aggregatedAeroLoads.yaml', #output file
     #extreme:
@@ -208,6 +209,12 @@ def XtrFat(
     restartAt = 0,
     showPlots = False,
 ):
+    #==================== ======== =====================================
+    ## Checks
+
+    if not os.path.isfile(fname_analysis_options):
+        raise FileNotFoundError(f"The fname_analysis_options file does not exist: {fname_analysis_options} ?")
+
     #==================== ======== =====================================
     ## Preprocessing
     if MPI:
@@ -307,6 +314,13 @@ def XtrFat(
             if commSize >1:
                 simfolder += os.sep + "rank_0"
 
+        if readWindFrom and os.path.isdir(readWindFrom):
+            # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
+            # shutil.copytree
+            if rank == 0:
+                os.system(f"mkdir {simfolder}")
+                os.system(f"ln -s {readWindFrom} {os.path.join(simfolder,'wind')}")
+           
 
         # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         #           PHASE 1 : Compute DEL and extrapolate extreme loads
