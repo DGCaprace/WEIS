@@ -244,6 +244,8 @@ def generate_wind_files(dlc_generator, FAST_namingOut, wind_directory, rotorD, h
                     if str(value) != str(dlc_generator.cases[i_case].__dict__[key]):
                         runTS = True
                         break
+            if not runTS:
+                print(f">> TURBSIM: I found an existing file with the name {wind_file_name}... will reuse it.")
 
 
         if runTS:
