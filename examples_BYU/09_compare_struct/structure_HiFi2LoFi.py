@@ -49,6 +49,7 @@ def my_write_yaml(instance, foutput):
     They are mapped with respect to their order from TE SS to TE PS.
     """
 
+forceRestoreOriginalThickness = False #init
 
 ## ======================= File management and inputs =================================================
 mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
@@ -70,6 +71,13 @@ wt_output = "tmp_composite_model" #name of the output turbine of this script (i.
 # DV_folder = "/Volumes/MySSD/Sim_data/ATLANTIS/Structural/2pt_beam_structonly_6258929_1pt_beam/" #location where to find the DV)input file(s)
 # wt_output = "tmp_composite_model" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
+# ylab = "original" #a descriptor of under what load condition the DV_input file was obtained.
+# DV_input = "FatigueWithTacs_DVCentresCon.dat" #the output of a hifi structural analysis.
+# DV_folder = "/Users/dcaprace/Documents/BYU/devel/Python/WEIS/examples_BYU/09_compare_struct/2pt_beam_structonly_6173636_1pt_beam/Solutions/FatigueWithTacs__0" #location where to find the DV)input file(s)
+# forceRestoreOriginalThickness = True
+# #We will use the thickness in the material files instead of the DV file. Still need to pass in the DV file
+# # so that we can set up the correct organization/structure in the yaml file
+# wt_output = "Madsen2019_composite_v02_originalThickness" #name of the output turbine of this script (i.e., the wt_input modified with DV_input)
 
 # --PART II--
 # Optional plots and processing
@@ -430,11 +438,17 @@ def fill_lofi_layers(ylf_oR,lofi_regions,hifi_regions,lofi_layup):
             else: 
                 weight = np.ones(nhf_skn)        
 
+            if forceRestoreOriginalThickness:
+                #let's not use the info in the DV file and use the material info instead.
+                thickness = np.interp(r_glo,layup["r_start"],layup["total"]) * 1e-3 #values in mm in the file
+            else:
+                thickness = hifi_regions[:,ireg,1]
+
             for j in range(nhf_skn):
-                values[2*j] = hifi_regions[j,ireg,1] * weight[j]
-                values[2*j+1] = hifi_regions[j,ireg,1] * weight[j]
+                values[2*j] = thickness[j] * weight[j]
+                values[2*j+1] = thickness[j] * weight[j]
                 if debug:
-                    print(f"     >>> TH={hifi_regions[j,ireg,1]} w={weight[j]}")
+                    print(f"     >>> TH={thickness[j]} w={weight[j]}")
 
             layer["thickness"]["grid"] = ylf_oR.tolist()
             layer["thickness"]["values"] = values.tolist()
