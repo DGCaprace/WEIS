@@ -212,7 +212,7 @@ def XtrFat(
     #==================== ======== =====================================
     ## Checks
 
-    if not os.path.isfile(fname_analysis_options):
+    if not os.path.isfile(fname_analysis_options) and not fname_analysis_options_FORCED:
         raise FileNotFoundError(f"The fname_analysis_options file does not exist: {fname_analysis_options} ?")
 
     #==================== ======== =====================================
@@ -1182,11 +1182,16 @@ def XtrFat(
                         schema["extreme"] = {}
                         schema["extreme"]["description"] = extr_descr_str
                         schema["extreme"]["grid_nd"] = locs.tolist()
+                        #TODO: should automate this so that we don't mess up with indices
+                        # e.g.:
+                        # for j in range(2,len(lab)+1):
+                        #     key = lab[j].split(" ")[0] 
+                        #     schema["extreme"][key] = dlc["extr_loads"][0][:,j].tolist()
                         schema["extreme"]["deMLx"] = dlc["extr_loads"][0][:,2].tolist()
                         schema["extreme"]["deMLy"] = dlc["extr_loads"][0][:,3].tolist()
                         schema["extreme"]["deFLz"] = dlc["extr_loads"][0][:,4].tolist()
-                        schema["extreme"]["StrainSparL"] = dlc["extr_loads"][0][:,5].tolist()
-                        schema["extreme"]["StrainSparU"] = dlc["extr_loads"][0][:,6].tolist()
+                        schema["extreme"]["StrainSparU"] = dlc["extr_loads"][0][:,5].tolist()
+                        schema["extreme"]["StrainSparL"] = dlc["extr_loads"][0][:,6].tolist()
                         schema["extreme"]["StrainTE"] = dlc["extr_loads"][0][:,7].tolist()
 
                     schema["general"]["folder_output"] = "outputs_struct_withFatigue"
@@ -1332,9 +1337,11 @@ def XtrFat(
         #           PHASE 2 : Optimize
         # +++++++++++++++++++++++++++++++++++++++
         if doLofiOptim:
+            print("\n\n\n  -------------- STARTING WISDEM ------------------\n\n\n\n")    
             # Let's use the most up-to-date turbine as a starting point:
             wt_opt, analysis_options, opt_options = run_wisdem(current_wt_input, fname_modeling_options, fname_analysis_options_struct)
 
+            # To plot resuts, use `compare_designs` (see readme)
             print("\n\n\n  -------------- DONE WITH WISDEM ------------------\n\n\n\n")    
 
         if rank == 0:
