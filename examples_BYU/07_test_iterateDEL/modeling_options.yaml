@@ -114,15 +114,13 @@ DLC_driver:
     DLCs:
         - DLC:   '1.2' #CAREFUL, USE 1.2 OTHERWISE AEP GET COMPUTED THROUGH THE DLC 1.1
           wind_speed:     [5., 7., 9., 11., 13., 15., 17., 19., 21., 23., 25.] #make sure OutFileFmt = 2 when running with this
-        #   n_seeds: 6 #or specify the seed manually. 
-          wind_seed: [11, 12, 13, 14, 15, 16]
+          n_seeds: 6 #or specify the seed manually. 
           probabilities: [1,] #must be specified for DLC1.2, but we don't use it (we recompute it anyway). Should here be a size-1 table with a single value.
           analysis_time: 600
           transient_time: 50 #Tsim = transient_time + analysis_time.
         - DLC:   '1.3' 
           wind_speed:     [5., 7., 9., 11., 13., 15., 17., 19., 21., 23., 25.]
-        #   n_seeds: 6 #or specify the seed manually. 
-          wind_seed: [11, 12, 13, 14, 15, 16]
+          n_seeds: 6 #or specify the seed manually. 
           analysis_time: 600
           transient_time: 50 
         # - DLC:   '1.4' #doubles the number of vels because it does 1p and 1n (direction)
@@ -132,15 +130,13 @@ DLC_driver:
         # #   transient_time: 50 
         # - DLC:   '1.5' 
         #   wind_speed:     [3., 5., 7., 9., 11., 13., 15., 17., 19., 21., 23., 25.]
-        # #   n_seeds: 6 #or specify the seed manually. 
-        #   wind_seed: [11, 12, 13, 14, 15, 16]
+        #   n_seeds: 6 #or specify the seed manually. 
         # #   analysis_time: 600 # can let that be determined automatically
         # #   transient_time: 50 
 
         # - DLC:   '5.1'
         #   wind_speed:     [10., 14., 25.]
-        # #   n_seeds: 6 #or specify the seed manually. 
-        #   wind_seed: [11, 12, 13, 14, 15, 16]
+        #   n_seeds: 6 #or specify the seed manually. 
         # #   analysis_time: 600 # can let that be determined automatically
         # #   transient_time: 50 
         # - DLC:   '6.1'
