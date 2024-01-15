@@ -245,3 +245,17 @@ if edit_schema_with_validated_tilde_loads:
     schema["EXTR_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
     schema["EXTR_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
     schema["EXTR_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+
+
+    # EXPORT FOR MACH
+    fname_fatMach = mydir + os.sep + "fatigueTildeLoads_forMACH.yaml"
+    fat_schema = {}
+    fat_schema["DEL_Tilde_ss"] = schema["DEL_Tilde_ss"]
+    fat_schema["DEL_Tilde_ps"] = schema["DEL_Tilde_ps"]
+    my_write_yaml(fat_schema, fname_fatMach)
+
+    fname_extrMach = mydir + os.sep + "extrTildeLoads_forMACH.yaml"
+    extr_schema = {}
+    extr_schema["EXTR_Tilde_ss"] = schema["EXTR_Tilde_ss"]
+    extr_schema["EXTR_Tilde_ps"] = schema["EXTR_Tilde_ps"]
+    my_write_yaml(extr_schema, fname_extrMach)

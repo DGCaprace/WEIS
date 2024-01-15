@@ -478,7 +478,6 @@ def XtrFat(
                 
                 # Init our lifetime DEL
                 DEL_life_B1 = np.zeros([nx,n_processed])    
-                Ltilde_life_B1 = np.zeros([nx,6])    
 
                 #  -- Retreive the DELstar --
                 # (after removing "elapsed" from the del post_processing routine in weis)
@@ -684,165 +683,11 @@ def XtrFat(
                                 fact_LtL[i] += e
 
 
-                        # ############# NOTE: DEBUGGING ##########################
-                        # # # or recompute them... may need to turn on WISDEM dry run above 
-                        # EA = wt_opt['rotorse.EA']
-                        # EI11 = wt_opt['rotorse.rs.frame.EI11']
-                        # EI22 = wt_opt['rotorse.rs.frame.EI22']
-                        # yU = wt_opt['rotorse.xu_spar'] #swapping coordinates before rotating: Airfoil to Hansen frame
-                        # xU = wt_opt['rotorse.yu_spar']
-                        # yL = wt_opt['rotorse.xl_spar']
-                        # xL = wt_opt['rotorse.yl_spar']
-                        # yTE = wt_opt['rotorse.xu_te']
-                        # xTE = wt_opt['rotorse.yu_te']
-                        # alpha = wt_opt['rotorse.rs.frame.alpha']
+                        #NOTE: the big chunk of code here that was doing some part of the tilde loads was moved to
+                        #       scripts compute_tilde_loads and validate_and_export_tilde_loads
 
-                        # x1U = np.zeros(len(xU))
-                        # y1U = np.zeros(len(yU))
-                        # x1L = np.zeros(len(xU))
-                        # y1L = np.zeros(len(yU))
-                        # x1TE = np.zeros(len(xU))
-                        # y1TE = np.zeros(len(yU))
-
-                        # fxU = np.zeros(len(yU))
-                        # fyU = np.zeros(len(yU))
-                        
-                        # for i in range(len(xU)):
-                        #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
-                        #     ca = np.cos(np.deg2rad(alpha[i]))
-                        #     sa = np.sin(np.deg2rad(alpha[i]))
-
-                        #     x1U[i] =  xU[i] * ca + yU[i] * sa
-                        #     y1U[i] = -xU[i] * sa + yU[i] * ca
-                        #     x1L[i] =  xL[i] * ca + yL[i] * sa
-                        #     y1L[i] = -xL[i] * sa + yL[i] * ca
-                        #     x1TE[i] =  xTE[i] * ca + yTE[i] * sa
-                        #     y1TE[i] = -xTE[i] * sa + yTE[i] * ca
-
-                        #     fxU[i] =  -(sa * y1U[i] / EI11[i] - ca * x1U[i] / EI22[i]) #minus because left-handed to right-handed: positive strain must give traction
-                        #     fyU[i] =  -(ca * y1U[i] / EI11[i] + sa * x1U[i] / EI22[i])
-                            
-
-
-                        # #-----------------
-                        # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    
-                        # plt.plot(ooEA ,label="1/EA")
-                        # plt.plot(yoEIxxU,label="*MLx")
-                        # plt.plot(xoEIyyU,label="*MLy")
-                        # plt.plot(1/EA *1.e3,'--',label="1/EA")
-                        # plt.plot(fxU *1.e3,'--',label="*MLx")
-                        # plt.plot(fyU *1.e3,'--',label="*MLy")
-                        # # plt.plot(fact_LtU,'k--',label="sum")
-                        # plt.ylabel("u")
-                        # plt.xlabel("stn")
-                        # plt.xlim([0,10])
-                        # plt.ylim([-1e-7,1e-7])
-                        # plt.legend()
-                        # plt.savefig("combiliF_U.png")
-
-                        # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    
-                        # plt.plot(ooEA ,label="1/EA")
-                        # plt.plot(yoEIxxL,label="*MLx")
-                        # plt.plot(xoEIyyL,label="*MLy")
-                        # # plt.plot(fact_LtL,'k--',label="sum")
-                        # plt.ylabel("l")
-                        # plt.xlabel("stn")
-                        # plt.xlim([0,10])
-                        # plt.ylim([-1e-7,1e-7])
-                        # plt.legend()
-                        # plt.savefig("combiliF_L.png")
-
-                        # # plt.show()
-                        # #-----------------
-                        ################
-
-                        # # d.(option1)
-                        # # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        # #  and that also have the same ratios as DEMx,DEMy,DEFz (that is, the damage-eq loads not based on strain)
-                        # Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxU + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyU + ooEA )
-                        # Ltilde_life_B1[:,0] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,2]
-                        # Ltilde_life_B1[:,1] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,2]
-
-                        # Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (DEL_life_B1[:,2]/DEL_life_B1[:,4] * yoEIxxL + DEL_life_B1[:,3]/DEL_life_B1[:,4] * xoEIyyL + ooEA )
-                        # Ltilde_life_B1[:,3] = DEL_life_B1[:,2]/DEL_life_B1[:,4] * Ltilde_life_B1[:,5]
-                        # Ltilde_life_B1[:,4] = DEL_life_B1[:,3]/DEL_life_B1[:,4] * Ltilde_life_B1[:,5]
-
-                        #--
-                        # # d.(option2)
-                        # # Find the unique equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain
-                        # #   in the spars and at the TE simultaneously
-                        # # NOTE: This one will not work: you can find the equivalent Mx,My,Fz that give this strain, but this is not what you want!
-                        # #       Imagine a simple beam with pure bending cyclinc loads. The DEstrain will be the same in U and L spars, and the equivalent 
-                        # #       loading will be pure Fz, and not bending! 
-                        # A = np.zeros([3,3])
-                        # for i in range(n_span):
-                        #     A[0,0] = yoEIxxU[i]
-                        #     A[0,1] = xoEIyyU[i]
-                        #     A[1,0] = yoEIxxL[i]
-                        #     A[1,1] = xoEIyyL[i]
-                        #     A[2,0] = yoEIxxTE[i]
-                        #     A[2,1] = xoEIyyTE[i]
-                        #     A[:,2] = ooEA[i]
-                        #     b = DEL_life_B1[i,5:]
-                        #     sol = np.linalg.solve(A, b) * 1.e3  # A assumes x vector in thousands
-                        #     Ltilde_life_B1[i,0] = sol[0] 
-                        #     Ltilde_life_B1[i,1] = sol[1] 
-                        #     Ltilde_life_B1[i,2] = sol[2] 
-                        # Ltilde_life_B1[:,3] = Ltilde_life_B1[:,0]
-                        # Ltilde_life_B1[:,4] = Ltilde_life_B1[:,1]
-                        # Ltilde_life_B1[:,5] = Ltilde_life_B1[:,2]
-
-                        # #--
-                        # # d.(option3)
-                        # # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        # #  and that simply have equal weights (i.e., Mx=My=Fz)
-                        # Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                        # Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                        # Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-
-                        # Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                        # Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                        # Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-
-                        #--
-                        # d.(option4)
-                        # Find the equivalent Mx,My,Fz that will give the same strain as the Damage-equivalent Life strain,
-                        #  for slightly different designs. In addition to the baseline, we should simulate slightly different 
-                        #  beams and obtain the corresponding inertial/stiffness properties and DEstrain. We can then solve 
-                        #  (potentially in the least square sense) for the tilde loads:
-                        #
-                        #     | y/EIxx1  -x/EIyy1  1/EA1 |   | Mx_tilde |   | DEstrain1 |
-                        #     | y/EIxx2  -x/EIyy2  1/EA2 | * | My_tilde | = | DEstrain2 |
-                        #     | y/EIxx3  -x/EIyy3  1/EA3 |   | Fz_tilde |   | DEstrain3 |
-                        #     | ...      ...       ...   |                  | ...       |
-                        # 
-                        # XXX: This procedure should be done dynamically here by perturbing the current DVs 4 times, performing 4 additional 
-                        #   OpenFAST simulations, and re-solving (least-square) again. Currently though,
-                        #   we just do it once a priori on the baseline design, and we will use the same
-                        #   tilde loads for the hifi optimization throughout. The only thing we do here is to rescale the
-                        #   'a priori' tilde loads by the ratio between the current DE strain and the 'a priori' DE strain.
-
-                        if os.path.isfile("DEL_Tilde_loads_LstSqr.yaml"):
-                            Ltilde_LstSqrSol = load_yaml("DEL_Tilde_loads_LstSqr.yaml")
-
-                            Ltilde_life_B1[:,0] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLxPerStrain"]
-                            Ltilde_life_B1[:,1] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deMLyPerStrain"]
-                            Ltilde_life_B1[:,2] = DEL_life_B1[:,5] * Ltilde_LstSqrSol["DEL_Tilde_ss"]["deFLzPerStrain"]
-
-                            Ltilde_life_B1[:,3] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLxPerStrain"]
-                            Ltilde_life_B1[:,4] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deMLyPerStrain"]
-                            Ltilde_life_B1[:,5] = DEL_life_B1[:,6] * Ltilde_LstSqrSol["DEL_Tilde_ps"]["deFLzPerStrain"]
-                        else:
-                            print("WARNING: I did not find 'DEL_Tilde_loads_LstSqr.yaml' so I can''t go for opt4. Reverting to Opt. 3.")
-                            Ltilde_life_B1[:,0] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                            Ltilde_life_B1[:,1] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-                            Ltilde_life_B1[:,2] = DEL_life_B1[:,5] / (yoEIxxU + xoEIyyU + ooEA ) * 1.e3
-
-                            Ltilde_life_B1[:,3] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                            Ltilde_life_B1[:,4] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
-                            Ltilde_life_B1[:,5] = DEL_life_B1[:,6] / (yoEIxxL + xoEIyyL + ooEA ) * 1.e3
+                        #NOTE: writing of the `Tilde_loads_LstSqr.yaml` and adapting of the tilde loads is now
+                        #       deferred to compute_tilde_loads and validate_and_export_tilde_loads
 
                         #--
                         print("Damage eq loads:")
@@ -1168,14 +1013,6 @@ def XtrFat(
                         schema["DEL"]["StrainSparL"] = DEL_life_B1[:,6].tolist()
                         schema["DEL"]["StrainTE"] = DEL_life_B1[:,7].tolist()
 
-                        schema["DEL_Tilde_ss"] = {}
-                        schema["DEL_Tilde_ss"]["deMLx"] = Ltilde_life_B1[:,0].tolist()
-                        schema["DEL_Tilde_ss"]["deMLy"] = Ltilde_life_B1[:,1].tolist()
-                        schema["DEL_Tilde_ss"]["deFLz"] = Ltilde_life_B1[:,2].tolist()
-                        schema["DEL_Tilde_ps"] = {}
-                        schema["DEL_Tilde_ps"]["deMLx"] = Ltilde_life_B1[:,3].tolist()
-                        schema["DEL_Tilde_ps"]["deMLy"] = Ltilde_life_B1[:,4].tolist()
-                        schema["DEL_Tilde_ps"]["deFLz"] = Ltilde_life_B1[:,5].tolist()
 
 
                     if withEXTR:
@@ -1214,8 +1051,7 @@ def XtrFat(
                     if withDEL:
                         fname_fatMach = mydir + os.sep + "fatigueLoads_forMACH.yaml"
                         fat_schema = {}
-                        fat_schema["DEL_Tilde_ps"] = schema["DEL_Tilde_ps"]
-                        fat_schema["DEL_Tilde_ss"] = schema["DEL_Tilde_ss"]
+                        fat_schema["DEL"] = schema["DEL"]
                         my_write_yaml(fat_schema, fname_fatMach)
                     if withEXTR:
                         fname_extrMach = mydir + os.sep + "extrLoads_forMACH.yaml"
@@ -1261,61 +1097,8 @@ def XtrFat(
                     plt.xlabel("r/R")
                     plt.legend()
                     plt.savefig(f"{labs[k].split(' ')[0]}.png")
-
-                if withDEL:
-                    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    for k in [0,1,2]:
-                        plt.plot(locs,Ltilde_life_B1[:,k] , label=labs_Lt[k])
-                        plt.ylabel("U")
-                        plt.xlabel("r/R")
-                        plt.legend()
-                        plt.savefig("LtildeU.png")
-
-                    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    for k in [3,4,5]:
-                        plt.plot(locs,Ltilde_life_B1[:,k] , label=labs_Lt[k])
-                        plt.ylabel("L")
-                        plt.xlabel("r/R")
-                        plt.legend()
-                        plt.savefig("LtildeL.png")
                     
-                    # ############# NOTE: DEBUGGING ##########################
-                    # #Verify the solving: the tilde stresses give the correct strains
-                    # plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-                    # plt.plot(locs,(Ltilde_life_B1[:,0]*yoEIxxU+Ltilde_life_B1[:,1]*xoEIyyU+Ltilde_life_B1[:,2]*ooEA) *1e-3, label="U")
-                    # plt.plot(locs,(Ltilde_life_B1[:,3]*yoEIxxL+Ltilde_life_B1[:,4]*xoEIyyL+Ltilde_life_B1[:,5]*ooEA) *1e-3, label="L")
-                    # # plt.plot(locs,(Ltilde_life_B1[:,0]*yoEIxxTE+Ltilde_life_B1[:,1]*xoEIyyTE+Ltilde_life_B1[:,2]*ooEA ) *1e-3, label="TE")
-
-                    # # Double check!!
-                    # # ROTATE LOADS
-                    # M1 = np.zeros(len(xU))
-                    # M2 = np.zeros(len(yU))
-                    
-                    # for i in range(len(xU)):
-                    #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
-                    #     ca = np.cos(np.deg2rad(alpha[i]))
-                    #     sa = np.sin(np.deg2rad(alpha[i]))
-                    #     M1[i] =  Ltilde_life_B1[i,1] * ca + Ltilde_life_B1[i,0] * sa
-                    #     M2[i] = -Ltilde_life_B1[i,1] * sa + Ltilde_life_B1[i,0] * ca
-
-                    # plt.plot(locs,(  -(M1*y1U/EI11 -M2*x1U/EI22 ) +Ltilde_life_B1[:,2]/EA) ,'--', label="U")
-
-
-                    # for i in range(len(xU)):
-                    #     #rotate the coordinates from 'swapped' airfoil frame to principal axes
-                    #     ca = np.cos(np.deg2rad(alpha[i]))
-                    #     sa = np.sin(np.deg2rad(alpha[i]))
-                    #     M1[i] =  Ltilde_life_B1[i,4] * ca + Ltilde_life_B1[i,3] * sa
-                    #     M2[i] = -Ltilde_life_B1[i,4] * sa + Ltilde_life_B1[i,3] * ca
-                        
-                    # plt.plot(locs,(  -(M1*y1L/EI11 -M2*x1L/EI22 ) +Ltilde_life_B1[:,5]/EA) ,'--', label="L")
-                    # # plt.plot(locs,(  -(M1*y1TE/EI11-M2*x1TE/EI22) +Ltilde_life_B1[:,2]/EA) ,'--', label="TE")
-
-                    # plt.xlabel("r/R")
-                    # plt.legend()
-                    # plt.savefig("strain2.png")
-                    ############# 
-
+                    # NOTE: checking that the tilde loads give the correct strain is now deferred to validate_and_export_tilde_loads
 
                 if showPlots:
                     plt.show()
@@ -1368,11 +1151,11 @@ def XtrFat(
             if os.path.isfile(fname_modeling_options):
                 os.system(f"cp {fname_modeling_options} {folder_arch + os.sep}")
             if os.path.isfile(fname_analysis_options_struct):
-                os.system(f"cp {fname_analysis_options_struct} {folder_arch + os.sep}")
+                os.system(f"mv {fname_analysis_options_struct} {folder_arch + os.sep}")
             if os.path.isfile(fname_extrMach):
-                os.system(f"cp {fname_extrMach} {folder_arch + os.sep}")
+                os.system(f"mv {fname_extrMach} {folder_arch + os.sep}")
             if os.path.isfile(fname_fatMach):
-                os.system(f"cp {fname_fatMach} {folder_arch + os.sep}")
+                os.system(f"mv {fname_fatMach} {folder_arch + os.sep}")
             if os.path.isdir(mydir + os.sep + "outputs_WEIS"):
                 os.system(f"mkdir {folder_arch + os.sep + 'outputs_WEIS'}")
                 # shutil.move(mydir + os.sep + "outputs_WEIS", folder_arch+ os.sep + "outputs_WEIS" + os.sep + currFolder + os.sep)  
