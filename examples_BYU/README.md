@@ -44,7 +44,7 @@ See Readme in that file.
 
 - `plot_EXTR_extrap`  can be used to do nicer plots of the load extrapolation procedure from the driver. Works on a `.npz` file output by the driver to bypass the hard load processing.
 
-- `plot_EXTR_separately`  takes the result of various DLC computations (i.e. the analysis_XXX.yaml) and creates a map of the loadings experienced in the corresponding simulations. 
+- `plot_EXTR_separately`  takes the result of various DLC computations (i.e. the analysis_XXX.yaml) and creates a map of the loadings experienced in the corresponding simulations. Mostly, this script is meant to be used with `dontAggregateExtreme=True` in the driver.
 
 See Readme in that file.  
 
@@ -91,6 +91,11 @@ compare_designs --modeling_options modeling_options.yaml Madsen2019_10_forWEIS.y
 mv outputs outputs_withoutFatigue
 ```
 
+NOTE:
+if the command line thingy is broken, just call the python script:
+```
+python /path/to/WISDEM/wisdem/postprocessing/compare_designs.py ...
+```
 
 
 ## Procedure to apply the Combine Fidelity Approach

@@ -7,17 +7,17 @@ design_variables:
         structure:
             spar_cap_ss:
                 flag: True             # Flag to optimize the spar cap thickness on the suction side
-                n_opt: 4               # Number of control points along blade span
-                max_decrease: 0.7      # Maximum nondimensional decrease at the n_opt locations
-                max_increase: 2.3      # Maximum nondimensional increase at the n_opt locations
+                n_opt: 5               # Number of control points along blade span
+                max_decrease: 0.5      # Maximum nondimensional decrease at the n_opt locations
+                max_increase: 5.0      # Maximum nondimensional increase at the n_opt locations
                 index_start: 1         # Lock the first DV from blade root
                 index_end: 3           # The last DV at blade tip is locked
             spar_cap_ps:
                 flag: True             # Flag to optimize the spar cap thickness on the pressure side
                 equal_to_suction: True # Flag to impose the spar cap thickness on pressure and suction sides equal
-                n_opt: 4               # Number of control points along blade span
-                max_decrease: 0.7      # Maximum nondimensional decrease at the n_opt locations
-                max_increase: 2.3      # Maximum nondimensional increase at the n_opt locations
+                n_opt: 5               # Number of control points along blade span
+                max_decrease: 0.5      # Maximum nondimensional decrease at the n_opt locations
+                max_increase: 5.0      # Maximum nondimensional increase at the n_opt locations
                 index_start: 1         # Lock the first DV from blade root
                 index_end: 3           # The last DV at blade tip is locked
 
@@ -30,17 +30,17 @@ constraints:
             flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade suction side
             max:    3500.e-6   # Value of maximum strains [-]
             index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ss
-            index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ss
+            index_end: 4       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ss
         strains_spar_cap_ps:
             flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade pressure side
             max:    3500.e-6   # Value of maximum strains [-]
             index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ps
-            index_end: 3       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
+            index_end: 4       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
         fatigue_spar_cap_ss:
             flag: False 
             loading: "DEL_Tilde_ss" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
-            index_end: 3    #must be <= n_opt
+            index_end: 4    #must be <= n_opt
             eta: 1.0  #safety factor
             # #The following will be overwritten by the driver:
             # m_wohler: 10 #wohler expo, CAUTION: also hardcoded in fast_pywrapper
@@ -49,7 +49,7 @@ constraints:
             flag: False    
             loading: "DEL_Tilde_ps" # "DEL": will use the damage-equivalent Mx,My,Mz directly | "DEL_Tilde": will use Mx,My,Mz deduced from the damage-equivalent strains
             index_start: 1  
-            index_end: 3
+            index_end: 4
             eta: 1.0  #safety factor
             # #The following will be overwritten by the driver:
             # m_wohler: 10 #wohler expo

@@ -347,6 +347,37 @@ def create_all_plots(
                 color=colors[idx],
             )
 
+            # Add strains from user-specified extreme loading
+            axeps.plot(
+                yaml_data["blade.outer_shape_bem.s"],
+                yaml_data["rotorse.rs.extreme_strains.strainU_spar"] * 1.0e6,
+                "--",
+                color=colors[idx],
+                label=label,
+            )
+            axeps.plot(
+                yaml_data["blade.outer_shape_bem.s"],
+                yaml_data["rotorse.rs.extreme_strains.strainL_spar"] * 1.0e6,
+                "--",
+                color=colors[idx],
+            )
+            # Add strains from user-specified fatigue loading
+            axeps.plot(
+                yaml_data["blade.outer_shape_bem.s"],
+                yaml_data["rotorse.rs.fatigue_strains_U.strainU_spar"] * 1.0e6,
+                ":",
+                color=colors[idx],
+                label=label,
+            )
+            axeps.plot(
+                yaml_data["blade.outer_shape_bem.s"],
+                yaml_data["rotorse.rs.fatigue_strains_L.strainL_spar"] * 1.0e6,
+                ":",
+                color=colors[idx],
+            )
+#fatigue stuff... this is not really a strain actually
+
+
         plt.ylim([-5e3, 5e3])
         if mult_flag:
             axeps.legend(fontsize=font_size)
