@@ -9,7 +9,7 @@ mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 #original design
 wt_input = 'Madsen2019_composite_v02_IC.yaml'
-wt_output = 'Madsen2019_composite_v02_ICp%02d.yaml'
+wt_output = 'Madsen2019_composite_v02_IC%s%02d.yaml'
 
 perturbation_list = [   [0,8],
                         [1,7],
@@ -66,7 +66,7 @@ for i,pids in enumerate(perturbation_list):
             value = np.array(lay["thickness"]["values"]) + perturbation_ampl * np.array(lay["thickness"]["values"])/total_thickness
             lay["thickness"]["values"] = value.tolist()
 
-    fname = wt_output%(i+1)
+    fname = wt_output%("p",i+1)
     fname_wt_output = mydir + os.sep + fname
     print(f"...saving to {fname}")
     write_geometry_yaml(turbine_out, fname_wt_output)

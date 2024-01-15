@@ -1,0 +1,317 @@
+import os
+import yaml, copy
+
+import sys, shutil
+import numpy as np
+
+from wisdem.inputs import load_yaml
+import matplotlib.pyplot as plt
+
+from XtrFat.XtrFat import my_write_yaml
+
+#==================== DEFINITIONS  =====================================
+
+## File management
+mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
+
+wt_base_name = "Madsen2019_composite_v02_IC"
+
+# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints'
+# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_120s_10yrExtr'
+# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_300s_1yrExtr'
+# wt_base_name = "Madsen2019_composite_v02_originalThickness"
+
+
+exp_list = ["","p01","p02"]
+ext_list = ["","p01","p02","p03","p04"]
+
+
+leg_loc = ["U","L"] # location. Could add "TE"
+nx = 30 #number of spanwise stations. Could get it fron the file but it's just easier to provide it
+
+leg_src = ["DEL","extreme"] # source of the strain used in the tilde load computation. "DEL"=fatigue, "extreme"=extreme
+
+
+showAllTheSame = False
+
+# ============== inits ===========================
+
+# Sult = 3500.e-6 #HARDCODED. Should come from something like analysis_opts["constraints"]["blade"]["strains_spar_cap_ss"]["max"]
+
+nf = len(ext_list)                        
+n_span = nx
+n_locs = len(leg_loc) #number of location around the section that constrained in the optimization, and for which we want to evaluate tilde loads
+n_src = len(leg_src)
+
+# Obtain the equivalent load corresponding to the equivalent strain in spars
+#    We can use the factors y/EI11, x/EI22, 1/EA, already computed for the combili factors. 
+
+ooEA = np.zeros((nf,n_span))
+yoEIxx = np.zeros((nf,n_span,n_locs))
+xoEIyy = np.zeros((nf,n_span,n_locs))
+
+strain = np.zeros((nf,n_span,n_locs,n_src)) # 2 for U
+
+DEMx = np.zeros((nf,n_span,n_src))
+DEMy = np.zeros((nf,n_span,n_src))
+DEFz = np.zeros((nf,n_span,n_src))
+
+
+# ----------------------------------------------------------------------------------------------
+#    specific preprocessing 
+
+# filling our data structures with data from the yaml
+for ifo,ext in enumerate(ext_list): 
+
+    folder_arch = os.path.join(mydir, wt_base_name + ext)
+
+    simfolder = folder_arch + os.sep + 'sim' + os.sep + 'iter_0'
+
+
+    schema = load_yaml( folder_arch + os.sep + 'analysis_options_struct_withDEL.yaml')
+    combili_channels = load_yaml( simfolder + os.sep + 'extra' + os.sep + 'combili_channels.yaml')
+
+    # checks
+    if nx != len(schema['DEL']['grid_nd']):
+        raise ValueError("incorrect nx specified")
+    if n_span != combili_channels["n_span"]:
+        raise ValueError("incorrect nx specified")
+
+    combili_channels.pop("n_span")
+    
+    for i in range(n_span):
+
+
+        ooEA[ifo,i]  = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dFLz"%(i+1)] *1e-3
+
+        for iloc,loc in enumerate(leg_loc):
+            yoEIxx[ifo,i,iloc] = combili_channels["BladeSpar%s_Strain_Stn%d"%(loc,i+1) ]["B1N0%02dMLx"%(i+1)] *1e-3
+            xoEIyy[ifo,i,iloc] = combili_channels["BladeSpar%s_Strain_Stn%d"%(loc,i+1) ]["B1N0%02dMLy"%(i+1)] *1e-3
+            for isrc,src in enumerate(leg_src):
+                strain[ifo,i,iloc,isrc] = schema[src]["StrainSpar%s"%(loc)][i]
+        
+        for isrc,src in enumerate(leg_src):            
+            DEMx[ifo,i,isrc] = schema[src]["deMLx"][i]
+            DEMy[ifo,i,isrc] = schema[src]["deMLy"][i]
+            DEFz[ifo,i,isrc] = schema[src]["deFLz"][i]
+
+# ----------------------------------------------------------------------------------------------
+#    solve the system
+# d.(option4)
+# Find the tilde loads that work best for a couple of different cases
+
+def solve_tilde_loads(
+        yoEIxxU, xoEIyyU, ooEA,
+        strainU,
+        ):
+
+    nf = strainU.shape[0]
+    n_span = strainU.shape[1]
+    n_locs = strainU.shape[2]
+    n_src = strainU.shape[3]
+
+    newTildeMxU = np.zeros( (n_span,n_locs,n_src) )
+    newTildeMyU = np.zeros( (n_span,n_locs,n_src) )
+    newTildeFzU = np.zeros( (n_span,n_locs,n_src) )
+
+    # least square solve if there are more perturbations than the number of unknowns, which in this case is 3
+    if nf>3:
+        solver = np.linalg.lstsq
+        post = lambda x: x[0]
+    else:
+        solver = np.linalg.solve
+        post = lambda x: x
+
+    A = np.zeros([nf,3])
+    # for each strain ditribution, solve the tilde load at every spanwise location
+    for iloc in range(n_locs):
+        for i in range(n_span):
+            A[:,0] = yoEIxxU[:,i,iloc]
+            A[:,1] = xoEIyyU[:,i,iloc]
+            A[:,2] = ooEA[:,i]
+            for isrc in range(n_src):
+                b = strainU[:,i,iloc,isrc] #rhs
+                sol = solver(A, b)
+                sol = post(sol)
+                newTildeMxU[i,iloc,isrc] = sol[0]
+                newTildeMyU[i,iloc,isrc] = sol[1] 
+                newTildeFzU[i,iloc,isrc] = sol[2] 
+
+    return newTildeMxU, newTildeMyU, newTildeFzU
+
+TildeMx, TildeMy, TildeFz = solve_tilde_loads(
+        yoEIxx, xoEIyy, ooEA,
+        strain,
+        )
+
+# ----------------------------------------------------------------------------------------------
+# -- Final exports 
+
+# We write the tilde loads 'per unit strain'
+
+schema_out = {}
+
+iloc = leg_loc.index("U")
+isrc = leg_src.index("DEL")
+schema_out["FAT_Tilde_ss"] = {}
+schema_out["FAT_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["FAT_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["FAT_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+
+iloc = leg_loc.index("L")
+isrc = leg_src.index("DEL")
+schema_out["FAT_Tilde_ps"] = {}
+schema_out["FAT_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["FAT_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["FAT_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+
+iloc = leg_loc.index("U")
+isrc = leg_src.index("extreme")
+schema_out["EXTR_Tilde_ss"] = {}
+schema_out["EXTR_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["EXTR_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["EXTR_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+
+iloc = leg_loc.index("L")
+isrc = leg_src.index("extreme")
+schema_out["EXTR_Tilde_ps"] = {}
+schema_out["EXTR_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["EXTR_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["EXTR_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+
+
+my_write_yaml(schema_out, os.path.join(mydir,"Tilde_loads_LstSqr.yaml") )
+
+
+# ----------------------------------------------------------------------------------------------
+# -- Final plots
+locs = np.linspace(0.,1.,nx)
+
+
+
+def strainFormula(iloc,Mx,My,Fz):
+    return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] + Fz * ooEA[0,:])
+
+def strainFormula_NOF(iloc,Mx,My,Fz):
+    return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] - Fz * ooEA[0,:])
+
+ptrn = ['-','--']
+
+# -Strains-
+
+for iloc,loc in enumerate(leg_loc):
+    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+
+    for isrc,src in enumerate(leg_src):
+        plt.plot(locs,strain[0,:,iloc,isrc], ptrn[isrc] , label=f"actual {src}", color='k')
+        plt.plot(locs,strainFormula(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), ptrn[isrc], label="from DE") 
+        # plt.plot(locs,-(DEMx[0,:]  *yoEIxxU[0,:]+DEMy[0,:]  *xoEIyyU[0,:]+DEFz[0,:]  *ooEA[0,:]) , label="DE-")
+        plt.plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc]), ptrn[isrc], label=f"tilde {src}")
+
+        if src == "extreme":
+            plt.plot(locs,strainFormula_NOF(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), 'x--', label="from DE, NO F") 
+        
+    plt.ylabel(f"strain{loc}")
+    plt.xlabel("r/R")
+    plt.legend()
+    plt.savefig(mydir+f"/strain{loc}.png")
+
+
+# -plots-
+
+
+# LOADS
+for iloc,loc in enumerate(leg_loc):
+    fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
+    
+    for isrc,src in enumerate(leg_src):
+        #WHEN WE CONSIDER THAT ALL THINGS HAVE THE SAME WEIGHT
+        SimpleTilde = strain[0,:,iloc,isrc] / (yoEIxx[0,:,iloc] + xoEIyy[0,:,iloc] + ooEA[0,:])  #scaling the strain to the proper units
+
+        
+        ax[0].plot(locs, DEMx[0,:,isrc], ptrn[isrc], label=f"{src}", )
+        ax[1].plot(locs, DEMy[0,:,isrc], ptrn[isrc], label=f"{src}")
+        ax[2].plot(locs, DEFz[0,:,isrc], ptrn[isrc], label=f"{src}")
+
+        ax[0].plot(locs, TildeMx[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        ax[1].plot(locs, TildeMy[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        ax[2].plot(locs, TildeFz[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        
+        if showAllTheSame:
+            ax[0].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
+            ax[1].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
+            ax[2].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
+
+    # plt.plot(locs, TildeMxL , label="tilde L")
+    # plt.plot(locs, TildeMxU , label="tilde U")
+    ax[0].set_ylabel('Mx')
+    ax[1].set_ylabel('My')
+    ax[2].set_ylabel('Fz')
+    ax[2].set_xlabel("r/R")
+    ax[0].set_title(loc)
+    plt.legend()
+    plt.savefig(mydir+f"/loads_{iloc}.png")
+
+
+
+# WEIGHTING FACTOR = LOAD PER UNIT STRAIN
+for iloc,loc in enumerate(leg_loc):
+    fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
+    
+    for isrc,src in enumerate(leg_src):
+        #WHEN WE CONSIDER THAT ALL THINGS HAVE THE SAME WEIGHT
+        SimpleTilde = 1 / (yoEIxx[0,:,iloc] + xoEIyy[0,:,iloc] + ooEA[0,:])  #scaling the strain to the proper units
+
+        ax[0].plot(locs, TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        ax[1].plot(locs, TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        ax[2].plot(locs, TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        
+        if isrc == 0 and showAllTheSame:
+            ax[0].plot(locs, SimpleTilde, ptrn[isrc] , label=f"all the same")
+            ax[1].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same {src}")
+            ax[2].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same {src}")
+
+    # plt.plot(locs, TildeMxL , label="tilde L")
+    # plt.plot(locs, TildeMxU , label="tilde U")
+    ax[0].set_ylabel('fMx')
+    ax[1].set_ylabel('fMy')
+    ax[2].set_ylabel('fFz')
+    ax[2].set_xlabel("r/R")
+    ax[0].set_title("factors" + loc)
+    plt.legend()
+    plt.savefig(mydir+f"/factors_{iloc}.png")
+
+
+# # WEIGHTING FACTOR RELATIVE
+# # How much weighting we have compared to how much weighting the regular approach would put.
+# for iloc,loc in enumerate(leg_loc):
+#     fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
+    
+#     for isrc,src in enumerate(leg_src):
+#         #WHEN WE CONSIDER THAT ALL THINGS HAVE THE SAME WEIGHT
+#         SimpleTilde = 1 / (yoEIxx[0,:,iloc] + xoEIyy[0,:,iloc] + ooEA[0,:])  #scaling the strain to the proper units
+
+#         ax[0].plot(locs, TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc] * yoEIxx[0,:,iloc], ptrn[isrc], label=f"tilde {src}")
+#         ax[1].plot(locs, TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc] * xoEIyy[0,:,iloc], ptrn[isrc], label=f"tilde {src}")
+#         ax[2].plot(locs, TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc] * ooEA[0,:], ptrn[isrc], label=f"tilde {src}")
+        
+#         if isrc == 0 and showAllTheSame:
+#             ax[0].plot(locs, SimpleTilde * yoEIxx[0,:,iloc], ptrn[isrc] , label=f"all the same")
+#             ax[1].plot(locs, SimpleTilde * xoEIyy[0,:,iloc], ptrn[isrc], label=f"all the same {src}")
+#             ax[2].plot(locs, SimpleTilde * ooEA[0,:], ptrn[isrc], label=f"all the same {src}")
+
+#     # plt.plot(locs, TildeMxL , label="tilde L")
+#     # plt.plot(locs, TildeMxU , label="tilde U")
+#     ax[0].set_ylabel('fMx REL')
+#     ax[1].set_ylabel('fMy REL')
+#     ax[2].set_ylabel('fFz REL')
+#     ax[2].set_xlabel("r/R")
+#     ax[0].set_title("factorsREL" + loc)
+#     plt.legend()
+#     plt.savefig(f"factorsREL_{iloc}.png")
+
+
+
+plt.show()
+
+        

@@ -178,8 +178,8 @@ XtrFat(
     Tlife = Tlife,
     f_eq = f_eq,
     #driving:
-    # doLofiOptim = False, #skip lofi optimization, if you are only interested in getting the DEL and EXTR outputs (e.g. for HiFi)
-    # fname_analysis_options_FORCED="", #input file (to jump to lofi optim directly)
+    doLofiOptim = doLofiOptim, #skip lofi optimization, if you are only interested in getting the DEL and EXTR outputs (e.g. for HiFi)
+    fname_analysis_options_FORCED=fname_analysis_options_FORCED, #input file (to jump to lofi optim directly)
     # nGlobalIter = 1,
     # restartAt = 0,
     showPlots = showPlots,

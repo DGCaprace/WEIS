@@ -42,7 +42,7 @@ fname_wt_inputs = [
 ]
 
 
-Textr = 3600 * 24 * 365 * 10 #10 year return-period extreme event
+Textr = 3600 * 24 * 365 * 1 #1 year return-period extreme event
 Tlife = 3600 * 24 * 365 * 1 #1 year fatigue equivalent
 
 
@@ -57,7 +57,7 @@ withDEL = True  #compute DEL moments - if both are False, the lofi optimization 
 
 readOutputFrom = "" #results path where to get output data. If not empty, we do bypass OpenFAST execution and only postprocess files in that folder instead
 
-showPlots = not MPI #only show plots for non-mpi runs
+showPlots = False
 
 # total number of bins
 nbins = 1000        
