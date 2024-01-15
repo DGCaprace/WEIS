@@ -147,6 +147,8 @@ for ip,fname in enumerate(fname_wt_inputs):
         showPlots = showPlots,
     )
 
+    if MPI:
+        MPI.COMM_WORLD.Barrier()
 
 if not MPI:
     os.system(f"mv stdout.log {folder_arch + os.sep}")        

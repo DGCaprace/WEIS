@@ -22,7 +22,6 @@ wt_base_name = "Madsen2019_composite_v02_IC"
 # wt_base_name = "Madsen2019_composite_v02_originalThickness"
 
 
-exp_list = ["","p01","p02"]
 ext_list = ["","p01","p02","p03","p04"]
 
 
@@ -153,17 +152,17 @@ schema_out = {}
 
 iloc = leg_loc.index("U")
 isrc = leg_src.index("DEL")
-schema_out["FAT_Tilde_ss"] = {}
-schema_out["FAT_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["FAT_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["FAT_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ss"] = {}
+schema_out["DEL_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
 iloc = leg_loc.index("L")
 isrc = leg_src.index("DEL")
-schema_out["FAT_Tilde_ps"] = {}
-schema_out["FAT_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["FAT_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["FAT_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ps"] = {}
+schema_out["DEL_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+schema_out["DEL_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
 iloc = leg_loc.index("U")
 isrc = leg_src.index("extreme")
@@ -192,8 +191,8 @@ locs = np.linspace(0.,1.,nx)
 def strainFormula(iloc,Mx,My,Fz):
     return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] + Fz * ooEA[0,:])
 
-def strainFormula_NOF(iloc,Mx,My,Fz):
-    return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] - Fz * ooEA[0,:])
+# def strainFormula_NOF(iloc,Mx,My,Fz):
+#     return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] - Fz * ooEA[0,:])
 
 ptrn = ['-','--']
 
@@ -208,8 +207,8 @@ for iloc,loc in enumerate(leg_loc):
         # plt.plot(locs,-(DEMx[0,:]  *yoEIxxU[0,:]+DEMy[0,:]  *xoEIyyU[0,:]+DEFz[0,:]  *ooEA[0,:]) , label="DE-")
         plt.plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc]), ptrn[isrc], label=f"tilde {src}")
 
-        if src == "extreme":
-            plt.plot(locs,strainFormula_NOF(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), 'x--', label="from DE, NO F") 
+        # if src == "extreme":
+        #     plt.plot(locs,strainFormula_NOF(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), 'x--', label="from DE, NO F") 
         
     plt.ylabel(f"strain{loc}")
     plt.xlabel("r/R")
