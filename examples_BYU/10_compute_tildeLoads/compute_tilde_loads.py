@@ -16,10 +16,11 @@ mydir = os.path.dirname(os.path.realpath(__file__))  # get path to this file
 
 wt_base_name = "Madsen2019_composite_v02_IC"
 
-# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints'
-# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_120s_10yrExtr'
-# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_300s_1yrExtr'
-# wt_base_name = "Madsen2019_composite_v02_originalThickness"
+mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints'
+mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_120s_10yrExtr'
+mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_300s_1yrExtr'
+mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/11vels_600s_fatOnly'
+wt_base_name = "Madsen2019_composite_v02_originalThickness"
 
 
 ext_list = ["","p01","p02","p03","p04"]
@@ -78,6 +79,12 @@ for ifo,ext in enumerate(ext_list):
 
     combili_channels.pop("n_span")
     
+    for isrc,src in enumerate(leg_src):
+        if not src in schema:
+            print(f"CAUTION: I did not find {src} in the output yaml you provided for {wt_base_name + ext}.")
+            print("          I will just skip it.")
+            leg_src.pop(isrc)
+
     for i in range(n_span):
 
 
@@ -200,33 +207,35 @@ TildeMx, TildeMy, TildeFz = solve_tilde_loads(
 
 schema_out = {}
 
-iloc = leg_loc.index("U")
-isrc = leg_src.index("DEL")
-schema_out["DEL_Tilde_ss"] = {}
-schema_out["DEL_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["DEL_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["DEL_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+if "DEL" in leg_src:
+    isrc = leg_src.index("DEL")
 
-iloc = leg_loc.index("L")
-isrc = leg_src.index("DEL")
-schema_out["DEL_Tilde_ps"] = {}
-schema_out["DEL_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["DEL_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["DEL_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    iloc = leg_loc.index("U")
+    schema_out["DEL_Tilde_ss"] = {}
+    schema_out["DEL_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["DEL_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["DEL_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
-iloc = leg_loc.index("U")
-isrc = leg_src.index("extreme")
-schema_out["EXTR_Tilde_ss"] = {}
-schema_out["EXTR_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["EXTR_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["EXTR_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    iloc = leg_loc.index("L")
+    schema_out["DEL_Tilde_ps"] = {}
+    schema_out["DEL_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["DEL_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["DEL_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
-iloc = leg_loc.index("L")
-isrc = leg_src.index("extreme")
-schema_out["EXTR_Tilde_ps"] = {}
-schema_out["EXTR_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["EXTR_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-schema_out["EXTR_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+if "extreme" in leg_src:
+    isrc = leg_src.index("extreme")
+
+    iloc = leg_loc.index("U")
+    schema_out["EXTR_Tilde_ss"] = {}
+    schema_out["EXTR_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["EXTR_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["EXTR_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+
+    iloc = leg_loc.index("L")
+    schema_out["EXTR_Tilde_ps"] = {}
+    schema_out["EXTR_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["EXTR_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["EXTR_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
 
 my_write_yaml(schema_out, os.path.join(mydir,"Tilde_loads_LstSqr.yaml") )
