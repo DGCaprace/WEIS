@@ -7,6 +7,8 @@ import numpy as np
 from wisdem.inputs import load_yaml
 import matplotlib.pyplot as plt
 
+plt.rcParams['text.usetex'] = True
+
 from XtrFat.XtrFat import my_write_yaml
 
 #==================== DEFINITIONS  =====================================
@@ -21,7 +23,7 @@ wt_base_folder = "/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_Co
 tileLoadFile = "Tilde_loads_LstSqr.yaml" 
 output_subfolder = "3vels_120s_10yrExtr" #for plots and output files
 output_subfolder = "3vels_300s_1yrExtr" 
-output_subfolder = "11vels_600s_fatOnly" 
+# output_subfolder = "11vels_600s_fatOnly" 
 tileLoadFile = f"/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/{output_subfolder}/Tilde_loads_LstSqr.yaml" 
 
 
@@ -34,6 +36,8 @@ nx = 30 #number of spanwise stations. Could get it fron the file but it's just e
 
 leg_src = ["DEL","extreme"] # source of the strain used in the tilde load computation. "DEL"=fatigue, "extreme"=extreme
 
+gext = "png"
+gext = "pdf"
 
 showAllTheSame = False
 
@@ -183,53 +187,60 @@ ptrn = ['-','--']
 # -Strains-
 
 for iloc,loc in enumerate(leg_loc):
-    plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+    fig,ax = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
 
     for isrc,src in enumerate(leg_src):
-        plt.plot(locs,strain[0,:,iloc,isrc], ptrn[isrc] , label=f"actual {src}", color='k')
-        plt.plot(locs,strainFormula(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), ptrn[isrc], label="from DE") 
-        plt.plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc]), ptrn[isrc], label=f"tilde {src}")
+        ax[isrc].plot(locs,strain[0,:,iloc,isrc], ptrn[isrc] , label=r"$\tilde{\epsilon}$", color='k')
+        ax[isrc].plot(locs,strainFormula(iloc,DEMx[0,:,isrc],DEMy[0,:,isrc],DEFz[0,:,isrc]), ptrn[isrc], label="Opt.A") 
+        ax[isrc].plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc]), ptrn[isrc], label=f"Opt.B")
 
-    plt.plot(locs[[0,-1]],[ Sult]*2,':k')
-    plt.plot(locs[[0,-1]],[-Sult]*2,':k')
+        yls = ax[isrc].get_ylim()
+        ax[isrc].plot(locs[[0,-1]],[ Sult]*2,':k')
+        ax[isrc].plot(locs[[0,-1]],[-Sult]*2,':k')
+        ax[isrc].set_ylim(yls)
 
-    plt.ylabel(f"strain{loc}")
-    plt.xlabel("r/R")
+    ax[0].set_ylabel(r"$\epsilon^{life}$")
+    ax[1].set_ylabel(r"$\epsilon^{EXTR}$")
+    ax[0].set_title(loc)
+    plt.xlabel(r"$r/R$")
     plt.legend()
-    plt.savefig(os.path.join(wt_base_folder, output_subfolder,f"strain{loc}.png"))
+    plt.savefig(os.path.join(wt_base_folder, output_subfolder,f"strain{loc}.{gext}"))
 
 
 # LOADS
 for iloc,loc in enumerate(leg_loc):
-    fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
     
     for isrc,src in enumerate(leg_src):
+        fig,ax = plt.subplots(nrows=3, ncols=1, figsize=(10, 5))
+        
         #WHEN WE CONSIDER THAT ALL THINGS HAVE THE SAME WEIGHT
         SimpleTilde = strain[0,:,iloc,isrc] / (yoEIxx[0,:,iloc] + xoEIyy[0,:,iloc] + ooEA[0,:])  #scaling the strain to the proper units
 
         
-        ax[0].plot(locs, DEMx[0,:,isrc], ptrn[isrc], label=f"{src}", )
-        ax[1].plot(locs, DEMy[0,:,isrc], ptrn[isrc], label=f"{src}")
-        ax[2].plot(locs, DEFz[0,:,isrc], ptrn[isrc], label=f"{src}")
+        ax[0].plot(locs, DEMx[0,:,isrc], ptrn[isrc], label=r"$\tilde{M}_x$")
+        ax[1].plot(locs, DEMy[0,:,isrc], ptrn[isrc], label=r"$\tilde{M}_y$")
+        ax[2].plot(locs, DEFz[0,:,isrc], ptrn[isrc], label=r"$\tilde{F}_z$")
 
-        ax[0].plot(locs, TildeMx[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
-        ax[1].plot(locs, TildeMy[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
-        ax[2].plot(locs, TildeFz[:,iloc,isrc], ptrn[isrc], label=f"tilde {src}")
+        ax[0].plot(locs, TildeMx[:,iloc,isrc], ptrn[isrc], label=r"$M_x^{cont}$")
+        ax[1].plot(locs, TildeMy[:,iloc,isrc], ptrn[isrc], label=r"$M_y^{cont}$")
+        ax[2].plot(locs, TildeFz[:,iloc,isrc], ptrn[isrc], label=r"$F_z^{cont}$")
         
         if showAllTheSame:
             ax[0].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
             ax[1].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
             ax[2].plot(locs, SimpleTilde, ptrn[isrc], label=f"all the same")
 
-    # plt.plot(locs, TildeMxL , label="tilde L")
-    # plt.plot(locs, TildeMxU , label="tilde U")
-    ax[0].set_ylabel('Mx')
-    ax[1].set_ylabel('My')
-    ax[2].set_ylabel('Fz')
-    ax[2].set_xlabel("r/R")
-    ax[0].set_title(loc)
-    plt.legend()
-    plt.savefig(os.path.join(wt_base_folder, output_subfolder,f"loads_{iloc}.png"))
+        for i in range(3):
+            ax[i].legend()
+        # plt.plot(locs, TildeMxL , label="tilde L")
+        # plt.plot(locs, TildeMxU , label="tilde U")
+        ax[0].set_ylabel(r'$M_x$')
+        ax[1].set_ylabel(r'$M_y$')
+        ax[2].set_ylabel(r'$F_z$')
+        ax[2].set_xlabel(r"$r/R$")
+        ax[0].set_title(f"{loc}, {src}")
+        
+        plt.savefig(os.path.join(wt_base_folder, output_subfolder,f"loads_{loc}_{src}.{gext}"))
 
 
 plt.show()
