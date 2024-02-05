@@ -657,32 +657,6 @@ def XtrFat(
                         # d. Obtain the equivalent load corresponding to the equivalent strain in spars
                         #    We can use the factors y/EI11, x/EI22, 1/EA, already computed for the combili factors. 
 
-                        fact_LtU = np.zeros(n_span)
-                        fact_LtL = np.zeros(n_span)
-
-                        ooEA = np.zeros(n_span)
-                        yoEIxxU = np.zeros(n_span)
-                        xoEIyyU = np.zeros(n_span)
-                        yoEIxxL = np.zeros(n_span)
-                        xoEIyyL = np.zeros(n_span)
-                        yoEIxxTE = np.zeros(n_span)
-                        xoEIyyTE = np.zeros(n_span)
-                        
-                        for i in range(n_span):
-                            ooEA[i]  = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dFLz"%(i+1)]
-                            yoEIxxU[i] = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
-                            xoEIyyU[i] = combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
-                            yoEIxxL[i] = combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
-                            xoEIyyL[i] = combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
-                            yoEIxxTE[i] = combili_channels["BladeTE_Strain_Stn%d"%(i+1) ]["B1N0%02dMLx"%(i+1)]
-                            xoEIyyTE[i] = combili_channels["BladeTE_Strain_Stn%d"%(i+1) ]["B1N0%02dMLy"%(i+1)]
-
-                            for e in combili_channels["BladeSparU_Strain_Stn%d"%(i+1) ].values():
-                                fact_LtU[i] += e
-                            for e in combili_channels["BladeSparL_Strain_Stn%d"%(i+1) ].values():
-                                fact_LtL[i] += e
-
-
                         #NOTE: the big chunk of code here that was doing some part of the tilde loads was moved to
                         #       scripts compute_tilde_loads and validate_and_export_tilde_loads
 

@@ -19,7 +19,7 @@ wt_base_name = "Madsen2019_composite_v02_IC"
 mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints'
 mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_120s_10yrExtr'
 mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_300s_1yrExtr'
-mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/11vels_600s_fatOnly'
+# mydir = '/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/11vels_600s_fatOnly'
 wt_base_name = "Madsen2019_composite_v02_originalThickness"
 
 

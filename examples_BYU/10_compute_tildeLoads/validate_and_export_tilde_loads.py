@@ -19,13 +19,23 @@ wt_base_folder = os.path.dirname(os.path.realpath(__file__))  # get path to this
 # The following comes from the full OpenFAST simulation
 wt_base_folder = "/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5_openfastRun/results_11vels_6seeds/"
 
+# # APOSTERIORI VERIFICATION::
+# wt_base_folder = "/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds/"
+
+checkCombiliOutput = False
+wisdemRes = []
+wisdemRes = ["/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5a_structOpt/2_tildeFAT_tildeEXTR_2_10vars_localConstr/outputs_optim/iter_0/blade_out.npz",
+            #  "/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds/outputs_WEIS/iter_0/DTU10MW_Madsen.npz"
+             ]
+
+
 # The following comes from the compute_tilde_loads
-tileLoadFile = "Tilde_loads_LstSqr.yaml" 
 output_subfolder = "3vels_120s_10yrExtr" #for plots and output files
 output_subfolder = "3vels_300s_1yrExtr" 
 # output_subfolder = "11vels_600s_fatOnly" 
 tileLoadFile = f"/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/{output_subfolder}/Tilde_loads_LstSqr.yaml" 
 
+appendTildeLoadsToAnalysisFile = True
 
 # If the following is true, we add the tilde loads to the full OpenFAST output schema 
 # so the tilde loads can be used in subsequent optimizations.
@@ -171,12 +181,47 @@ for iloc,loc in enumerate(leg_loc):
 
 
 # ----------------------------------------------------------------------------------------------
+# -- If we are happy with the tilde loads, append them to the analysis file for the optimization!
+#        It used to be done within the XtrFat routine, but now we deferred it to here!
+if appendTildeLoadsToAnalysisFile:
+    file_analysisOpt = os.path.join(wt_base_folder,"analysis_options_struct_withDEL.yaml")
+    schema_analysisOpt = load_yaml(file_analysisOpt)
+
+    isrc = leg_src.index("DEL")
+    iloc = leg_loc.index("L")
+    schema_analysisOpt["DEL_Tilde_ps"] = {}
+    schema_analysisOpt["DEL_Tilde_ps"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+    schema_analysisOpt["DEL_Tilde_ps"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+    schema_analysisOpt["DEL_Tilde_ps"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+    iloc = leg_loc.index("U")
+    schema_analysisOpt["DEL_Tilde_ss"] = {}
+    schema_analysisOpt["DEL_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+    schema_analysisOpt["DEL_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+    schema_analysisOpt["DEL_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+
+    isrc = leg_src.index("extreme")
+    iloc = leg_loc.index("L")
+    schema_analysisOpt["extreme_Tilde_ps"] = {}
+    schema_analysisOpt["extreme_Tilde_ps"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+    schema_analysisOpt["extreme_Tilde_ps"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+    schema_analysisOpt["extreme_Tilde_ps"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+    iloc = leg_loc.index("U")
+    schema_analysisOpt["extreme_Tilde_ss"] = {}
+    schema_analysisOpt["extreme_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+    schema_analysisOpt["extreme_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+    schema_analysisOpt["extreme_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+
+    my_write_yaml(schema_analysisOpt,file_analysisOpt)
+
+# ----------------------------------------------------------------------------------------------
 # -- Final plots
 locs = np.linspace(0.,1.,nx)
 
 
 
 def strainFormula(iloc,Mx,My,Fz):
+    # M1 / EI11 * y - M2 / EI22 * x + F3in / EA
+    # -> the + of the second term comes from the fact that we store xoEIyy with the minus sign in there
     return (Mx * yoEIxx[0,:,iloc] + My * xoEIyy[0,:,iloc] + Fz * ooEA[0,:])
 
 # def strainFormula_NOF(iloc,Mx,My,Fz):
@@ -199,6 +244,12 @@ for iloc,loc in enumerate(leg_loc):
         ax[isrc].plot(locs[[0,-1]],[-Sult]*2,':k')
         ax[isrc].set_ylim(yls)
 
+    for ifi, file in enumerate(wisdemRes):
+        isrc = leg_src.index("DEL")
+        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.fatigue_strains_{loc}.strain{loc}_spar"], label="wisem fat")
+        isrc = leg_src.index("extreme")
+        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.extreme_strains.strain{loc}_spar"], label="wisem extr")
+        
     ax[0].set_ylabel(r"$\epsilon^{life}$")
     ax[1].set_ylabel(r"$\epsilon^{EXTR}$")
     ax[0].set_title(loc)
