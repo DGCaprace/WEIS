@@ -318,7 +318,7 @@ def XtrFat(
             # shutil.copy(os.path.join(fileDirectory,file), os.path.join(workingDirectory,file))
             # shutil.copytree
             if rank == 0:
-                os.system(f"mkdir {simfolder}")
+                os.system(f"mkdir -p {simfolder}")
                 os.system(f"ln -s {readWindFrom} {os.path.join(simfolder,'wind')}")
            
 
