@@ -556,33 +556,33 @@ def create_all_plots(
     #     plt.yticks(fontsize=font_size)
     #     plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
 
-    #     ax2 = ftow.add_subplot(122)
-    #     for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
-    #         y = yaml_data.get_val("towerse.tower_wall_thickness", "mm")
-    #         ax2.step(
-    #             np.r_[y, y[-1]],
-    #             yaml_data["towerse.z_param"],
-    #             "-",
-    #             color=colors[idx],
-    #             label=label,
-    #             where="post",
-    #         )
-    #     vx = ax2.get_xlim()
-    #     if zs.min() < -5.0:
-    #         ax2.plot(vx, np.zeros(2), color="b", linestyle="--")
-    #         ax2.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
-    #         ax2.plot(vx, 20 * np.ones(2), color="g", linestyle="--")
-    #     ax2.set_xlim(vx)
-    #     if mult_flag:
-    #         ax2.legend(fontsize=font_size)
-    #     plt.xlabel("Wall Thickness [mm]", fontsize=font_size + 2, fontweight="bold")
-    #     plt.xticks(fontsize=font_size)
-    #     plt.setp(ax2.get_yticklabels(), visible=False)
-    #     plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
-    #     plt.subplots_adjust(bottom=0.15, left=0.15)
-    #     fig_name = "tower_geometry" + extension
-    #     ftow.subplots_adjust(hspace=0.02, wspace=0.02, bottom=0.15, left=0.15)
-    #     ftow.savefig(os.path.join(folder_output, fig_name), pad_inches=0.1, bbox_inches="tight")
+    # ax2 = ftow.add_subplot(122)
+    # for idx, (yaml_data, label) in enumerate(zip(list_of_sims, list_of_labels)):
+    #     y = 1e3 * getter.get_tower_thickness(yaml_data)
+    #     ax2.step(
+    #         np.r_[y, y[-1]],
+    #         getter.get_zpts(yaml_data),
+    #         "-",
+    #         color=colors[idx],
+    #         label=label,
+    #         where="post",
+    #     )
+    # vx = ax2.get_xlim()
+    # if zs.min() < -5.0:
+    #     ax2.plot(vx, np.zeros(2), color="b", linestyle="--")
+    #     ax2.plot(vx, -water_depth * np.ones(2), color=brown, linestyle="--")
+    #     ax2.plot(vx, h_trans * np.ones(2), color="g", linestyle="--")
+    # ax2.set_xlim(vx)
+    # if mult_flag:
+    #     ax2.legend(fontsize=font_size)
+    # plt.xlabel("Wall Thickness [mm]", fontsize=font_size + 2, fontweight="bold")
+    # plt.xticks(fontsize=font_size)
+    # plt.setp(ax2.get_yticklabels(), visible=False)
+    # plt.grid(color=[0.8, 0.8, 0.8], linestyle="--")
+    # plt.subplots_adjust(bottom=0.15, left=0.15)
+    # fig_name = "tower-monopile_geometry" + extension
+    # ftow.subplots_adjust(hspace=0.02, wspace=0.02, bottom=0.15, left=0.15)
+    # ftow.savefig(os.path.join(folder_output, fig_name), pad_inches=0.1, bbox_inches="tight")
     # except KeyError:
     #     print("Skipping tower geometry.")
     #     pass
@@ -976,7 +976,8 @@ def run(list_of_sims, list_of_labels, modeling_options, analysis_options):
         "Floating Tower cost": ["floatingse.tower_cost", "USD"],
         "Monopile mass": ["towerse.monopile_mass", "kg"],
         "Monopile cost": ["towerse.monopile_cost", "USD"],
-        "Tower-Monopile freqs": ["towerse.tower.structural_frequencies", "Hz"],
+        "Tower freqs": ["towerse.tower.structural_frequencies", "Hz"],
+        "Monopile/jacket freqs": ["fixedse.structural_frequencies", "Hz"],
         "Floating Tower freqs": ["floatingse.tower_freqs", "Hz"],
     }
 
