@@ -2202,14 +2202,19 @@ class FASTLoadCases(ExplicitComponent):
                     #           This means that 1) the twist angle and rate passed to Precomp is always 0; 2)
                     #           the precomp axes (or swapped precomp=airfoil axes) are actually aligned with 
                     #           the blade axes. NO NEED TO ROTATE BY THE TWIST! 
-                    #So we only need to "rotate" the loads back by alpha:
-                    # M1 = (ca*My +sa*Mx) # note that we swap again x<->y and then rotate by -alpha
-                    # M2 = (-sa*My+ca*Mx)
+                    #So we only need to swap and "rotate" the loads by alpha as well:
+                    # M1 = -(ca*My +sa*Mx) # note that we swap again x<->y and then rotate by -alpha
+                    # M2 = -(-sa*My+ca*Mx)
+                    # The - comes from the swapping: we go from a right-handed frame to a left-handed frame. If we want to maintain that tension is >0, we need to change sign.
                     #Finally, the strain as a function of Mx,My,Fz is:
-                    #     strainU = (ca*My+sa*Mx) / EI11 * y1 - (-sa*My+ca*Mx) / EI22 * x1 + F3in / EA  
+                    #     strainU = -(ca*My+sa*Mx) / EI11 * y1 + (-sa*My+ca*Mx) / EI22 * x1 + F3in / EA  
+                    #             = -(ca/EI11*y1 * My + sa/EI11*y1 * Mx) + (-sa/EI22*x1 * My + ca/EI22*x1 * Mx)  + F3in / EA  
+                    #             = -(sa/EI11*y1-ca/EI22*x1) * Mx - (sa/EI22*x1+ca/EI11*y1) * My  + F3in / EA  
+                    #             = -(sa*fML1-ca*fML2) * Mx - (sa*fML2+ca*fML1) * My  + F3in / EA  
                     fMLx = -(sa * fML1  - ca * fML2)
                     fMLy = -(ca * fML1  + sa * fML2)
-                    # The - comes from the swapping: we go from a right-handed frame to a left-handed frame. If we want to maintain that traction is >0, we need to change sign.
+                    # NOTE: signs are accounted for in this formula. When applying it, one should do
+                    #     strainU = fMLx * Mx + fMLy * My + Fz / EA
 
                     #the channels MLx,MLy,FLz are in airfoil axes
                     combili_channels[f'Blade{U}_Strain_Stn{i+1}'] = [ ["B1N%03iMLx"%(i+1), fMLx], ["B1N%03iMLy"%(i+1), fMLy], ["B1N%03iFLz"%(i+1), fFLz],]

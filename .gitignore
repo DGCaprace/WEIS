@@ -148,7 +148,17 @@ DEPREC*
 *DVGroupCentresCon.dat
 force*.txt
 
+*.html
+*.yaml
+*.txt
+*.dat
+*.hst
+*.f5
+*.json
+*.csv
+*.eps
 
 #sepcific folders:
 Madsen2019_10_forWEIS_isotropic_*
 LoFiEval*
+
