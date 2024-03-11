@@ -64,13 +64,15 @@ The installation instructions below use the environment name, "weis-env," but an
 
 1.  Setup and activate the Anaconda environment from a prompt (WSL terminal on Windows or Terminal.app on Mac)
 
-        conda env create --name weis-env -f https://raw.githubusercontent.com/WISDEM/WEIS/develop/environment.yml python=3.9
+        conda env create --name weis-env -f ./environment_byu.yml python=3.9
         conda activate weis-env                          # (if this does not work, try source activate weis-env)
         sudo apt update                                  # (WSL only, assuming Ubuntu)
 
 2.  Use conda to add platform specific dependencies.
 
         conda config --add channels conda-forge
+        conda uninstall wisdem                                               #there is probably still a package depending on wisdem in the environment file?
+        pip uninstall wisdem           
         conda install -y petsc4py mpi4py                                     # (Mac / Linux only)   
         conda install -y compilers                                           # (Mac only)   
         sudo apt install gcc g++ gfortran libblas-dev liblapack-dev  -y      # (WSL only, assuming Ubuntu)
@@ -79,6 +81,8 @@ The installation instructions below use the environment name, "weis-env," but an
         <!-- conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy==1.22 openmdao==3.16 openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
         pip install marmot-agents jsonmerge fatpack
         conda install -y pyhams statsmodels                              # (BYU specific?)  -->
+
+**CAUTION** the current install gets all the packages from `raw.githubusercontent.com/WISDEM/WEIS`, including subpackages that are shipped in weis... and the shipped versions seem to supersede the local devel versions. So modifying the local code does not affect execution. To work that around, do NOT specify them in the environment file (or uninstall the packages from the conda env and pip).
 
 3. Clone the repository and install the software
 

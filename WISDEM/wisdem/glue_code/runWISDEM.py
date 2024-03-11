@@ -13,7 +13,7 @@ from wisdem.glue_code.gc_LoadInputs import WindTurbineOntologyPython
 from wisdem.glue_code.gc_WT_InitModel import yaml2openmdao
 from wisdem.glue_code.gc_PoseOptimization import PoseOptimization
 
-np.warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+# np.warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 # Suppress the maxfev warnings is scipy _minpack_py, line:175
 warnings.simplefilter("ignore", RuntimeWarning, lineno=175)
 

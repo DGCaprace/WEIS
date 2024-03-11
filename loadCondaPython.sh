@@ -2,8 +2,8 @@ PATH=/usr/local/anaconda3/bin/:$PATH
 PYTHONPATH=/usr/local/anaconda3/bin
 
 #create envs
-#conda config --add channels conda-forge
-#conda create -y --name weis-env python=3.8
+#conda env create --name weis-env-v1.1 -f https://raw.githubusercontent.com/WISDEM/WEIS/develop/environment.yml python=3.9
+
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
@@ -25,6 +25,4 @@ unset __conda_setup
 export PYTHONPATH=$PYTHONPATH:/Users/dcaprace/OneDrive\ -\ BYU/BYU_ATLANTIS/ATLANTIS_UM-BYU_utils/SETUP
 
 
-#conda activate weis-env
-#conda activate weis-env-v1
-conda activate weis-env-v1.0
+conda activate weis-env-v1.1

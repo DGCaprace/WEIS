@@ -1,0 +1,77 @@
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - anyio
+  - argon2-cffi
+  - arrow
+  - async-lru
+  - babel
+  - beautifulsoup4
+  - bleach
+  - cffi
+  - comm
+  - debugpy
+  - decorator
+  - dill
+  - executing
+  - fqdn
+  - git
+  - ipython
+  - isoduration
+  - jedi
+  - jinja2
+  - json5
+  - jsonmerge
+  - jupyter
+  - jupyterlab
+  - markupsafe
+  - mat4py
+  - matplotlib
+  - meson
+  - mistune
+  - moorpy
+  - ninja
+  - nlopt
+  - nlopt
+  - notebook
+  # - openfast #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
+  - openpyxl
+  - openraft
+  - osqp==0.6.3
+  - overrides
+  - pandas
+  - parso
+  - patsy
+#  - pcrunch  #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
+  - pexpect
+  - pip
+  - platformdirs
+  - psutil
+  - ptyprocess
+  - pyDOE3
+  - pygments
+#  - pyhams  #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
+  - python-json-logger
+  - pyzmq
+  - qdldl-python
+  - qtpy
+  - rosco
+  - scikit-learn
+  - setuptools
+  - smt
+  - tornado
+  - traitlets
+  - treon
+  - webencodings
+#  - wisdem  #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
+  - pip:
+    - dearpygui
+    - marmot-agents
+# Needs to be done outside of environment file:
+#  - m2w64-toolchain # [win]
+#  - libpython # [win]
+#  - compilers # [not win]
+#  - petsc4py # [not win]
+#  - mpi4py # [not win]

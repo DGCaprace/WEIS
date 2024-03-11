@@ -3537,13 +3537,15 @@ class BladeCost(om.ExplicitComponent):
                 if orth[i_mat]:
                     layer_volume_span_interp_ss = np.interp(root_preform_length, s, layer_volume_span_ss[i_lay, :])
                     layer_volume_span_interp_ps = np.interp(root_preform_length, s, layer_volume_span_ps[i_lay, :])
+                    print("WARNING: cost model may be inaccurate")
+                    # I had to do this to bypass a weird numpy error... or should we expand the arrays?
                     add_volume_ss = np.trapz(
-                        [layer_volume_span_ss[i_lay, 0], layer_volume_span_interp_ss],
-                        [0, blade_length * root_preform_length],
+                        [layer_volume_span_ss[i_lay, 0], layer_volume_span_interp_ss[0]],
+                        [0, blade_length[0] * root_preform_length[0]],
                     )
                     add_volume_ps = np.trapz(
-                        [layer_volume_span_ps[i_lay, 0], layer_volume_span_interp_ps],
-                        [0, blade_length * root_preform_length],
+                        [layer_volume_span_ps[i_lay, 0], layer_volume_span_interp_ps[0]],
+                        [0, blade_length[0] * root_preform_length[0]],
                     )
                     volume_root_preform_ss += add_volume_ss
                     volume_root_preform_ps += add_volume_ps
@@ -3551,8 +3553,8 @@ class BladeCost(om.ExplicitComponent):
                     mass_root_preform_ps += add_volume_ps * rho_mat[i_mat]
                     width_ss_interp = np.interp(root_preform_length, s, width_ss)
                     width_ps_interp = np.interp(root_preform_length, s, width_ps)
-                    area_root_ss = np.trapz([width_ss[0], width_ss_interp], [0, blade_length * root_preform_length])
-                    area_root_ps = np.trapz([width_ps[0], width_ps_interp], [0, blade_length * root_preform_length])
+                    area_root_ss = np.trapz([width_ss[0], width_ss_interp[0]], [0, blade_length[0] * root_preform_length[0]])
+                    area_root_ps = np.trapz([width_ps[0], width_ps_interp[0]], [0, blade_length[0] * root_preform_length[0]])
 
                 # Fabric shear webs
                 if layer_web[i_lay] != 0:
@@ -3704,12 +3706,13 @@ class BladeCost(om.ExplicitComponent):
         spar_cap_ss_area = np.trapz(spar_cap_width_ss, blade_length * s)
         spar_cap_ps_area = np.trapz(spar_cap_width_ps, blade_length * s)
         sect_perimeter_ss_interp = np.interp(root_preform_length, s, sect_perimeter_ss)
+
         ss_area_root = np.trapz(
-            [sect_perimeter_ss[0], sect_perimeter_ss_interp], [0, blade_length * root_preform_length]
+            [sect_perimeter_ss[0], sect_perimeter_ss_interp[0]], [0, blade_length[0] * root_preform_length[0]]
         )
         sect_perimeter_ps_interp = np.interp(root_preform_length, s, sect_perimeter_ps)
         ps_area_root = np.trapz(
-            [sect_perimeter_ps[0], sect_perimeter_ps_interp], [0, blade_length * root_preform_length]
+            [sect_perimeter_ps[0], sect_perimeter_ps_interp[0]], [0, blade_length[0] * root_preform_length[0]]
         )
         bom.blade_specs = {}
         bom.blade_specs["area_webs_w_flanges"] = web_area_w_flanges
