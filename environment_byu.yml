@@ -57,7 +57,7 @@ dependencies:
   - pyzmq
   - qdldl-python
   - qtpy
-  - rosco
+  # - rosco #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
   - scikit-learn
   - setuptools
   - smt
