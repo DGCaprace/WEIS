@@ -57,7 +57,9 @@ class CMakeBuildExt(build_ext):
                           '-DDOUBLE_PRECISION:BOOL=OFF',
                           '-DCMAKE_POSITION_INDEPENDENT_CODE=ON',
                           '-DCMAKE_INSTALL_PREFIX='+localdir,
-                          '-DCMAKE_BUILD_TYPE='+buildtype]
+                          '-DCMAKE_BUILD_TYPE='+buildtype,
+                          '-DSTATIC_DLL_LOAD=ON', # I need to do this otherwise I am having a memory mapping error. 
+                          ]
             buildtype = buildtype.upper()
 
             # Custom tuning
