@@ -8,6 +8,7 @@ import os
 import sys
 import platform
 import multiprocessing as mp
+import psutil
 
 from weis.aeroelasticse.FAST_reader import InputReader_OpenFAST
 from weis.aeroelasticse.FAST_writer import InputWriter_OpenFAST
@@ -263,7 +264,9 @@ class runFAST_pywrapper(object):
 
                 output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut, magnitude_channels=self.magnitude_channels, combili_channels=self.combili_channels)
 
-
+        print("Now processing...")
+        print(f"Current mem is: {psutil.Process().memory_info().rss / (1024 * 1024)}")
+        sys.stdout.flush()
 
         # Trim Data
         if self.fst_vt['Fst']['TStart'] > 0.0:
@@ -271,6 +274,12 @@ class runFAST_pywrapper(object):
         case_name, sum_stats, extremes, dels, damage = self.la._process_output(output,
                                                                                return_damage=True,
                                                                                goodman_correction=self.goodman)
+
+        del output
+
+        print("...done processin.")
+        print(f"Current mem is: {psutil.Process().memory_info().rss / (1024 * 1024)}")
+        sys.stdout.flush()
 
         return case_name, sum_stats, extremes, dels, damage, output_dict
 
