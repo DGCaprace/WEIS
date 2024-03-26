@@ -350,14 +350,14 @@ def create_all_plots(
             # Add strains from user-specified extreme loading
             axeps.plot(
                 yaml_data["blade.outer_shape_bem.s"],
-                yaml_data["rotorse.rs.extreme_strains.strainU_spar"] * 1.0e6,
+                yaml_data["rotorse.rs.extreme_strains_U.strainU_spar"] * 1.0e6,
                 "--",
                 color=colors[idx],
                 label=label,
             )
             axeps.plot(
                 yaml_data["blade.outer_shape_bem.s"],
-                yaml_data["rotorse.rs.extreme_strains.strainL_spar"] * 1.0e6,
+                yaml_data["rotorse.rs.extreme_strains_L.strainL_spar"] * 1.0e6,
                 "--",
                 color=colors[idx],
             )

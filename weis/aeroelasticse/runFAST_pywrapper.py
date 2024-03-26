@@ -248,6 +248,13 @@ class runFAST_pywrapper(object):
                 # Add channel to indicate failed run
                 output_dict['openfast_failed'] = np.zeros(len(output_dict[channel]))
 
+                print(f"Let's read the executable output... {self.FAST_namingOut}" )
+                sys.stdout.flush()
+
+                print(f"...done reading." )
+                sys.stdout.flush()
+
+
                 # Re-make output
                 output = OpenFASTOutput.from_dict(output_dict, self.FAST_namingOut)
             

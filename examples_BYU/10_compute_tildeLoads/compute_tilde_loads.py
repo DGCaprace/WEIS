@@ -226,16 +226,16 @@ if "extreme" in leg_src:
     isrc = leg_src.index("extreme")
 
     iloc = leg_loc.index("U")
-    schema_out["EXTR_Tilde_ss"] = {}
-    schema_out["EXTR_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-    schema_out["EXTR_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-    schema_out["EXTR_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ss"] = {}
+    schema_out["extreme_Tilde_ss"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ss"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ss"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
     iloc = leg_loc.index("L")
-    schema_out["EXTR_Tilde_ps"] = {}
-    schema_out["EXTR_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-    schema_out["EXTR_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
-    schema_out["EXTR_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ps"] = {}
+    schema_out["extreme_Tilde_ps"]["deMLxPerStrain"] = (TildeMx[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ps"]["deMLyPerStrain"] = (TildeMy[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
+    schema_out["extreme_Tilde_ps"]["deFLzPerStrain"] = (TildeFz[:,iloc,isrc] / strain[0,:,iloc,isrc]).tolist()
 
 
 my_write_yaml(schema_out, os.path.join(mydir,"Tilde_loads_LstSqr.yaml") )

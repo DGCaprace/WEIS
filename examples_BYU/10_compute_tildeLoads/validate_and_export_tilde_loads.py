@@ -29,8 +29,8 @@ wt_base_folder = []
 wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5_openfastRun/results_11vels_6seeds/")
 
 # APOSTERIORI VERIFICATION::
-# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2.2/") #an optimization with too few spanwise DVs
-# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2.4/") #an optimization with some more spanwise DVs
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim1_noFAT_wisdemEXTR/") #using WISDEM extreme constraint
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2_tildeFAT_EXTR/") #using my OptionB constraint (both extr and fat)
 
 checkCombiliOutput = False
 wisdemRes = []
@@ -43,7 +43,7 @@ wisdemRes = []
 output_subfolder = "3vels_120s_10yrExtr" #for plots and output files
 output_subfolder = "3vels_300s_1yrExtr" 
 # output_subfolder = "11vels_600s_fatOnly" 
-output_subfolder = "3vels_300s_1yrExtr_CheckAfterOptim"
+# output_subfolder = "3vels_300s_1yrExtr_CheckAfterOptim"
 
 # tileLoadFile = f"/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/{output_subfolder}/Tilde_loads_LstSqr.yaml" 
 tileLoadFile = f"/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/4_compareConstraints/3vels_300s_1yrExtr/Tilde_loads_LstSqr.yaml" 
@@ -86,6 +86,8 @@ DEMx = np.zeros((nf,n_span,n_src))
 DEMy = np.zeros((nf,n_span,n_src))
 DEFz = np.zeros((nf,n_span,n_src))
 
+s_coord = {}
+
 
 # ----------------------------------------------------------------------------------------------
 #    specific preprocessing 
@@ -105,18 +107,20 @@ for ifo in range(nf):
 
     if not os.path.isdir(os.path.join(folder_arch, output_subfolder)):
         os.system(f"mkdir {os.path.join(folder_arch, output_subfolder)}")
-
-    # checks
-    if nx != len(schema['DEL']['grid_nd']):
-        raise ValueError("incorrect nx specified")
-    if n_span != combili_channels["n_span"]:
-        raise ValueError("incorrect nx specified")
     
+    # checks
     for isrc,src in enumerate(leg_src):
         if not src in schema:
             print(f"CAUTION: I did not find {src} in the output yaml you provided for {folder_arch}.")
             print("          I will just skip it.")
             leg_src.pop(isrc)
+        else:
+            if nx != len(schema[src]['grid_nd']):
+                raise ValueError("incorrect nx specified")
+            s_coord[src] = schema[src]["grid_nd"]
+
+    if n_span != combili_channels["n_span"]:
+        raise ValueError("incorrect nx specified")
 
     combili_channels.pop("n_span")
     
@@ -164,16 +168,16 @@ if "DEL" in leg_src:
 if "extreme" in leg_src:
     isrc = leg_src.index("extreme")
 
-    if "EXTR_Tilde_ss" in schema_TildeLoads:
+    if "extreme_Tilde_ss" in schema_TildeLoads:
         iloc = leg_loc.index("U")
-        TildeMx_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ss"]["deMLxPerStrain"]
-        TildeMy_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ss"]["deMLyPerStrain"]
-        TildeFz_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ss"]["deFLzPerStrain"]
+        TildeMx_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ss"]["deMLxPerStrain"]
+        TildeMy_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ss"]["deMLyPerStrain"]
+        TildeFz_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ss"]["deFLzPerStrain"]
 
         iloc = leg_loc.index("L")
-        TildeMx_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ps"]["deMLxPerStrain"]
-        TildeMy_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ps"]["deMLyPerStrain"]
-        TildeFz_perStrain[:,iloc,isrc] = schema_TildeLoads["EXTR_Tilde_ps"]["deFLzPerStrain"]
+        TildeMx_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ps"]["deMLxPerStrain"]
+        TildeMy_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ps"]["deMLyPerStrain"]
+        TildeFz_perStrain[:,iloc,isrc] = schema_TildeLoads["extreme_Tilde_ps"]["deFLzPerStrain"]
     
     else: 
         print(f"CAUTION: extreme exist in your simulation but not in the tilde file. I will skip it.")
@@ -215,12 +219,14 @@ if appendTildeLoadsToAnalysisFile:
 
         iloc = leg_loc.index("L")
         schema_analysisOpt["DEL_Tilde_ps"] = {}
+        schema_analysisOpt["DEL_Tilde_ps"]["grid_nd"] = s_coord[src]
         schema_analysisOpt["DEL_Tilde_ps"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
         schema_analysisOpt["DEL_Tilde_ps"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
         schema_analysisOpt["DEL_Tilde_ps"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
 
         iloc = leg_loc.index("U")
         schema_analysisOpt["DEL_Tilde_ss"] = {}
+        schema_analysisOpt["DEL_Tilde_ss"]["grid_nd"] = s_coord[src]
         schema_analysisOpt["DEL_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
         schema_analysisOpt["DEL_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
         schema_analysisOpt["DEL_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
@@ -236,23 +242,25 @@ if appendTildeLoadsToAnalysisFile:
         isrc = leg_src.index("extreme")
 
         iloc = leg_loc.index("L")
-        schema_analysisOpt["EXTR_Tilde_ps"] = {}
-        schema_analysisOpt["EXTR_Tilde_ps"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
-        schema_analysisOpt["EXTR_Tilde_ps"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
-        schema_analysisOpt["EXTR_Tilde_ps"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ps"] = {}
+        schema_analysisOpt["extreme_Tilde_ps"]["grid_nd"] = s_coord[src]
+        schema_analysisOpt["extreme_Tilde_ps"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ps"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ps"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
 
         iloc = leg_loc.index("U")
-        schema_analysisOpt["EXTR_Tilde_ss"] = {}
-        schema_analysisOpt["EXTR_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
-        schema_analysisOpt["EXTR_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
-        schema_analysisOpt["EXTR_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ss"] = {}
+        schema_analysisOpt["extreme_Tilde_ss"]["grid_nd"] = s_coord[src]
+        schema_analysisOpt["extreme_Tilde_ss"]["deMLx"] = TildeMx[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ss"]["deMLy"] = TildeMy[:,iloc,isrc].tolist()
+        schema_analysisOpt["extreme_Tilde_ss"]["deFLz"] = TildeFz[:,iloc,isrc].tolist()
         
 
         # EXPORT FOR MACH
         fname_extrMach = os.path.join(wt_base_folder[simId], output_subfolder, "extrTildeLoads_forMACH.yaml")
         extr_schema = {}
-        extr_schema["EXTR_Tilde_ss"] = schema_analysisOpt["EXTR_Tilde_ss"]
-        extr_schema["EXTR_Tilde_ps"] = schema_analysisOpt["EXTR_Tilde_ps"]
+        extr_schema["extreme_Tilde_ss"] = schema_analysisOpt["extreme_Tilde_ss"]
+        extr_schema["extreme_Tilde_ps"] = schema_analysisOpt["extreme_Tilde_ps"]
         my_write_yaml(extr_schema, fname_extrMach)
         
     my_write_yaml(schema_analysisOpt,file_analysisOpt)

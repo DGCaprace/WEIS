@@ -28,11 +28,13 @@ constraints:
         extreme_loads_from_user_inputs: False
         strains_spar_cap_ss:
             flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade suction side
+            loading: "extreme_Tilde_ss"
             max:    3500.e-6   # Value of maximum strains [-]
             index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ss
             index_end: 4       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ss
         strains_spar_cap_ps:
             flag: True         # Flag to impose constraints on maximum strains (absolute value) in the spar cap on the blade pressure side
+            loading: "extreme_Tilde_ps"
             max:    3500.e-6   # Value of maximum strains [-]
             index_start: 1     # Do not enforce constraint at the first station from blade root of the n_opt from spar_cap_ps
             index_end: 4       # Do not enforce constraint at the last station at blade tip of the n_opt from spar_cap_ps
