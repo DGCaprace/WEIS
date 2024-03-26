@@ -35,6 +35,7 @@ class PoseOptimization(object):
             "SNOPT",
             "CONMIN",
             "NSGA2",
+            "IPOPT"
         ]
 
     def get_number_design_variables(self):
@@ -341,6 +342,13 @@ class PoseOptimization(object):
                         wt_opt.driver.opt_settings["Verify level"] = opt_options["verify_level"]
                     else:
                         wt_opt.driver.opt_settings["Verify level"] = -1
+
+                elif opt_options["solver"] == "IPOPT":
+                    wt_opt.driver.opt_settings["tol"] = float(opt_options["tol"])
+                    wt_opt.driver.opt_settings["max_iter"] = int(opt_options["max_iter"])
+                    wt_opt.driver.opt_settings["constr_viol_tol"] = float(opt_options["feas_tol"])
+                    # https://coin-or.github.io/Ipopt/OPTIONS.html
+
                 if "hotstart_file" in opt_options:
                     wt_opt.driver.hotstart_file = opt_options["hotstart_file"]
 
