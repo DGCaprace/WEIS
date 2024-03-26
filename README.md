@@ -77,10 +77,16 @@ The installation instructions below use the environment name, "weis-env," but an
         conda install -y compilers                                           # (Mac only)   
         sudo apt install gcc g++ gfortran libblas-dev liblapack-dev  -y      # (WSL only, assuming Ubuntu)
         
-        
+        conda uninstall pyhams
+        pip uninstall pyHAMS
+        conda install -y ipopt
+        conda install -y pyoptsparse==2.10.2
+
         <!-- conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy==1.22 openmdao==3.16 openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
         pip install marmot-agents jsonmerge fatpack
         conda install -y pyhams statsmodels                              # (BYU specific?)  -->
+
+        <!-- openmdao 3.16 requires numpy <=1.24 -->
 
 **CAUTION** the current install gets all the packages from `raw.githubusercontent.com/WISDEM/WEIS`, including subpackages that are shipped in weis... and the shipped versions seem to supersede the local devel versions. So modifying the local code does not affect execution. To work that around, do NOT specify them in the environment file (or uninstall the packages from the conda env and pip).
 

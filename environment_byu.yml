@@ -36,6 +36,7 @@ dependencies:
   - nlopt
   - nlopt
   - notebook
+  - openmdao==3.27
   # - openfast #DONT DO THIS, I WANT TO RELY ON THE LOCAL DEV
   - openpyxl
   - openraft
