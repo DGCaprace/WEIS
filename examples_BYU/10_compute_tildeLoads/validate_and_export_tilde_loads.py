@@ -29,8 +29,17 @@ wt_base_folder = []
 wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5_openfastRun/results_11vels_6seeds/")
 
 # APOSTERIORI VERIFICATION::
+# #CASE1:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim1_noFAT_wisdemEXTR/") #using WISDEM extreme constraint
+# #CASE2.1:
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim3_noFAT_EXTR_1basedOnExtrLoads/") 
+# #CASE2.2:
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim3_noFAT_EXTR_2basedOnTildeLoads/")
+# #CASE3.1:
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim5_15dvs/")
+#CASE3.2:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2_tildeFAT_EXTR/") #using my OptionB constraint (both extr and fat)
+# wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2_tildeFAT_EXTR_15dvs/")
 
 checkCombiliOutput = False
 wisdemRes = []
@@ -138,6 +147,10 @@ for ifo in range(nf):
             DEMx[ifo,i,isrc] = schema[src]["deMLx"][i]
             DEMy[ifo,i,isrc] = schema[src]["deMLy"][i]
             DEFz[ifo,i,isrc] = schema[src]["deFLz"][i]
+
+    nDVs = schema["design_variables"]["blade"]["structure"]["spar_cap_ps"]["n_opt"]
+
+xdvs = np.linspace(0,1,nDVs)
 
 # ----------------------------------------------------------------------------------------------
 #    Read the yaml 
@@ -374,11 +387,14 @@ for iloc,loc in enumerate(leg_loc):
         ax[isrc].plot(locs[[0,-1]],[-Sult]*2,':k')
         ax[isrc].set_ylim(yls)
 
+        #location of the points where the constraint is imposed
+        ax[isrc].plot(xdvs, np.interp(xdvs,locs,strain[simId,:,iloc,isrc]), 'kx')
+
     for ifi, file in enumerate(wisdemRes):
         isrc = leg_src.index("DEL")
         ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.fatigue_strains_{loc}.strain{loc}_spar"], label="wisem fat")
         isrc = leg_src.index("extreme")
-        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.extreme_strains.strain{loc}_spar"], label="wisem extr")
+        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.extreme_strains_{loc}.strain{loc}_spar"], label="wisem extr")
         
     ax[0].set_ylabel(r"$\epsilon^{life}$")
     ax[1].set_ylabel(r"$\epsilon^{EXTR}$")
