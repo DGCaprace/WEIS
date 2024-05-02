@@ -31,22 +31,25 @@ wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AI
 # APOSTERIORI VERIFICATION::
 # #CASE1:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim1_noFAT_wisdemEXTR/") #using WISDEM extreme constraint
+wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim1_noFAT_wisdemEXTR_15dvs/") 
 # #CASE2.1:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim3_noFAT_EXTR_1basedOnExtrLoads/") 
 # #CASE2.2:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim3_noFAT_EXTR_2basedOnTildeLoads/")
 # #CASE3.1:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim5_15dvs/")
-#CASE3.2:
+# #CASE3.2:
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2_tildeFAT_EXTR/") #using my OptionB constraint (both extr and fat)
 # wt_base_folder.append("/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2_tildeFAT_EXTR_15dvs/")
 
 checkCombiliOutput = False
 wisdemRes = []
+wisdemRes = ["/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5a_structOpt/1_noFAT_wisdemEXTR_4_15vars/outputs_optim/iter_0/blade_out.npz",]
 # wisdemRes = ["/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5a_structOpt/2_tildeFAT_tildeEXTR_2_10vars_localConstr/outputs_optim/iter_0/blade_out.npz",
 #             #  "/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5b_structOpt_verif_openfast/results_11vels_6seeds_optim2.2/outputs_WEIS/iter_0/DTU10MW_Madsen.npz"
 #              ]
 # wisdemRes = ["/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5a_structOpt/2_tildeFAT_tildeEXTR_4actualTilde/outputs_optim/iter_0/blade_out.npz"]
+# wisdemRes = ["/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_ComFi/results/5a_structOpt/3_noFAT_EXTR_1basedOnExtrLoads/outputs_optim/iter_0/blade_out.npz"]
 
 # The following comes from the compute_tilde_loads script
 output_subfolder = "3vels_120s_10yrExtr" #for plots and output files
@@ -60,7 +63,7 @@ tileLoadFile = f"/Users/dcaprace/Library/CloudStorage/OneDrive-UCL/2023_AIAA_Com
 # If the following is true, we add the tilde loads to the full OpenFAST output schema 
 # so the tilde loads can be used in subsequent optimizations.
 appendTildeLoadsToAnalysisFile = True #-> should be True for Apriori checking (in preparation for WISDEM optimization)
-# appendTildeLoadsToAnalysisFile = False #-> should be False for Aposteriori checking
+appendTildeLoadsToAnalysisFile = False #-> should be False for Aposteriori checking
 
 
 leg_loc = ["U","L"] # location. Could add "TE"
@@ -369,39 +372,36 @@ if wisdemRes and checkCombiliOutput:
 
 # -Strains-
 
-for iloc,loc in enumerate(leg_loc):
+for isrc,src in enumerate(leg_src):
     fig,ax = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
 
-    for isrc,src in enumerate(leg_src):
-        ax[isrc].plot(locs,strain[simId,:,iloc,isrc], ptrn[isrc] , label=r"$\tilde{\epsilon}$", color='k')
-        ax[isrc].plot(locs,strainFormula(iloc,DEMx[simIdREF,:,isrc],DEMy[simIdREF,:,isrc],DEFz[simIdREF,:,isrc], simId=simId), ptrn[isrc], label="Opt.A") 
-        ax[isrc].plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc], simId=simId), ptrn[isrc], label=f"Opt.B")
+    for iloc,loc in enumerate(leg_loc):
+        ax[iloc].plot(locs,strain[simId,:,iloc,isrc], ptrn[isrc] , label=r"$\tilde{\epsilon}$", color='k')
+        # ax[iloc].plot(locs,strainFormula(iloc,DEMx[simIdREF,:,isrc],DEMy[simIdREF,:,isrc],DEFz[simIdREF,:,isrc], simId=simId), ptrn[isrc], label="Opt.A") 
+        # ax[iloc].plot(locs,strainFormula(iloc,TildeMx[:,iloc,isrc],TildeMy[:,iloc,isrc],TildeFz[:,iloc,isrc], simId=simId), ptrn[isrc], label=f"Opt.B")
         #NOTE:
         #  option A: strain from the DEM directly aggregated in the baseline simulation (not in the optimal one), and multiplied by the beam properties of the last design. 
         #               This represent the vision that WISDEM would have at the optimal design if we were to evaluate the constraint with Opt. A
         #  option B: strain from the tilde loads (obtained on the baseline geometry) and the beam properties of the last design. 
         #               This is exactly what WISDEM does so this line should lie exactly on top of the vision of the optimial design by wisdem
 
-        yls = ax[isrc].get_ylim()
-        ax[isrc].plot(locs[[0,-1]],[ Sult]*2,':k')
-        ax[isrc].plot(locs[[0,-1]],[-Sult]*2,':k')
-        ax[isrc].set_ylim(yls)
+        yls = ax[iloc].get_ylim()
+        ax[iloc].plot(locs[[0,-1]],[ Sult]*2,':k')
+        ax[iloc].plot(locs[[0,-1]],[-Sult]*2,':k')
+        ax[iloc].set_ylim(yls)
 
         #location of the points where the constraint is imposed
-        ax[isrc].plot(xdvs, np.interp(xdvs,locs,strain[simId,:,iloc,isrc]), 'kx')
+        ax[iloc].plot(xdvs, np.interp(xdvs,locs,strain[simId,:,iloc,isrc]), 'kx')
+        ax[iloc].set_ylabel(r"$\epsilon$" + loc)
 
-    for ifi, file in enumerate(wisdemRes):
-        isrc = leg_src.index("DEL")
-        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.fatigue_strains_{loc}.strain{loc}_spar"], label="wisem fat")
-        isrc = leg_src.index("extreme")
-        ax[isrc].plot(locs, wisdemData[ifi][f"rotorse.rs.extreme_strains_{loc}.strain{loc}_spar"], label="wisem extr")
+        for ifi, file in enumerate(wisdemRes):
+            # ax[iloc].plot(locs, wisdemData[ifi][f"rotorse.rs.fatigue_strains_{loc}.strain{loc}_spar"], label=f"wisem {loc}")
+            ax[iloc].plot(locs, wisdemData[ifi][f"rotorse.rs.strains.strain{loc}_spar"], color='darkgreen', label=f"WISDEM")
         
-    ax[0].set_ylabel(r"$\epsilon^{life}$")
-    ax[1].set_ylabel(r"$\epsilon^{EXTR}$")
-    ax[0].set_title(loc)
+    ax[0].set_title(src)
     plt.xlabel(r"$r/R$")
     plt.legend()
-    plt.savefig(os.path.join(wt_base_folder[simId], output_subfolder,f"strain{loc}.{gext}"))
+    plt.savefig(os.path.join(wt_base_folder[simId], output_subfolder,f"strain{src}.{gext}"))
 
 
 # LOADS
