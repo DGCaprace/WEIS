@@ -57,18 +57,48 @@ On laptop and personal computers, installation with [Anaconda](https://www.anaco
 
 The installation instructions below use the environment name, "weis-env," but any name is acceptable. For those working behind company firewalls, you may have to change the conda authentication with `conda config --set ssl_verify no`.  Proxy servers can also be set with `conda config --set proxy_servers.http http://id:pw@address:port` and `conda config --set proxy_servers.https https://id:pw@address:port`.
 
-0.  On the DOE HPC system eagle, make sure to start from a clean setup and type
+**NOTE ON THE USE OF CONDA IN 2024** We start having big troubles because packages are too recent. I should have noted down the version of everything when it was working, but I didnt.
+As a result:
+- there is mostly a limitation on the numpy version for compatibility with WEIS (due to `distutil` being used). Python 3.12 does not even support it anymore so it will just not find it. We must employ Python<3.12 and most likely a numpy version 1.24 or 1.26 at most. But still, it might complain because of incompatibility with setuptools (<65?). The thing is: specigying the python version in the env file makes it unsolvable (unfinished after 12 hours...).
+- alternately, we could you an old conda that relies on an older python... problem is: it will still try to suck a too recent python. 
+Other notes:
+- APPARENTLY, using python version in `env create` does not work anymore. Can still do in `conda create` but then you can't specify a file. 
+- With Conda23.9, it's impossible to solve the environment with python3.9...
+- Ways to create the env are:
+        conda env create --name weis-env -f ./environment_byu.yml python=3.9
+        ##-OR- for conda 23
+        conda env create -y --name weis-env-1.1 -f ./environment_byu.yml
+        ##-OR- for old conda
+        <!-- #conda create --name weis-env-TMP2 --force --file ./environment_nic5.yml python=3.9 -->
+        conda create --name weis-env-TMP2 -y python=3.9
+        activate weis-env-TMP2
+        conda install -y --file ./environment_nic5.yml
+
+**INSTRUCTIONS Specific to nic5:**
+```
+conda config --add channels conda-forge
+conda create --name weis-env-TMP2 -y python=3.9
+conda activate weis-env-TMP2
+conda install -y --file ./environment_nic5.yml
+conda uninstall -y wisdem
+#pip uninstall wisdem
+pip install dearpygui marmot-agents
+conda install -y petsc4py mpi4py ipopt pyoptsparse==2.10.2
+python setup.py develop
+```
+
+1.  On the DOE HPC system eagle, make sure to start from a clean setup and type
 
         module purge
         module load conda        
 
-1.  Setup and activate the Anaconda environment from a prompt (WSL terminal on Windows or Terminal.app on Mac)
+2.  Setup and activate the Anaconda environment from a prompt (WSL terminal on Windows or Terminal.app on Mac)
 
         conda env create --name weis-env -f ./environment_byu.yml python=3.9
         conda activate weis-env                          # (if this does not work, try source activate weis-env)
         sudo apt update                                  # (WSL only, assuming Ubuntu)
 
-2.  Use conda to add platform specific dependencies.
+3.  Use conda to add platform specific dependencies.
 
         conda config --add channels conda-forge
         conda uninstall wisdem                                               #there is probably still a package depending on wisdem in the environment file?
@@ -79,8 +109,7 @@ The installation instructions below use the environment name, "weis-env," but an
         
         conda uninstall pyhams
         pip uninstall pyHAMS
-        conda install -y ipopt
-        conda install -y pyoptsparse==2.10.2
+        conda install -y ipopt pyoptsparse==2.10.2
 
         <!-- conda install -y cmake cython control dill git jsonschema make matplotlib-base numpy==1.22 openmdao==3.16 openpyxl pandas pip pyoptsparse pytest python-benedict pyyaml ruamel_yaml scipy setuptools simpy slycot smt sortedcontainers swig
         pip install marmot-agents jsonmerge fatpack
@@ -90,14 +119,14 @@ The installation instructions below use the environment name, "weis-env," but an
 
 **CAUTION** the current install gets all the packages from `raw.githubusercontent.com/WISDEM/WEIS`, including subpackages that are shipped in weis... and the shipped versions seem to supersede the local devel versions. So modifying the local code does not affect execution. To work that around, do NOT specify them in the environment file (or uninstall the packages from the conda env and pip).
 
-3. Clone the repository and install the software
+1. Clone the repository and install the software
 
         git clone https://github.com/WISDEM/WEIS.git
         cd WEIS
         git checkout branch_name                         # (Only if you want to switch branches, say "develop")
         python setup.py develop                          # (The common "pip install -e ." will not work here)
 
-4. Instructions specific for DOE HPC system Eagle.  Before executing the setup script, do:
+2. Instructions specific for DOE HPC system Eagle.  Before executing the setup script, do:
 
         module load comp-intel intel-mpi mkl
         module unload gcc
