@@ -1,0 +1,370 @@
+anyio==4.6.2.post1
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
+arrow==1.3.0
+asttokens==2.4.1
+async-lru==2.0.4
+attrs==24.2.0
+Babel==2.14.0
+beautifulsoup4==4.12.3
+bleach==6.1.0
+Brotli==1.1.0
+certifi==2024.8.30
+cffi==1.17.1
+charset-normalizer==3.4.0
+comm==0.2.2
+contourpy==1.3.0
+control==0.9.0
+cycler==0.12.1
+dearpygui==2.0.0
+debugpy==1.8.7
+decorator==5.1.1
+defusedxml==0.7.1
+dill==0.3.9
+docopt==0.6.2
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=dtqpy&subdirectory=dtqpy
+entrypoints==0.4
+et_xmlfile==2.0.0
+exceptiongroup==1.2.2
+executing==2.1.0
+fastjsonschema==2.20.0
+fatpack==0.7.8
+fonttools==4.55.0
+fqdn==1.5.1
+future==1.0.0
+h11==0.14.0
+h2==4.1.0
+hpack==4.0.0
+httpcore==1.0.7
+httpx==0.27.2
+hyperframe==6.0.1
+idna==3.10
+importlib_metadata==8.5.0
+importlib_resources==6.4.5
+iniconfig==2.0.0
+ipykernel==6.14.0
+ipython==8.18.1
+ipywidgets==8.1.5
+isoduration==20.11.0
+jedi==0.19.1
+jenn==1.0.8
+Jinja2==3.1.4
+joblib==1.4.2
+json5==0.9.25
+jsonmerge==1.9.2
+jsonpointer==3.0.0
+jsonschema==4.23.0
+jsonschema-specifications==2024.10.1
+jupyter==1.1.1
+jupyter-console==6.6.3
+jupyter-events==0.10.0
+jupyter-lsp==2.2.5
+jupyter_client==8.6.3
+jupyter_core==5.7.2
+jupyter_server==2.14.2
+jupyter_server_terminals==0.5.3
+jupyterlab==4.2.6
+jupyterlab_pygments==0.3.0
+jupyterlab_server==2.27.3
+jupyterlab_widgets==3.0.13
+kiwisolver==1.4.7
+MarkupSafe==3.0.2
+marmot-agents==0.2.5
+mat4py==0.6.0
+matplotlib==3.9.2
+matplotlib-inline==0.1.7
+mdolab-baseclasses==1.8.0
+meson==1.6.0
+mistune==3.0.2
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=MoorPy&subdirectory=MoorPy
+mpi4py==4.0.1
+munkres==1.1.4
+nbclient==0.10.0
+nbconvert==7.16.4
+nbformat==5.10.4
+nest-asyncio==1.6.0
+networkx==3.2.1
+ninja==1.11.1.2
+nlopt==2.9.0
+notebook==7.2.2
+notebook_shim==0.2.4
+numpy==1.23.0
+openmdao==3.27.0
+openpyxl==3.1.5
+orjson==3.10.11
+osqp==0.6.3
+overrides==7.7.0
+packaging==24.2
+pandas==2.2.3
+pandocfilters==1.5.0
+parso==0.8.4
+patsy==0.5.6
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=pCrunch&subdirectory=pCrunch
+pexpect==4.9.0
+pickleshare==0.7.5
+pillow==11.0.0
+pkgutil_resolve_name==1.3.10
+platformdirs==4.3.6
+pluggy==1.5.0
+prometheus_client==0.21.0
+prompt_toolkit==3.0.48
+psutil==6.0.0
+ptyprocess==0.7.0
+pure_eval==0.2.3
+pycparser==2.22
+pyDOE3==1.0.4
+Pygments==2.18.0
+pyHAMS==1.3.0
+-e git+ssh://git@github.com/mdolab/pyoptsparse.git@5fef213c4d27917f1511f8cfd42c351be26a9f7f#egg=pyoptsparse
+pyparsing==3.2.0
+PySide6==6.8.0.2
+PySide6_Addons==6.8.0.2
+PySide6_Essentials==6.8.0.2
+PySocks==1.7.1
+pytest==8.3.3
+python-benedict==0.34.0
+python-dateutil==2.9.0.post0
+python-fsutil==0.14.1
+python-json-logger==3.2.0
+python-slugify==8.0.4
+pytz==2024.1
+PyYAML==6.0.2
+pyzmq==26.2.0
+qdldl==0.1.7.post4
+QtPy==2.4.1
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=RAFT&subdirectory=RAFT
+referencing==0.35.1
+requests==2.32.3
+rfc3339-validator==0.1.4
+rfc3986-validator==0.1.1
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=rosco&subdirectory=ROSCO
+rpds-py==0.22.3
+ruamel.yaml==0.18.6
+ruamel.yaml.clib==0.2.12
+scikit-learn==1.5.2
+scipy==1.13.1
+seaborn==0.13.2
+Send2Trash==1.8.2
+shiboken6==6.8.0.2
+simpy==4.1.1
+six==1.16.0
+slycot==0.5.4
+smt==2.7.0
+sniffio==1.3.1
+sortedcontainers==2.4.0
+soupsieve==2.5
+sqlitedict==2.1.0
+stack-data==0.6.2
+statsmodels==0.14.4
+terminado==0.15.0
+text-unidecode==1.3
+threadpoolctl==3.5.0
+tinycss2==1.4.0
+tomli==2.1.0
+tornado==6.4.1
+traitlets==5.14.3
+treon==0.1.4
+types-python-dateutil==2.9.0.20241206
+typing-utils==0.1.0
+typing_extensions==4.12.2
+tzdata==2024.2
+unicodedata2==15.1.0
+uri-template==1.3.0
+urllib3==2.2.3
+wcwidth==0.2.13
+webcolors==24.8.0
+webencodings==0.5.1
+websocket-client==1.8.0
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=WEIS
+widgetsnbextension==4.0.13
+-e git+ssh://git@github.com/DGCaprace/WEIS.git@81fd968fd04eb0e2beb274a91edcb210ceadf3fb#egg=WISDEM&subdirectory=WISDEM
+zipp==3.21.0
+zstandard==0.23.0
+=========
+Package                   Version        Location
+------------------------- -------------- ----------------------------------------------------------------
+anyio                     4.6.2.post1
+argon2-cffi               23.1.0
+argon2-cffi-bindings      21.2.0
+arrow                     1.3.0
+asttokens                 2.4.1
+async-lru                 2.0.4
+attrs                     24.2.0
+Babel                     2.14.0
+beautifulsoup4            4.12.3
+bleach                    6.1.0
+Brotli                    1.1.0
+certifi                   2024.8.30
+cffi                      1.17.1
+charset-normalizer        3.4.0
+comm                      0.2.2
+contourpy                 1.3.0
+control                   0.9.0
+cycler                    0.12.1
+dearpygui                 2.0.0
+debugpy                   1.8.7
+decorator                 5.1.1
+defusedxml                0.7.1
+dill                      0.3.9
+docopt                    0.6.2
+dtqpy                     0.0.1          /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/dtqpy
+entrypoints               0.4
+et_xmlfile                2.0.0
+exceptiongroup            1.2.2
+executing                 2.1.0
+fastjsonschema            2.20.0
+fatpack                   0.7.8
+fonttools                 4.55.0
+fqdn                      1.5.1
+future                    1.0.0
+h11                       0.14.0
+h2                        4.1.0
+hpack                     4.0.0
+httpcore                  1.0.7
+httpx                     0.27.2
+hyperframe                6.0.1
+idna                      3.10
+importlib_metadata        8.5.0
+importlib_resources       6.4.5
+iniconfig                 2.0.0
+ipykernel                 6.14.0
+ipython                   8.18.1
+ipywidgets                8.1.5
+isoduration               20.11.0
+jedi                      0.19.1
+jenn                      1.0.8
+Jinja2                    3.1.4
+joblib                    1.4.2
+json5                     0.9.25
+jsonmerge                 1.9.2
+jsonpointer               3.0.0
+jsonschema                4.23.0
+jsonschema-specifications 2024.10.1
+jupyter                   1.1.1
+jupyter_client            8.6.3
+jupyter-console           6.6.3
+jupyter_core              5.7.2
+jupyter-events            0.10.0
+jupyter-lsp               2.2.5
+jupyter_server            2.14.2
+jupyter_server_terminals  0.5.3
+jupyterlab                4.2.6
+jupyterlab_pygments       0.3.0
+jupyterlab_server         2.27.3
+jupyterlab_widgets        3.0.13
+kiwisolver                1.4.7
+MarkupSafe                3.0.2
+marmot-agents             0.2.5
+mat4py                    0.6.0
+matplotlib                3.9.2
+matplotlib-inline         0.1.7
+mdolab-baseclasses        1.8.0
+meson                     1.6.0
+mistune                   3.0.2
+MoorPy                    0.9.0          /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/MoorPy
+mpi4py                    4.0.1
+munkres                   1.1.4
+nbclient                  0.10.0
+nbconvert                 7.16.4
+nbformat                  5.10.4
+nest-asyncio              1.6.0
+networkx                  3.2.1
+ninja                     1.11.1.2
+nlopt                     2.9.0
+notebook                  7.2.2
+notebook_shim             0.2.4
+numpy                     1.23.0
+openmdao                  3.27.0
+openpyxl                  3.1.5
+orjson                    3.10.11
+osqp                      0.6.3
+overrides                 7.7.0
+packaging                 24.2
+pandas                    2.2.3
+pandocfilters             1.5.0
+parso                     0.8.4
+patsy                     0.5.6
+pCrunch                   1.0.0          /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/pCrunch
+pexpect                   4.9.0
+pickleshare               0.7.5
+pillow                    11.0.0
+pip                       21.2.2
+pkgutil_resolve_name      1.3.10
+platformdirs              4.3.6
+pluggy                    1.5.0
+prometheus_client         0.21.0
+prompt_toolkit            3.0.48
+psutil                    6.0.0
+ptyprocess                0.7.0
+pure_eval                 0.2.3
+pycparser                 2.22
+pyDOE3                    1.0.4
+Pygments                  2.18.0
+pyHAMS                    1.3.0
+pyoptsparse               2.10.2         /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/pkgs/pyoptsparse
+pyparsing                 3.2.0
+PySide6                   6.8.0.2
+PySide6_Addons            6.8.0.2
+PySide6_Essentials        6.8.0.2
+PySocks                   1.7.1
+pytest                    8.3.3
+python-benedict           0.34.0
+python-dateutil           2.9.0.post0
+python-fsutil             0.14.1
+python-json-logger        3.2.0
+python-slugify            8.0.4
+pytz                      2024.1
+PyYAML                    6.0.2
+pyzmq                     26.2.0
+qdldl                     0.1.7.post4
+QtPy                      2.4.1
+RAFT                      0.1            /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/RAFT
+referencing               0.35.1
+requests                  2.32.3
+rfc3339-validator         0.1.4
+rfc3986-validator         0.1.1
+rosco                     2.6.0          /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/ROSCO
+rpds-py                   0.22.3
+ruamel.yaml               0.18.6
+ruamel.yaml.clib          0.2.12
+scikit-learn              1.5.2
+scipy                     1.13.1
+seaborn                   0.13.2
+Send2Trash                1.8.2
+setuptools                64.0.0
+shiboken6                 6.8.0.2
+simpy                     4.1.1
+six                       1.16.0
+slycot                    0.5.4
+smt                       2.7.0
+sniffio                   1.3.1
+sortedcontainers          2.4.0
+soupsieve                 2.5
+sqlitedict                2.1.0
+stack-data                0.6.2
+statsmodels               0.14.4
+terminado                 0.15.0
+text-unidecode            1.3
+threadpoolctl             3.5.0
+tinycss2                  1.4.0
+tomli                     2.1.0
+tornado                   6.4.1
+traitlets                 5.14.3
+treon                     0.1.4
+types-python-dateutil     2.9.0.20241206
+typing_extensions         4.12.2
+typing-utils              0.1.0
+tzdata                    2024.2
+unicodedata2              15.1.0
+uri-template              1.3.0
+urllib3                   2.2.3
+wcwidth                   0.2.13
+webcolors                 24.8.0
+webencodings              0.5.1
+websocket-client          1.8.0
+WEIS                      1.1            /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS
+wheel                     0.45.0
+widgetsnbextension        4.0.13
+WISDEM                    3.6.1          /globalscratch/users/d/c/dcaprace/ATLANTIS/LoFi/WEIS/WISDEM
+zipp                      3.21.0
+zstandard                 0.23.0
