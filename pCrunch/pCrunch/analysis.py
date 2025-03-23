@@ -462,6 +462,8 @@ class LoadsAnalysis:
         return_damage: boolean
             Whether to compute both DEL and true damage
             Default: False
+        DELstar: boolean
+            If True, elapsed and slope are not used. The output can be aggregated for several cases.
         """
 
         bins = kwargs.get("rainflow_bins", 100)
